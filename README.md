@@ -1,0 +1,244 @@
+# 🎨 Bad Mental Canvas
+
+A Jackbox-style party drawing game for **3–5 players**, built for Android and iOS.
+Everyone plays on their own phone — no shared TV screen needed.
+
+## How the game plays
+
+Same structure as Jackbox's **Patently Stupid**: one round per player, everyone
+draws a solution to the same problem, then bets fake money on their favorites.
+
+1. **Lobby** — one player opens a room; others join by 4-letter code, or hit **Quick Play** to be dropped into a random open lobby. Short on people? The host can **Add Player** to fill empty seats with bots (see below).
+2. **Invent a problem** — one player each round gets a Mad-Libs-style sentence with a blank (e.g. *"Scientists have finally created a device to stop people from ___."*) and fills it in. Only real players get writer turns — this is the creative half of the game.
+3. **Draw** — that completed sentence goes to **everyone** (including the writer), who all draw a solution, then name their invention in a popup. 75 seconds.
+4. **Present** — every drawing is shown one at a time, image first, then its title.
+5. **Invest** — every player gets **$1800** to distribute across everyone's drawing but their own. Spend it all: unspent money is deducted from your own winnings.
+6. **Reveal** — see how much each invention raised, who backed it, and the score breakdown.
+7. Repeat until every human player has had one turn writing the blank, then final scores. The host can hit **Play Again** to run it back.
+
+### Scoring
+
+Per round, your score changes by **`money raised + placement bonus − unspent money`**:
+
+| | |
+| --- | --- |
+| Money your drawing attracts | **+$1 per $1** |
+| 1st / 2nd / 3rd most-funded | **+$500 / +$300 / +$100** |
+| Budget you failed to spend | **−$1 per $1** |
+
+Each player starts a round with $2000 and pays a $200 entry fee, leaving
+**$1800** to invest. Note the entry fees don't exactly fund the $900 of
+placement bonuses except at 5 players — they're two independent rules rather
+than a closed economy. Tunable via `INVESTMENT_BUDGET`, `INVESTMENT_STEP` and
+`PLACEMENT_BONUSES` in `server/src/rooms.ts`.
+
+## Bots
+
+Empty seats can be filled with bots so a game works with fewer people. They
+use ordinary first names and show a small `CPU` badge in the lobby, and they
+are ordinary lobby members server-side — every phase check treats them exactly
+like humans, so there's no separate bot code path through the game.
+
+What they do:
+
+- **Draw** — a procedural doodle engine (`server/src/doodle/`) composes a
+  contraption from hand-authored parts (bodies, dials, levers, antennas,
+  wheels, gears), then layers on topical extras when the prompt mentions
+  something depictable — flames, wings, food, rockets, coins, stick figures.
+  Every drawing in this game is an "invention", so a contraption always reads
+  as a plausible answer even when no keyword matches.
+- **Look hand-drawn** — `pen.ts` simulates an unsteady hand: lines bow slightly
+  off-target, high-frequency tremor, circles that don't quite close, corner
+  overshoot, jittered endpoints. Nothing is geometrically perfect.
+- **Name their invention** — titles are built from a keyword mined out of the
+  prompt, e.g. *"Trips-o-Matic 2.0"* for a road-trip prompt.
+- **Invest** — they always spend their entire budget (leaving money unspent is
+  strictly penalized), weighted randomly so they have favourites.
+- **Take their time** — every action is delayed to 25–70% of the phase clock so
+  the "3/5 submitted" counter creeps up like it would with real players.
+
+They deliberately **do not** write the fill-in-the-blank prompts — that stays
+with real players.
+
+> **Honest limitation:** bots can't actually interpret a prompt the way a person
+> can. There's no AI image model here; relevance comes from keyword matching
+> against a fixed topic list in `doodle/compose.ts`. Prompts outside that list
+> still get a generic (but convincing) contraption.
+
+## Project layout
+
+```
+Game/
+├── server/          Node.js + TypeScript WebSocket game server
+│   └── src/
+│       ├── index.ts     connection handling + phase orchestration
+│       ├── rooms.ts      lobby state machine, scoring, matchmaking
+│       ├── prompts.ts    fill-in-the-blank templates (add your own here)
+│       ├── bots.ts       bot names, titles, investing behaviour, pacing
+│       ├── doodle/       procedural hand-drawn doodle engine
+│       │   ├── pen.ts      seeded RNG + wobbly line/ellipse/arc primitives
+│       │   ├── parts.ts    reusable doodle parts (dials, wheels, flames…)
+│       │   └── compose.ts  keyword matching + assembling a full drawing
+│       └── types.ts      the wire protocol shared with the app
+└── app/             Flutter app (Android + iOS)
+    └── lib/
+        ├── main.dart
+        ├── theme.dart            colours & component styling in one place
+        ├── models/               protocol data classes
+        ├── services/             WebSocket connection
+        ├── screens/              home + the phase-driven game screen
+        ├── views/                one view per game phase
+        └── widgets/              drawing canvas, countdown timer
+```
+
+## Playing on your phone (day-to-day, no rebuild needed)
+
+The app is already installed on your phone as a normal app icon — you don't
+need this computer's Terminal, `adb`, or Claude to "launch" it each time.
+
+1. On your Mac, run:
+   ```bash
+   ./start-server.sh
+   ```
+2. On your phone, open **Bad Mental Canvas** and tap **Quick Play** or
+   **Create Private Lobby**.
+
+That's it — the app looks for the server automatically on whatever Wi-Fi
+network it's on (via mDNS/Bonjour, the same mechanism AirPlay uses), so
+switching between home and office Wi-Fi doesn't need any manual address
+entry. A small 🛜 icon next to "Server settings" confirms it found one.
+
+If auto-discovery doesn't work (some office/corporate Wi-Fi blocks the
+multicast traffic it relies on — usually called "client isolation" or "AP
+isolation"), fall back to typing it manually: `start-server.sh` prints the
+address to enter, tap **Server settings** to paste it in, and it's saved on
+the phone from then on for that network.
+
+You only need a computer-side rebuild (the `flutter run`/`adb` steps below)
+when the app's *code* changes, not when your Wi-Fi changes.
+
+## Running it (development)
+
+### 1. Start the server
+
+```bash
+cd server
+npm install       # first time only
+npm run dev        # or use ./start-server.sh from the project root
+```
+
+It listens on `ws://0.0.0.0:8090`.
+
+### 2. Run the app
+
+**On the Android emulator:**
+
+```bash
+cd app
+flutter run -d emulator-5554
+```
+
+The emulator reaches your Mac's server through a port bridge — run this once
+while the emulator is up:
+
+```bash
+adb reverse tcp:8090 tcp:8090
+```
+
+**In a browser (fastest way to test with several players):**
+
+```bash
+cd app
+flutter run -d chrome --web-port=5050
+```
+
+Open `http://localhost:5050` in three tabs — create a lobby in one, join with
+the code in the others.
+
+**On a real phone (same Wi-Fi as your Mac):**
+
+1. Find your Mac's LAN IP: `ipconfig getifaddr en0`
+2. In the app, tap **Server settings** and enter `<that-ip>:8090`.
+
+### Environment setup (already done on this machine)
+
+Node, Flutter, Java (OpenJDK), and the Android SDK are installed and on your
+`PATH` via `~/.bash_profile`. Verify anytime with `flutter doctor`.
+
+> **iOS still needs Xcode.** Install it from the Mac App Store, then run:
+> ```bash
+> sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+> sudo xcodebuild -runFirstLaunch
+> sudo gem install cocoapods
+> ```
+> After that, `flutter run -d <ios-device>` will work. Everything in the app is
+> cross-platform already — no code changes needed.
+
+## Tests
+
+```bash
+cd app && flutter analyze && flutter test
+cd server && npx tsc --noEmit -p .
+```
+
+## Making it your own
+
+- **Prompt templates** — edit `server/src/prompts.ts`. Each is a sentence with
+  one `___` marking the blank a player fills in.
+- **Look and feel** — all colours and component styles live in `app/lib/theme.dart`.
+- **Timings** — the phase clocks are constants at the top of `server/src/rooms.ts`
+  (`PROMPT_SECONDS`, `DRAW_SECONDS`, `INVEST_SECONDS`, `REVEAL_SECONDS`). If you
+  change them, update the matching constants in the corresponding view files so
+  the progress bars stay accurate.
+- **Investment budget** — `INVESTMENT_BUDGET`, `INVESTMENT_STEP` and
+  `PLACEMENT_BONUSES` in `server/src/rooms.ts`. The step is sent to the app at
+  runtime, so only change it here. **Keep the step dividing the budget exactly**
+  — otherwise players can't spend their full budget and always eat the
+  unspent-money penalty.
+- **Bot names** — `BOT_NAMES` in `server/src/bots.ts`.
+- **What bots draw** — add parts in `server/src/doodle/parts.ts`, then wire them
+  into a topic in `doodle/compose.ts`. Adding a topic means adding its keywords
+  to `TOPIC_WORDS` and a case to `drawTopicSubject`/`drawTopicAccents`.
+- **Custom art** — drop images into `app/assets/`, register them in
+  `pubspec.yaml`, and reference them from the views. The game logic doesn't need
+  to change.
+
+## Before shipping to the Play Store
+
+The game is fully playable, but these are needed for a public release:
+
+1. **Host the server publicly.** Right now it only runs on your Mac. Deploy
+   `server/` to something like Fly.io or Railway (cheap or free at this scale),
+   then set the app's default server address — `_defaultServer` in
+   `app/lib/screens/home_screen.dart` — to that host, and switch `ws://` to
+   `wss://` in `app/lib/services/game_connection.dart` once you have TLS. Once
+   there's a fixed public address, the mDNS auto-discovery (which only works
+   on a local network) stops being necessary — players just always connect to
+   the same place.
+2. **Application ID.** Currently `com.drawandfool.draw_and_fool` in
+   `app/android/app/build.gradle.kts` (left over from before the rename — it's
+   just an internal identifier, invisible to players). Change it to a domain
+   you own before release — it can never be changed after your first Play
+   Store upload.
+3. **Signing key.** Create an upload keystore and wire it into a release
+   `signingConfig`; the release build currently uses debug signing.
+4. **App icon and name.** Replace the default Flutter launcher icons and set the
+   display name in `AndroidManifest.xml`.
+5. **Build the bundle:** `flutter build appbundle --release`
+6. **Store listing.** Play requires a privacy policy, screenshots, a feature
+   graphic, and a content rating questionnaire.
+
+### Known considerations
+
+- Games are held in memory, so restarting the server drops in-progress lobbies.
+  That's fine for a party game; add a datastore only if you want games to survive
+  deploys.
+- There's no reconnect-into-a-running-game yet. If a player's phone drops, the
+  round continues without them and the remaining players aren't blocked.
+- **`MIN_PLAYERS_TO_START` is currently `1`** (in `server/src/rooms.ts`, mirrored
+  by `_minPlayers` in `app/lib/views/lobby_view.dart`) so you can test the
+  drawing screen solo. Playing truly alone means nobody invests in your drawing,
+  so it always raises $0 — add a couple of bots instead, which gives a real game
+  loop with one person. Consider setting both back to `3` before release.
+- Since only humans get writer turns, a lobby of 1 human + 2 bots is a
+  **one-round** game. More humans means more rounds.
