@@ -128,6 +128,47 @@ export const PROMPT_TEMPLATES: string[] = [
   "A good invention right now would put an end to ___.",
 ];
 
+/** Already-completed sentences used only for the ambient "someone is doodling"
+ *  canvas on the home and lobby screens. Real rounds get their blank filled by
+ *  a player, but there's nobody to write one while people are just waiting
+ *  around — so these ship pre-filled.
+ *
+ *  Deliberately weighted toward words the doodle engine can actually depict
+ *  (see TOPIC_WORDS in doodle/compose.ts) — coffee, dogs, traffic, phones —
+ *  so the drawing that appears looks connected to the sentence above it. */
+export const DEMO_PROMPTS: string[] = [
+  "Nothing ruins a commute faster than traffic that never moves.",
+  "Every office has an ongoing problem with the coffee machine.",
+  "Falling asleep is hard enough without the neighbour's dog.",
+  "The most annoying part of waking up is usually the alarm.",
+  "Mornings would be so much easier without cold showers.",
+  "Every kitchen eventually has a problem with burnt toast.",
+  "Somebody really needs to invent something for tangled cables.",
+  "Video calls always get interrupted by a cat on the keyboard.",
+  "Laundry day is really just an ongoing battle against missing socks.",
+  "Half of modern life is just dealing with a phone at 1% battery.",
+  "Dog owners everywhere deal with muddy paws on a daily basis.",
+  "Every road trip with kids eventually comes down to snacks.",
+  "Nobody wants to go to the gym and deal with the treadmill.",
+  "Rainy days always mean dealing with a broken umbrella.",
+  "Every winter comes with the exact same problem: frozen car doors.",
+  "Summer would be perfect if it weren't for melting ice cream.",
+  "The worst part of eating out is splitting the bill.",
+  "Grocery shopping always comes down to dealing with heavy bags.",
+  "Every group chat eventually runs into someone sending 40 photos.",
+  "Nothing wastes more time than looking for lost keys.",
+  "Every parking lot has the same problem: nowhere to park.",
+  "Cooking dinner always comes down to having to wash up after.",
+  "Every nap gets interrupted by the doorbell.",
+  "A dead wifi connection always causes a very long meeting.",
+  "Late-night snacking always means opening a loud packet quietly.",
+  "Cats always seem to have a problem with a closed door.",
+];
+
+export function pickDemoPrompt(): string {
+  return DEMO_PROMPTS[Math.floor(Math.random() * DEMO_PROMPTS.length)];
+}
+
 const BLANK = "___";
 
 export function pickTemplate(excludeIndices: Set<number>): { index: number; template: string } {

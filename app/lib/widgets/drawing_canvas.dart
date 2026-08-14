@@ -9,7 +9,7 @@ const paperColor = Color(0xFFFAF3E3);
 /// A cream base plus faint speckles/fibers so the canvas reads as paper
 /// rather than a flat white rectangle. Deterministic (fixed seed), so it
 /// doesn't shimmer between repaints.
-void _paintPaperBackground(Canvas canvas, Size size) {
+void paintPaperBackground(Canvas canvas, Size size) {
   canvas.drawRect(Offset.zero & size, Paint()..color = paperColor);
   final rnd = Random(3);
 
@@ -156,13 +156,13 @@ class _DrawingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    _paintPaperBackground(canvas, size);
+    paintPaperBackground(canvas, size);
     for (final stroke in controller.strokes) {
-      _paintPath(canvas, stroke.points, stroke.color, stroke.width);
+      paintStrokePath(canvas, stroke.points, stroke.color, stroke.width);
     }
     final current = controller.currentStroke;
     if (current != null) {
-      _paintPath(canvas, current.points, current.color, current.width);
+      paintStrokePath(canvas, current.points, current.color, current.width);
     }
   }
 
@@ -189,10 +189,10 @@ class _StaticPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    _paintPaperBackground(canvas, size);
+    paintPaperBackground(canvas, size);
     for (final stroke in strokes) {
       final points = stroke.points.map((p) => Offset(p.x * size.width, p.y * size.height));
-      _paintPath(canvas, points.toList(), stroke.color, stroke.width);
+      paintStrokePath(canvas, points.toList(), stroke.color, stroke.width);
     }
   }
 
@@ -200,7 +200,7 @@ class _StaticPainter extends CustomPainter {
   bool shouldRepaint(covariant _StaticPainter oldDelegate) => oldDelegate.strokes != strokes;
 }
 
-void _paintPath(Canvas canvas, List<Offset> points, Color color, double width) {
+void paintStrokePath(Canvas canvas, List<Offset> points, Color color, double width) {
   if (points.length < 2) return;
   final paint = Paint()
     ..color = color

@@ -106,14 +106,18 @@ class _TornEdgeClipper extends CustomClipper<Path> {
 /// A warm little "wooden desk" the paper sits on, so the drawing area reads
 /// as a real place rather than a UI panel.
 class DeskBackdrop extends StatelessWidget {
-  const DeskBackdrop({super.key, required this.child});
+  const DeskBackdrop({super.key, required this.child, this.padding = 22});
 
   final Widget child;
+
+  /// How much desk shows around the paper. Worth shrinking on the small idle
+  /// canvases, where the default leaves the drawing itself postage-stamp-sized.
+  final double padding;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
         gradient: const LinearGradient(

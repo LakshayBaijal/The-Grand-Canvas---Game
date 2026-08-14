@@ -17,6 +17,12 @@ export function isBotId(playerId: string): boolean {
   return playerId.startsWith(BOT_ID_PREFIX);
 }
 
+/** Any bot name, no lobby involved — used to sign the ambient doodles shown
+ *  on the home and lobby screens. */
+export function randomBotName(): string {
+  return BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+}
+
 /** Picks a name not already taken in the lobby, so two bots never collide. */
 export function createBot(takenNames: Set<string>): { id: string; nickname: string } {
   const lower = new Set(Array.from(takenNames, (n) => n.toLowerCase()));
@@ -48,6 +54,19 @@ const BORING_WORDS = new Set([
   "specifically", "designed", "built", "purpose", "only", "team", "spent", "just", "might",
   "too", "good", "promises", "make", "past", "must", "have", "year", "perfect", "gift",
   "needs", "want", "wants", "there", "their",
+  // Filler that reads badly in a title ("The Than Machine Pro"). The prompt
+  // sentences are conversational, so most of their words are connective
+  // tissue — keep only the ones naming an actual thing.
+  "somebody", "someone", "everybody", "everyone", "anybody", "nobody", "than",
+  "always", "never", "nothing", "usually", "really", "still", "very", "quite",
+  "comes", "come", "coming", "down", "into", "onto", "about", "over", "under",
+  "when", "what", "where", "while", "which", "because", "eventually", "ongoing",
+  "gets", "getting", "goes", "going", "does", "doing", "turns", "turn", "means",
+  "keeps", "keep", "leaves", "takes", "take", "having", "hard", "enough", "same",
+  "another", "least", "once", "much", "many", "some", "such", "would", "could",
+  "should", "will", "wont", "your", "them", "they", "were", "faster", "worst",
+  "best", "better", "long", "longer", "half", "part", "back", "away", "each",
+  "most", "them", "then", "these", "those", "than",
 ]);
 
 function keywordFrom(prompt: string, rng: Rng): string | null {

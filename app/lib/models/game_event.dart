@@ -1,5 +1,6 @@
 import 'lobby_state.dart';
 import 'round_models.dart';
+import 'stroke.dart';
 
 sealed class GameEvent {
   const GameEvent();
@@ -97,6 +98,22 @@ class RoundRevealEvent extends GameEvent {
 class FinalResultsEvent extends GameEvent {
   const FinalResultsEvent(this.scores);
   final List<ScoreRow> scores;
+}
+
+/// One bot drawing to replay on an idle screen. [strokes] are in the order
+/// they were drawn, so the client can play them back like a hand at work.
+class DoodleEvent extends GameEvent {
+  const DoodleEvent({
+    required this.prompt,
+    required this.artistName,
+    required this.title,
+    required this.strokes,
+  });
+
+  final String prompt;
+  final String artistName;
+  final String title;
+  final List<Stroke> strokes;
 }
 
 class ErrorEvent extends GameEvent {

@@ -112,6 +112,15 @@ class GameConnection {
               .map((s) => ScoreRow.fromJson(s as Map<String, dynamic>))
               .toList(),
         );
+      case 'doodle':
+        return DoodleEvent(
+          prompt: json['prompt'] as String,
+          artistName: json['artistName'] as String,
+          title: json['title'] as String,
+          strokes: (json['strokes'] as List)
+              .map((s) => Stroke.fromJson(s as Map<String, dynamic>))
+              .toList(),
+        );
       case 'error':
         return ErrorEvent(json['message'] as String);
       case 'pong':
@@ -143,6 +152,9 @@ class GameConnection {
       _send({'type': 'submit_investment', 'allocations': allocations});
 
   void playAgain() => _send({'type': 'play_again'});
+
+  /// Asks for one ambient doodle to replay while players wait around.
+  void requestDoodle() => _send({'type': 'request_doodle'});
 
   void _send(Map<String, dynamic> message) => _channel?.sink.add(jsonEncode(message));
 

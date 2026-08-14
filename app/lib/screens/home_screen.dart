@@ -7,6 +7,7 @@ import '../models/game_event.dart';
 import '../services/game_connection.dart';
 import '../services/server_discovery.dart';
 import '../theme.dart';
+import '../widgets/doodle_stage.dart';
 import 'game_screen.dart';
 
 /// Where the phone should look for the game server. On the Android emulator
@@ -41,11 +42,35 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _discovering = false;
   bool _discovered = false;
 
+  /// The idle canvas runs on its own socket rather than sharing
+  /// [widget.connection]. Joining a game reconnects that one, and a
+  /// close/reopen in the middle of the join handshake would otherwise look
+  /// like a dropped connection to [_handleEvent].
+  final _doodleConnection = GameConnection();
+  StreamSubscription<GameEvent>? _doodleSub;
+  DoodleEvent? _doodle;
+
   @override
   void initState() {
     super.initState();
     _sub = widget.connection.events.listen(_handleEvent);
-    _loadSavedAddress().then((_) => _autoDiscover());
+    _doodleSub = _doodleConnection.events.listen((event) {
+      if (event is DoodleEvent && mounted) setState(() => _doodle = event);
+    });
+    _loadSavedAddress().then((_) => _autoDiscover()).then((_) => _startDoodleFeed());
+  }
+
+  /// Opens a side connection purely to pull down bot drawings to replay while
+  /// the player is deciding what to do. Best-effort: with no server reachable
+  /// there's simply no canvas, and nothing else on this screen changes.
+  Future<void> _startDoodleFeed() async {
+    try {
+      await _doodleConnection.connect(_addressController.text.trim());
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    _doodleConnection.requestDoodle();
   }
 
   Future<void> _loadSavedAddress() async {
@@ -82,6 +107,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _doodleSub?.cancel();
+    _doodleConnection.dispose();
     _nicknameController.dispose();
     _codeController.dispose();
     _addressController.dispose();
@@ -97,7 +124,13 @@ class _HomeScreenState extends State<HomeScreen> {
         // Only the first lobby_state (the one that put us in a room) should
         // navigate; later updates belong to GameScreen.
         if (!_busy) return;
-        setState(() => _busy = false);
+        setState(() {
+          _busy = false;
+          // The lobby runs its own idle canvas off the game connection; this
+          // screen's side socket would just be burning battery behind it.
+          _doodle = null;
+        });
+        _doodleConnection.disconnect();
         Navigator.of(context)
             .push(
               MaterialPageRoute(
@@ -108,7 +141,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             )
-            .then((_) => widget.connection.disconnect());
+            .then((_) async {
+              await widget.connection.disconnect();
+              if (mounted) await _startDoodleFeed();
+            });
       case ErrorEvent(:final message):
         setState(() {
           _busy = false;
@@ -170,9 +206,9 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 36),
-              const Text('🎨', style: TextStyle(fontSize: 56), textAlign: TextAlign.center),
-              const SizedBox(height: 8),
+              const SizedBox(height: 22),
+              const Text('🎨', style: TextStyle(fontSize: 44), textAlign: TextAlign.center),
+              const SizedBox(height: 6),
               const Text(
                 'BAD MENTAL\nCANVAS',
                 textAlign: TextAlign.center,
@@ -190,7 +226,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: GameColors.textMuted, fontSize: 15),
               ),
-              const SizedBox(height: 32),
+              // Something is always being drawn here, so the menu shows what
+              // the game actually is instead of describing it. Only appears
+              // once a server has been found.
+              if (_doodle != null) ...[
+                const SizedBox(height: 20),
+                DoodleStage(
+                  doodle: _doodle,
+                  onNext: _doodleConnection.requestDoodle,
+                  maxCanvasSize: 215,
+                  compact: true,
+                ),
+              ],
+              const SizedBox(height: 26),
               TextField(
                 controller: _nicknameController,
                 maxLength: 16,

@@ -8,7 +8,7 @@ Everyone plays on their own phone — no shared TV screen needed.
 Same structure as Jackbox's **Patently Stupid**: one round per player, everyone
 draws a solution to the same problem, then bets fake money on their favorites.
 
-1. **Lobby** — one player opens a room; others join by 4-letter code, or hit **Quick Play** to be dropped into a random open lobby. Short on people? The host can **Add Player** to fill empty seats with bots (see below).
+1. **Lobby** — one player opens a room; others join by 4-letter code, or hit **Quick Play** to be dropped into a random open lobby. Short on people? The host can **Add Player** to fill empty seats with bots (see below). While you wait, a bot draws on the [idle canvas](#the-idle-canvas).
 2. **Invent a problem** — one player each round gets a Mad-Libs-style sentence with a blank (e.g. *"Scientists have finally created a device to stop people from ___."*) and fills it in. Only real players get writer turns — this is the creative half of the game.
 3. **Draw** — that completed sentence goes to **everyone** (including the writer), who all draw a solution, then name their invention in a popup. 75 seconds.
 4. **Present** — every drawing is shown one at a time, image first, then its title.
@@ -31,6 +31,34 @@ Each player starts a round with $2000 and pays a $200 entry fee, leaving
 placement bonuses except at 5 players — they're two independent rules rather
 than a closed economy. Tunable via `INVESTMENT_BUDGET`, `INVESTMENT_STEP` and
 `PLACEMENT_BONUSES` in `server/src/rooms.ts`.
+
+## The idle canvas
+
+The home screen and the lobby both show a sheet of paper with a bot drawing on
+it, line by line, in real time — a random problem appears, the drawing is
+solved in front of you, its title lands, and the next one starts. Waiting for
+friends to join is the dullest moment in a party game, so this fills it with
+the thing the game is actually about.
+
+How it works: nothing is streamed point by point. The server sends one whole
+drawing (`request_doodle` → `doodle`), and because the doodle engine emits
+strokes **in the order a hand would draw them**, the client just replays that
+order on a clock — see `app/lib/widgets/live_doodle.dart`. Pen lifts between
+strokes are charged time too, so it reads as separate pen strokes rather than
+one long scribble. A typical drawing takes 10-15 seconds.
+
+- The sentences come from `DEMO_PROMPTS` in `server/src/prompts.ts` — these
+  ship **pre-filled**, unlike the round templates, because there's no player
+  around to fill in a blank yet. They lean on words the doodle engine can
+  depict (coffee, dogs, traffic) so the drawing matches the sentence.
+- `request_doodle` deliberately requires no lobby and no phase, so the home
+  screen can show one before anybody has joined anything.
+- The home screen opens a **separate** WebSocket for this rather than sharing
+  the game connection — joining a game reconnects that one, and a close/reopen
+  mid-handshake would look like a dropped connection. It's closed while you're
+  in a game and reopened when you come back.
+- If no server is reachable, the card simply doesn't appear. Nothing else on
+  the screen changes.
 
 ## Bots
 
@@ -73,7 +101,7 @@ Game/
 │   └── src/
 │       ├── index.ts     connection handling + phase orchestration
 │       ├── rooms.ts      lobby state machine, scoring, matchmaking
-│       ├── prompts.ts    fill-in-the-blank templates (add your own here)
+│       ├── prompts.ts    fill-in-the-blank templates + idle-canvas sentences
 │       ├── bots.ts       bot names, titles, investing behaviour, pacing
 │       ├── doodle/       procedural hand-drawn doodle engine
 │       │   ├── pen.ts      seeded RNG + wobbly line/ellipse/arc primitives
@@ -88,7 +116,9 @@ Game/
         ├── services/             WebSocket connection
         ├── screens/              home + the phase-driven game screen
         ├── views/                one view per game phase
-        └── widgets/              drawing canvas, countdown timer
+        └── widgets/              drawing canvas, countdown timer,
+                                  live_doodle.dart + doodle_stage.dart
+                                  (the idle canvas)
 ```
 
 ## Playing on your phone (day-to-day, no rebuild needed)
@@ -183,8 +213,10 @@ cd server && npx tsc --noEmit -p .
 
 ## Making it your own
 
-- **Prompt templates** — edit `server/src/prompts.ts`. Each is a sentence with
-  one `___` marking the blank a player fills in.
+- **Prompt templates** — edit `PROMPT_TEMPLATES` in `server/src/prompts.ts`.
+  Each is a sentence with one `___` marking the blank a player fills in.
+  `DEMO_PROMPTS` in the same file feeds the idle canvas and is already
+  complete — no `___` in those.
 - **Look and feel** — all colours and component styles live in `app/lib/theme.dart`.
 - **Timings** — the phase clocks are constants at the top of `server/src/rooms.ts`
   (`PROMPT_SECONDS`, `DRAW_SECONDS`, `INVEST_SECONDS`, `REVEAL_SECONDS`). If you

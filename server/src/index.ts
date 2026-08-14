@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { advertiseOnLocalNetwork } from "./discovery.js";
 import type { ClientMessage, ServerMessage } from "./types.js";
-import { botDelayMs, botDrawing, botInvestment, botTitle } from "./bots.js";
+import { botDelayMs, botDrawing, botInvestment, botTitle, randomBotName } from "./bots.js";
+import { pickDemoPrompt } from "./prompts.js";
 import {
   DRAW_SECONDS,
   INVEST_SECONDS,
@@ -349,6 +350,21 @@ wss.on("connection", (ws) => {
         recordInvestment(lobby, connectionId, message.allocations);
         broadcastWaiting(lobby, lobby.investments.size, lobby.players.size);
         if (everyoneInvested(lobby)) finishInvesting(lobby);
+        break;
+      }
+
+      case "request_doodle": {
+        // Pure decoration for players who are waiting — intentionally has no
+        // lobby or phase requirement, so the home screen can show one before
+        // anybody has joined anything.
+        const prompt = pickDemoPrompt();
+        send(ws, {
+          type: "doodle",
+          prompt,
+          artistName: randomBotName(),
+          title: botTitle(prompt),
+          strokes: botDrawing(prompt, randomUUID()),
+        });
         break;
       }
 

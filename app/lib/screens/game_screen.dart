@@ -49,10 +49,20 @@ class _GameScreenState extends State<GameScreen> {
   int _waitingTotal = 0;
   bool _disconnected = false;
 
+  /// The bot drawing replaying on the lobby's idle canvas.
+  DoodleEvent? _doodle;
+
   @override
   void initState() {
     super.initState();
     _sub = widget.connection.events.listen(_handleEvent);
+    widget.connection.requestDoodle();
+  }
+
+  /// Only ask for another while people are actually sitting in the lobby —
+  /// once the game starts nobody's looking at the idle canvas.
+  void _requestDoodle() {
+    if (_phase == GamePhase.lobby) widget.connection.requestDoodle();
   }
 
   @override
@@ -71,8 +81,12 @@ class _GameScreenState extends State<GameScreen> {
           if (_phase == GamePhase.results) {
             _phase = GamePhase.lobby;
             _resetRoundState();
+            // Back in the lobby after "play again" — restart the idle canvas.
+            widget.connection.requestDoodle();
           }
         });
+      case DoodleEvent():
+        setState(() => _doodle = event);
       case PromptWritingEvent():
         setState(() {
           _phase = GamePhase.promptWriting;
@@ -162,6 +176,8 @@ class _GameScreenState extends State<GameScreen> {
           onStart: widget.connection.startGame,
           onAddBot: widget.connection.addBot,
           onRemoveBot: widget.connection.removeBot,
+          doodle: _doodle,
+          onNextDoodle: _requestDoodle,
         ),
       GamePhase.promptWriting => PromptWritingView(
           key: ValueKey('prompt-${_promptWriting!.roundIndex}'),

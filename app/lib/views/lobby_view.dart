@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/game_event.dart';
 import '../models/lobby_state.dart';
 import '../theme.dart';
+import '../widgets/doodle_stage.dart';
 
 // Kept in sync with MIN_PLAYERS_TO_START on the server (temporarily 1 for
 // solo testing — bump back to 3 for real games).
@@ -18,6 +20,8 @@ class LobbyView extends StatelessWidget {
     required this.onStart,
     required this.onAddBot,
     required this.onRemoveBot,
+    required this.doodle,
+    required this.onNextDoodle,
   });
 
   final LobbyState lobby;
@@ -25,6 +29,10 @@ class LobbyView extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onAddBot;
   final VoidCallback onRemoveBot;
+
+  /// The drawing currently being replayed on the lobby's idle canvas.
+  final DoodleEvent? doodle;
+  final VoidCallback onNextDoodle;
 
   bool get _isHost => lobby.hostId == myId;
   bool get _canStart => lobby.players.length >= _minPlayers;
@@ -37,89 +45,20 @@ class LobbyView extends StatelessWidget {
       appBar: AppBar(title: const Text('LOBBY')),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 8),
-              _RoomCodeCard(code: lobby.code),
-              const SizedBox(height: 28),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('PLAYERS', style: Theme.of(context).textTheme.titleMedium),
-                  Text(
-                    '${lobby.players.length}/5',
-                    style: const TextStyle(color: GameColors.textMuted),
-                  ),
-                ],
-              ),
+              const SizedBox(height: 4),
+              _RoomCodeBar(code: lobby.code),
               const SizedBox(height: 12),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: lobby.players.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final player = lobby.players[index];
-                    final color = GameColors.forIndex(index);
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: GameColors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 18,
-                            backgroundColor: color,
-                            child: Text(
-                              player.nickname.characters.first.toUpperCase(),
-                              style: const TextStyle(
-                                color: Color(0xFF16123A),
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              player.nickname,
-                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          if (player.isBot)
-                            Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: GameColors.surfaceHigh,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'CPU',
-                                style: TextStyle(
-                                  color: GameColors.textMuted,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                          if (player.id == myId)
-                            const Padding(
-                              padding: EdgeInsets.only(right: 8),
-                              child: Text('YOU', style: TextStyle(color: GameColors.textMuted)),
-                            ),
-                          if (player.id == lobby.hostId)
-                            const Icon(Icons.star_rounded, color: GameColors.primary),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
+              // The idle canvas takes whatever room the lobby isn't using —
+              // waiting for people to join is the dullest part of a party
+              // game, so there's always something being drawn here.
+              Expanded(child: DoodleStage(doodle: doodle, onNext: onNextDoodle)),
+              const SizedBox(height: 14),
+              _PlayerRow(lobby: lobby, myId: myId),
+              const SizedBox(height: 14),
               if (_isHost) ...[
                 Row(
                   children: [
@@ -129,7 +68,7 @@ class LobbyView extends StatelessWidget {
                         icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
                         label: const Text('ADD PLAYER'),
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(46),
+                          minimumSize: const Size.fromHeight(44),
                           textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -139,7 +78,7 @@ class LobbyView extends StatelessWidget {
                       OutlinedButton(
                         onPressed: onRemoveBot,
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(56, 46),
+                          minimumSize: const Size(56, 44),
                           padding: EdgeInsets.zero,
                         ),
                         child: const Icon(Icons.person_remove_alt_1_rounded, size: 18),
@@ -159,14 +98,14 @@ class LobbyView extends StatelessWidget {
                 ),
               ] else
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   alignment: Alignment.center,
                   child: const Text(
                     'Waiting for the host to start…',
-                    style: TextStyle(color: GameColors.textMuted, fontSize: 16),
+                    style: TextStyle(color: GameColors.textMuted, fontSize: 15),
                   ),
                 ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -175,38 +114,212 @@ class LobbyView extends StatelessWidget {
   }
 }
 
-class _RoomCodeCard extends StatelessWidget {
-  const _RoomCodeCard({required this.code});
+/// Everyone in the room as a single row of avatars, plus dimmed placeholders
+/// for the seats still open — compact enough to leave the canvas the space.
+class _PlayerRow extends StatelessWidget {
+  const _PlayerRow({required this.lobby, required this.myId});
+
+  final LobbyState lobby;
+  final String myId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'PLAYERS',
+              style: TextStyle(
+                color: GameColors.textMuted,
+                fontSize: 11,
+                letterSpacing: 2,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              '${lobby.players.length}/$_maxPlayers',
+              style: const TextStyle(color: GameColors.textMuted, fontSize: 12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            for (var i = 0; i < _maxPlayers; i++)
+              Expanded(
+                child: i < lobby.players.length
+                    ? _PlayerChip(
+                        player: lobby.players[i],
+                        color: GameColors.forIndex(i),
+                        isMe: lobby.players[i].id == myId,
+                        isHost: lobby.players[i].id == lobby.hostId,
+                      )
+                    : const _EmptySeat(),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PlayerChip extends StatelessWidget {
+  const _PlayerChip({
+    required this.player,
+    required this.color,
+    required this.isMe,
+    required this.isHost,
+  });
+
+  final Player player;
+  final Color color;
+  final bool isMe;
+  final bool isHost;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              radius: 19,
+              backgroundColor: color,
+              child: Text(
+                player.nickname.characters.first.toUpperCase(),
+                style: const TextStyle(
+                  color: Color(0xFF16123A),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+            if (isHost)
+              const Positioned(
+                top: -4,
+                right: -4,
+                child: Icon(Icons.star_rounded, size: 16, color: GameColors.primary),
+              ),
+            if (player.isBot)
+              Positioned(
+                bottom: -3,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: GameColors.surfaceHigh,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'CPU',
+                      style: TextStyle(
+                        color: GameColors.textMuted,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 7),
+        Text(
+          isMe ? 'YOU' : player.nickname,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: isMe ? GameColors.primary : GameColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptySeat extends StatelessWidget {
+  const _EmptySeat();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: GameColors.surfaceHigh, width: 2),
+          ),
+          child: const Icon(Icons.person_outline, size: 18, color: GameColors.surfaceHigh),
+        ),
+        const SizedBox(height: 7),
+        const Text(
+          'OPEN',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: GameColors.surfaceHigh,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The room code, kept to one line so the canvas gets the vertical space.
+class _RoomCodeBar extends StatelessWidget {
+  const _RoomCodeBar({required this.code});
 
   final String code;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       decoration: BoxDecoration(
         color: GameColors.surface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: GameColors.surfaceHigh, width: 2),
       ),
-      child: Column(
+      child: Row(
         children: [
           const Text(
-            'ROOM CODE',
-            style: TextStyle(color: GameColors.textMuted, letterSpacing: 3, fontSize: 12),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            code,
-            style: const TextStyle(
-              fontSize: 52,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 10,
-              color: GameColors.primary,
+            'ROOM\nCODE',
+            style: TextStyle(
+              color: GameColors.textMuted,
+              letterSpacing: 2,
+              fontSize: 9,
+              height: 1.3,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 4),
-          TextButton.icon(
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              code,
+              style: const TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 7,
+                color: GameColors.primary,
+              ),
+            ),
+          ),
+          IconButton(
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: code));
               if (context.mounted) {
@@ -215,11 +328,9 @@ class _RoomCodeCard extends StatelessWidget {
                 );
               }
             },
-            icon: const Icon(Icons.copy, size: 16, color: GameColors.textMuted),
-            label: const Text(
-              'Share with friends',
-              style: TextStyle(color: GameColors.textMuted),
-            ),
+            icon: const Icon(Icons.copy_rounded, size: 18),
+            color: GameColors.textMuted,
+            tooltip: 'Share with friends',
           ),
         ],
       ),

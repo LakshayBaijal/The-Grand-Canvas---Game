@@ -51,7 +51,10 @@ export type ClientMessage =
   /** artistId -> amount. Omitting an artist means 0; allocating to yourself
    *  or to a nonexistent artist is silently ignored server-side. */
   | { type: "submit_investment"; allocations: Record<string, number> }
-  | { type: "play_again" };
+  | { type: "play_again" }
+  /** Asks for one ambient doodle to replay on the home/lobby screen. Doesn't
+   *  require being in a lobby — it's decoration, not game state. */
+  | { type: "request_doodle" };
 
 export type ServerMessage =
   | { type: "pong"; serverTimeMs: number }
@@ -95,4 +98,14 @@ export type ServerMessage =
       totalRounds: number;
     }
   | { type: "final_results"; scores: ScoreRow[] }
+  /** A complete bot drawing for the client to replay stroke-by-stroke while
+   *  players wait. `strokes` are ordered exactly as they were drawn, which is
+   *  what makes the replay look like a hand at work. */
+  | {
+      type: "doodle";
+      prompt: string;
+      artistName: string;
+      title: string;
+      strokes: Stroke[];
+    }
   | { type: "error"; message: string };
