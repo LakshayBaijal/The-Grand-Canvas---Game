@@ -511,7 +511,7 @@ wss.on("connection", (ws) => {
       case "submit_drawing": {
         const lobby = getLobbyByPlayer(playerId);
         if (!lobby || lobby.phase !== "drawing") return;
-        recordDrawing(lobby, playerId, message.title, message.strokes);
+        recordDrawing(lobby, playerId, message.title, message.strokes, message.paper);
         broadcastWaiting(lobby, lobby.roundDrawings.size, lobby.players.size);
         if (everyoneDrew(lobby)) finishDrawingRound(lobby);
         break;

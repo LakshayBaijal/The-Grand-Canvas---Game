@@ -20,6 +20,10 @@ export type Stroke = {
   color: string; // hex, e.g. "#FF0000"
   width: number;
   points: Point[];
+  /** How the line is drawn ("pen", "marker", "crayon", ...). Cosmetic only,
+   *  and passed straight through — the server never interprets it. Absent
+   *  means the default pen. */
+  style?: string;
 };
 
 export type DrawingEntry = {
@@ -27,6 +31,8 @@ export type DrawingEntry = {
   artistName: string;
   title: string;
   strokes: Stroke[];
+  /** The sheet the artist drew on. Cosmetic, passed through untouched. */
+  paper?: string;
 };
 
 /** Who backed a drawing and by how much — money in ranked games, vote points
@@ -91,7 +97,7 @@ export type ClientMessage =
   | { type: "remove_bot" }
   // --- in game ---
   | { type: "submit_prompt"; text: string }
-  | { type: "submit_drawing"; strokes: Stroke[]; title: string }
+  | { type: "submit_drawing"; strokes: Stroke[]; title: string; paper?: string }
   /** artistId -> amount. Omitting an artist means 0; allocating to yourself
    *  or to a nonexistent artist is silently ignored server-side. */
   | { type: "submit_investment"; allocations: Record<string, number> }

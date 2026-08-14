@@ -113,7 +113,7 @@ class _PresentationSequenceState extends State<PresentationSequence> {
                   aspectRatio: 1,
                   child: PaperCanvas(
                     seed: entry.artistId.hashCode,
-                    child: StaticDrawing(strokes: entry.strokes),
+                    child: StaticDrawing(strokes: entry.strokes, paper: entry.paper),
                   ),
                 ),
               ),

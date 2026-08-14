@@ -508,7 +508,7 @@ class _EntryRow extends StatelessWidget {
             child: SizedBox(
               width: 72,
               height: 72,
-              child: StaticDrawing(strokes: entry.strokes),
+              child: StaticDrawing(strokes: entry.strokes, paper: entry.paper),
             ),
           ),
           const SizedBox(width: 14),

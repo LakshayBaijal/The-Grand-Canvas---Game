@@ -1,4 +1,5 @@
 import 'stroke.dart';
+import 'styles.dart';
 
 class DrawingEntry {
   const DrawingEntry({
@@ -6,6 +7,7 @@ class DrawingEntry {
     required this.artistName,
     required this.title,
     required this.strokes,
+    this.paper = PaperStyle.plain,
   });
 
   final String artistId;
@@ -13,10 +15,15 @@ class DrawingEntry {
   final String title;
   final List<Stroke> strokes;
 
+  /// The sheet the artist drew on, so their entry looks like theirs wherever
+  /// it's shown.
+  final PaperStyle paper;
+
   factory DrawingEntry.fromJson(Map<String, dynamic> json) => DrawingEntry(
         artistId: json['artistId'] as String,
         artistName: json['artistName'] as String,
         title: json['title'] as String,
+        paper: PaperStyle.fromId(json['paper'] as String?),
         strokes: (json['strokes'] as List)
             .map((s) => Stroke.fromJson(s as Map<String, dynamic>))
             .toList(),
@@ -43,12 +50,14 @@ class RoundResult {
     required this.strokes,
     required this.total,
     required this.backers,
+    this.paper = PaperStyle.plain,
   });
 
   final String artistId;
   final String artistName;
   final String title;
   final List<Stroke> strokes;
+  final PaperStyle paper;
 
   /// Money raised, or vote points scored, depending on the game's scoring.
   final int total;
@@ -58,6 +67,7 @@ class RoundResult {
         artistId: json['artistId'] as String,
         artistName: json['artistName'] as String,
         title: json['title'] as String,
+        paper: PaperStyle.fromId(json['paper'] as String?),
         strokes: (json['strokes'] as List)
             .map((s) => Stroke.fromJson(s as Map<String, dynamic>))
             .toList(),

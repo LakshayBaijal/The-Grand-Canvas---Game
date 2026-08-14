@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/styles.dart';
+
 /// What the player has unlocked.
 ///
 /// The free game is complete — every mode, every prompt, the full canvas, the
@@ -20,17 +22,30 @@ class Entitlements extends ChangeNotifier {
 
   static const _lifetimeKey = 'palette_lifetime';
   static const _dayPassKey = 'palette_day_pass_until';
+  static const _paperKey = 'style_paper';
+  static const _penKey = 'style_pen';
 
   /// How long one watched ad is worth.
   static const dayPass = Duration(hours: 24);
 
   bool _lifetime = false;
   int _dayPassUntilMs = 0;
+  PaperStyle _paper = PaperStyle.free;
+  PenStyle _pen = PenStyle.free;
 
   bool get hasLifetime => _lifetime;
 
   bool get hasFullPalette =>
       _lifetime || DateTime.now().millisecondsSinceEpoch < _dayPassUntilMs;
+
+  /// Paper and pen styles are purchase-only — an ad never grants them.
+  bool get hasStyles => _lifetime;
+
+  /// The chosen styles, falling back to the free ones whenever the pack isn't
+  /// owned. Reading through this getter means a lapsed or refunded purchase
+  /// can't leave someone drawing on paper they no longer have.
+  PaperStyle get paper => _lifetime ? _paper : PaperStyle.free;
+  PenStyle get pen => _lifetime ? _pen : PenStyle.free;
 
   /// Time left on a watched-ad pass, or null when there isn't one running.
   Duration? get dayPassLeft {
@@ -43,6 +58,22 @@ class Entitlements extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _lifetime = prefs.getBool(_lifetimeKey) ?? false;
     _dayPassUntilMs = prefs.getInt(_dayPassKey) ?? 0;
+    _paper = PaperStyle.fromId(prefs.getString(_paperKey));
+    _pen = PenStyle.fromId(prefs.getString(_penKey));
+    notifyListeners();
+  }
+
+  Future<void> choosePaper(PaperStyle style) async {
+    _paper = style;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_paperKey, style.id);
+    notifyListeners();
+  }
+
+  Future<void> choosePen(PenStyle style) async {
+    _pen = style;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_penKey, style.id);
     notifyListeners();
   }
 
@@ -69,9 +100,13 @@ class Entitlements extends ChangeNotifier {
   Future<void> reset() async {
     _lifetime = false;
     _dayPassUntilMs = 0;
+    _paper = PaperStyle.free;
+    _pen = PenStyle.free;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_lifetimeKey);
     await prefs.remove(_dayPassKey);
+    await prefs.remove(_paperKey);
+    await prefs.remove(_penKey);
     notifyListeners();
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'styles.dart';
+
 /// Normalized to the 0..1 range so a drawing looks the same regardless of
 /// which device's screen size it was drawn or rendered on.
 class Point {
@@ -15,21 +17,33 @@ class Point {
 }
 
 class Stroke {
-  const Stroke({required this.color, required this.width, required this.points});
+  const Stroke({
+    required this.color,
+    required this.width,
+    required this.points,
+    this.style = PenStyle.pen,
+  });
 
   final Color color;
   final double width;
   final List<Point> points;
 
+  /// How the line is laid down. Travels with the drawing so everyone sees the
+  /// artist's pen, not their own.
+  final PenStyle style;
+
   Map<String, dynamic> toJson() => {
         'color': _colorToHex(color),
         'width': width,
+        'style': style.id,
         'points': points.map((p) => p.toJson()).toList(),
       };
 
   factory Stroke.fromJson(Map<String, dynamic> json) => Stroke(
         color: _colorFromHex(json['color'] as String),
         width: (json['width'] as num).toDouble(),
+        // Absent on anything drawn before styles existed, and on bot drawings.
+        style: PenStyle.fromId(json['style'] as String?),
         points: (json['points'] as List)
             .map((p) => Point.fromJson(p as Map<String, dynamic>))
             .toList(),

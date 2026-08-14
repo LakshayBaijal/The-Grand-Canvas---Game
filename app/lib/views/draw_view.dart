@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../models/stroke.dart';
+import '../models/styles.dart';
 import '../services/entitlements.dart';
 import '../theme.dart';
 import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/paper_frame.dart';
+import '../widgets/customize_sheet.dart';
 import '../widgets/unlock_sheet.dart';
 
 /// Server allows 75s; keep in sync with DRAW_SECONDS on the server.
@@ -29,7 +31,8 @@ class DrawView extends StatefulWidget {
   final int totalRounds;
   final int submitted;
   final int total;
-  final void Function(List<Stroke> strokes, String title) onSubmit;
+  final void Function(List<Stroke> strokes, String title, PaperStyle paper)
+  onSubmit;
 
   @override
   State<DrawView> createState() => _DrawViewState();
@@ -37,6 +40,7 @@ class DrawView extends StatefulWidget {
 
 class _DrawViewState extends State<DrawView> {
   final _controller = DrawingController();
+  late final VoidCallback _applyStyles;
   final _titleController = TextEditingController();
   final _canvasKey = GlobalKey();
 
@@ -45,7 +49,21 @@ class _DrawViewState extends State<DrawView> {
   bool _submitted = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Follow the player's chosen styles, including changes made from the
+    // customise sheet part-way through a drawing.
+    _applyStyles = () {
+      _controller.paper = Entitlements.instance.paper;
+      _controller.pen = Entitlements.instance.pen;
+    };
+    _applyStyles();
+    Entitlements.instance.addListener(_applyStyles);
+  }
+
+  @override
   void dispose() {
+    Entitlements.instance.removeListener(_applyStyles);
     _controller.dispose();
     _titleController.dispose();
     super.dispose();
@@ -72,7 +90,7 @@ class _DrawViewState extends State<DrawView> {
   void _confirmSubmit() {
     if (_submitted) return;
     final strokes = _pendingStrokes ?? _captureStrokes();
-    widget.onSubmit(strokes, _titleController.text.trim());
+    widget.onSubmit(strokes, _titleController.text.trim(), _controller.paper);
     setState(() => _submitted = true);
   }
 
@@ -82,7 +100,7 @@ class _DrawViewState extends State<DrawView> {
   void _forceSubmit() {
     if (_submitted) return;
     final strokes = _pendingStrokes ?? _captureStrokes();
-    widget.onSubmit(strokes, _titleController.text.trim());
+    widget.onSubmit(strokes, _titleController.text.trim(), _controller.paper);
     setState(() => _submitted = true);
   }
 
@@ -92,34 +110,37 @@ class _DrawViewState extends State<DrawView> {
       appBar: AppBar(
         title: Text('ROUND ${widget.roundIndex + 1}/${widget.totalRounds}'),
         actions: [
+          // Both offers live in the corner, small and out of the way. Stacking
+          // them vertically would need a taller bar (which costs canvas
+          // height), and floating them over the paper would steal touches
+          // from whoever draws there — so they sit side by side instead.
           if (!_submitted && !_naming)
             ListenableBuilder(
               listenable: Entitlements.instance,
-              builder: (context, _) => Entitlements.instance.hasFullPalette
-                  ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: TextButton.icon(
-                        onPressed: () => showUnlockSheet(context),
-                        icon: const Icon(Icons.palette_rounded, size: 16),
-                        label: const Text(
-                          'COLOURS',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          foregroundColor: GameColors.primary,
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                      ),
+              builder: (context, _) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!Entitlements.instance.hasFullPalette)
+                    _CornerAction(
+                      icon: Icons.palette_rounded,
+                      tooltip: 'Unlock all colours',
+                      color: GameColors.primary,
+                      onTap: () => showUnlockSheet(context),
                     ),
+                  _CornerAction(
+                    icon: Icons.auto_awesome_rounded,
+                    tooltip: 'Paper & pens',
+                    color: Entitlements.instance.hasStyles
+                        ? GameColors.cyan
+                        : GameColors.textMuted,
+                    onTap: () => showCustomizeSheet(context),
+                  ),
+                ],
+              ),
             ),
           if (!_submitted && !_naming)
             Padding(
-              padding: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.only(left: 4, right: 12),
               child: FilledButton(
                 onPressed: _finishDrawing,
                 style: FilledButton.styleFrom(
@@ -226,6 +247,7 @@ class _DrawViewState extends State<DrawView> {
             if (_naming && !_submitted)
               _TitlePopup(
                 strokes: _pendingStrokes!,
+                paper: _controller.paper,
                 controller: _titleController,
                 onCancel: _keepDrawing,
                 onSubmit: _confirmSubmit,
@@ -242,12 +264,14 @@ class _DrawViewState extends State<DrawView> {
 class _TitlePopup extends StatefulWidget {
   const _TitlePopup({
     required this.strokes,
+    required this.paper,
     required this.controller,
     required this.onCancel,
     required this.onSubmit,
   });
 
   final List<Stroke> strokes;
+  final PaperStyle paper;
   final TextEditingController controller;
   final VoidCallback onCancel;
   final VoidCallback onSubmit;
@@ -293,7 +317,10 @@ class _TitlePopupState extends State<_TitlePopup> {
                     child: SizedBox(
                       width: 120,
                       height: 120,
-                      child: StaticDrawing(strokes: widget.strokes),
+                      child: StaticDrawing(
+                        strokes: widget.strokes,
+                        paper: widget.paper,
+                      ),
                     ),
                   ),
                 ),
@@ -493,6 +520,45 @@ class _EraserChip extends StatelessWidget {
           Icons.backspace_rounded,
           size: 20,
           color: Color(0xFF241800),
+        ),
+      ),
+    );
+  }
+}
+
+/// A quiet corner control: present enough to find, small enough to ignore.
+class _CornerAction extends StatelessWidget {
+  const _CornerAction({
+    required this.icon,
+    required this.tooltip,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: GameColors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: color.withValues(alpha: 0.55),
+              width: 1.2,
+            ),
+          ),
+          child: Icon(icon, size: 17, color: color),
         ),
       ),
     );

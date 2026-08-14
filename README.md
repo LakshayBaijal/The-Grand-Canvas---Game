@@ -136,12 +136,27 @@ One thing is paid for, and it's decoration.
 and the black pen, the yellow pen and the eraser. Between those three you can
 draw anything a prompt asks for.
 
-**Paid:** the other seven colours.
+**Paid:** the other seven colours, plus paper and pen styles.
 
-| | |
-| --- | --- |
-| Watch one rewarded video | full palette for **24 hours** (stacks if you watch again) |
-| One-off purchase | full palette **forever** |
+| | colours | paper & pens |
+| --- | --- | --- |
+| Watch one rewarded video | **24 hours** (stacks if you watch again) | no |
+| One-off purchase | **forever** | **forever** |
+
+Styles are never given away for an ad view, deliberately. If watching a video
+unlocked everything, the purchase would have nothing left to offer — the paid
+tier has to be worth more than the free route or it isn't a product. Colour is
+what people miss first, so colour is what earns the ad view.
+
+Paper and pen **travel with the drawing** (`paper` on the entry, `style` on
+each stroke) so your entries look like yours when they come up in everyone
+else's presentation. That visibility is the entire reason anyone buys a
+cosmetic. Both are passed through the server untouched — it never interprets
+them, and an unknown value just falls back to the free one, so old clients and
+bot drawings render fine.
+
+Papers are all light on purpose: a dark sheet would make the free black pen
+invisible, which would turn a cosmetic into a trap.
 
 The rule that makes this safe: **paying can never buy a better score.** Colour
 is not worth points, the drawings are judged by other players, and a two-colour
@@ -150,9 +165,10 @@ advantage is a dead ladder.
 
 **There are no interstitials, no banners, and nothing that interrupts a round.**
 The only ad in the game is one the player chose to watch, from a sheet they
-opened themselves — by tapping a locked colour, or the `COLOURS` chip in the
-corner of the drawing screen. Once unlocked, the chip disappears; there's
-nothing left to sell, so it stops asking.
+opened themselves — by tapping a locked colour, or one of the two small chips
+in the corner of the drawing screen (`🎨` colours, `✨` paper & pens). The
+colours chip disappears once unlocked; there's nothing left to sell, so it
+stops asking.
 
 `app/lib/services/entitlements.dart` owns what's unlocked and persists it.
 `app/lib/services/store.dart` is the seam where the SDKs plug in — nothing else

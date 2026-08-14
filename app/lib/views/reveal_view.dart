@@ -94,7 +94,11 @@ class _EntryCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: SizedBox(width: 84, height: 84, child: StaticDrawing(strokes: entry.strokes)),
+                child: SizedBox(
+                  width: 84,
+                  height: 84,
+                  child: StaticDrawing(strokes: entry.strokes, paper: entry.paper),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(

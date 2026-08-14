@@ -75,7 +75,7 @@ export type Lobby = {
   promptAnswer: string;
 
   // --- this round's submissions ---
-  roundDrawings: Map<string, { title: string; strokes: Stroke[] }>;
+  roundDrawings: Map<string, { title: string; strokes: Stroke[]; paper?: string }>;
   /** Ranked: investorId -> (artistId -> amount). */
   investments: Map<string, Map<string, number>>;
   /** Friendly: voterId -> ordered artistIds, best first. */
@@ -350,9 +350,12 @@ export function recordDrawing(
   playerId: string,
   title: string,
   strokes: Stroke[],
+  paper?: string,
 ): void {
   const cleanTitle = title.trim().slice(0, 40) || "Untitled";
-  lobby.roundDrawings.set(playerId, { title: cleanTitle, strokes });
+  // Cosmetics are passed through, not validated — a nonsense value just falls
+  // back to the default sheet on the client.
+  lobby.roundDrawings.set(playerId, { title: cleanTitle, strokes, paper });
 }
 
 export function everyoneDrew(lobby: Lobby): boolean {
@@ -364,7 +367,13 @@ export function drawingEntries(lobby: Lobby): DrawingEntry[] {
     .filter(([id]) => lobby.roundDrawings.has(id))
     .map(([id, p]) => {
       const d = lobby.roundDrawings.get(id)!;
-      return { artistId: id, artistName: p.nickname, title: d.title, strokes: d.strokes };
+      return {
+        artistId: id,
+        artistName: p.nickname,
+        title: d.title,
+        strokes: d.strokes,
+        paper: d.paper,
+      };
     });
 }
 

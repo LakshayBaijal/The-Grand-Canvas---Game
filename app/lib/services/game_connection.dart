@@ -7,6 +7,7 @@ import '../models/game_event.dart';
 import '../models/lobby_state.dart';
 import '../models/round_models.dart';
 import '../models/stroke.dart';
+import '../models/styles.dart';
 import 'identity.dart';
 
 /// Owns the single WebSocket connection to the game server and translates raw
@@ -207,8 +208,12 @@ class GameConnection {
 
   void submitPrompt(String text) => _send({'type': 'submit_prompt', 'text': text});
 
-  void submitDrawing(List<Stroke> strokes, String title) =>
-      _send({'type': 'submit_drawing', 'strokes': strokes.map((s) => s.toJson()).toList(), 'title': title});
+  void submitDrawing(List<Stroke> strokes, String title, PaperStyle paper) => _send({
+        'type': 'submit_drawing',
+        'strokes': strokes.map((s) => s.toJson()).toList(),
+        'title': title,
+        'paper': paper.id,
+      });
 
   void submitInvestment(Map<String, int> allocations) =>
       _send({'type': 'submit_investment', 'allocations': allocations});
