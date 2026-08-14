@@ -497,12 +497,9 @@ class _EntryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: highlighted ? GameColors.surfaceHigh : GameColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: highlighted
-            ? Border.all(color: GameColors.primary, width: 2)
-            : null,
+      decoration: GameDecor.panel(
+        accent: highlighted ? GameColors.primary : null,
+        radius: 16,
       ),
       child: Row(
         children: [

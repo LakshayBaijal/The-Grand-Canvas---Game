@@ -131,11 +131,7 @@ class _QueueCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: GameColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: GameColors.surfaceHigh, width: 2),
-      ),
+      decoration: GameDecor.panel(accent: GameColors.primary),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

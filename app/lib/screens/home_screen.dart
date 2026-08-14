@@ -568,11 +568,7 @@ class _ProfileBar extends StatelessWidget {
     final profile = this.profile;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: GameColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: GameColors.surfaceHigh, width: 2),
-      ),
+      decoration: GameDecor.panel(radius: 18),
       child: Row(
         children: [
           CircleAvatar(
@@ -697,54 +693,102 @@ class _ModeCardState extends State<_ModeCard> {
         duration: const Duration(milliseconds: 110),
         child: Opacity(
           opacity: onPressed == null ? 0.5 : 1,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          child: DecoratedBox(
             decoration: BoxDecoration(
-              color: filled ? accent : GameColors.surface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: accent, width: 2),
+              // Same treatment as the themed buttons: lit from above, crisp
+              // lip, coloured halo.
+              gradient: filled
+                  ? const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        GameColors.primaryBright,
+                        GameColors.primaryDeep,
+                      ],
+                    )
+                  : const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF221B52), Color(0xFF171240)],
+                    ),
+              border: Border.all(
+                color: filled
+                    ? GameColors.primaryBright
+                    : accent.withValues(alpha: 0.7),
+                width: filled ? 1.2 : 1.8,
+              ),
+              boxShadow: GameDecor.glow(accent, strength: _down ? 0.5 : 1),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                          color: filled ? const Color(0xFF241800) : accent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Stack(
+                children: [
+                  // The shine.
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withValues(alpha: filled ? 0.3 : 0.08),
+                            Colors.white.withValues(alpha: 0),
+                          ],
+                          stops: const [0, 0.55],
                         ),
                       ),
                     ),
-                    Text(
-                      badge,
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                        color: filled
-                            ? const Color(0xFF241800)
-                            : GameColors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    height: 1.35,
-                    color: filled
-                        ? const Color(0xFF241800).withValues(alpha: 0.75)
-                        : GameColors.textMuted,
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                  color: filled ? GameColors.onPrimary : accent,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              badge,
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                                color: filled
+                                    ? GameColors.onPrimary.withValues(
+                                        alpha: 0.7,
+                                      )
+                                    : GameColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.35,
+                            color: filled
+                                ? GameColors.onPrimary.withValues(alpha: 0.75)
+                                : GameColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -38,6 +38,9 @@ class _BadMentalCanvasAppState extends State<BadMentalCanvasApp> {
       title: 'Bad Mental Canvas',
       debugShowCheckedModeBanner: false,
       theme: buildGameTheme(),
+      // Scaffolds are transparent so every screen sits on the one lit
+      // backdrop rather than each painting its own flat fill.
+      builder: (context, child) => AppBackground(child: child ?? const SizedBox()),
       home: HomeScreen(connection: _connection),
     );
   }

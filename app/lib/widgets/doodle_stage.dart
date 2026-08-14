@@ -92,11 +92,7 @@ class _DoodleStageState extends State<DoodleStage> {
 
     return Container(
       padding: EdgeInsets.all(pad),
-      decoration: BoxDecoration(
-        color: GameColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: GameColors.surfaceHigh, width: 2),
-      ),
+      decoration: GameDecor.panel(radius: 22),
       child: LayoutBuilder(
         builder: (context, constraints) => Column(
           mainAxisSize: MainAxisSize.min,

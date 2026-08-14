@@ -379,7 +379,16 @@ picture?") aren't assertable. Two throwaway techniques worth reusing:
   Each is a sentence with one `___` marking the blank a player fills in.
   `DEMO_PROMPTS` in the same file feeds the idle canvas and is already
   complete — no `___` in those.
-- **Look and feel** — all colours and component styles live in `app/lib/theme.dart`.
+- **Look and feel** — `app/lib/theme.dart` holds everything: the palette, the
+  lit `AppBackground` every screen sits on, `GameDecor.panel()` for cards, and
+  the button surfaces.
+
+  Buttons get their gradient, gloss and halo from `ButtonStyle.backgroundBuilder`
+  in the theme rather than from a custom button widget, so every `FilledButton`
+  and `OutlinedButton` already in the app inherits the look and there's one
+  place to retune it. Panels use `GameDecor.panel(accent: …)` for the same
+  reason — pass an accent colour for the thing the eye should land on, leave it
+  null for everything else.
 - **Timings** — the phase clocks are constants at the top of `server/src/rooms.ts`
   (`PROMPT_SECONDS`, `DRAW_SECONDS`, `INVEST_SECONDS`, `REVEAL_SECONDS`). If you
   change them, update the matching constants in the corresponding view files so

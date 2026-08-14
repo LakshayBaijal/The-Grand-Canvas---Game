@@ -95,11 +95,7 @@ class _YourStanding extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: GameColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: GameColors.primary, width: 2),
-      ),
+      decoration: GameDecor.panel(accent: GameColors.primary),
       child: Row(
         children: [
           Column(
@@ -181,10 +177,9 @@ class _Row extends StatelessWidget {
     final medal = _medals[entry.rank];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: isMe ? GameColors.surfaceHigh : GameColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: isMe ? Border.all(color: GameColors.primary, width: 2) : null,
+      decoration: GameDecor.panel(
+        accent: isMe ? GameColors.primary : null,
+        radius: 14,
       ),
       child: Row(
         children: [

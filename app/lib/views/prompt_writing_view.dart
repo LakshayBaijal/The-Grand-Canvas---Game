@@ -73,11 +73,7 @@ class _PromptWritingViewState extends State<PromptWritingView> {
               const SizedBox(height: 18),
               Container(
                 padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  color: GameColors.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: GameColors.surfaceHigh, width: 2),
-                ),
+                decoration: GameDecor.panel(accent: GameColors.cyan),
                 child: RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(

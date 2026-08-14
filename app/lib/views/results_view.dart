@@ -87,17 +87,9 @@ class ResultsView extends StatelessWidget {
                             horizontal: 18,
                             vertical: 16,
                           ),
-                          decoration: BoxDecoration(
-                            color: index == 0
-                                ? GameColors.surfaceHigh
-                                : GameColors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: index == 0
-                                ? Border.all(
-                                    color: GameColors.primary,
-                                    width: 2,
-                                  )
-                                : null,
+                          decoration: GameDecor.panel(
+                            accent: index == 0 ? GameColors.primary : null,
+                            radius: 16,
                           ),
                           child: Row(
                             children: [

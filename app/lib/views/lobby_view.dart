@@ -278,11 +278,7 @@ class _RoomCodeBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      decoration: BoxDecoration(
-        color: GameColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: GameColors.surfaceHigh, width: 2),
-      ),
+      decoration: GameDecor.panel(accent: GameColors.primary, radius: 18),
       child: Row(
         children: [
           const Text(

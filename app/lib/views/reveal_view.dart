@@ -82,10 +82,9 @@ class _EntryCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isTop ? GameColors.primary.withValues(alpha: 0.14) : GameColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isTop ? GameColors.primary : GameColors.surfaceHigh, width: 2),
+      decoration: GameDecor.panel(
+        accent: isTop ? GameColors.primary : null,
+        radius: 18,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
