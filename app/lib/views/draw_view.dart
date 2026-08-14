@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../models/stroke.dart';
+import '../services/entitlements.dart';
 import '../theme.dart';
 import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/paper_frame.dart';
+import '../widgets/unlock_sheet.dart';
 
 /// Server allows 75s; keep in sync with DRAW_SECONDS on the server.
 const _drawSeconds = 75;
@@ -88,19 +90,50 @@ class _DrawViewState extends State<DrawView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('ROUND ${widget.roundIndex + 1} OF ${widget.totalRounds}'),
+        title: Text('ROUND ${widget.roundIndex + 1}/${widget.totalRounds}'),
         actions: [
+          if (!_submitted && !_naming)
+            ListenableBuilder(
+              listenable: Entitlements.instance,
+              builder: (context, _) => Entitlements.instance.hasFullPalette
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: TextButton.icon(
+                        onPressed: () => showUnlockSheet(context),
+                        icon: const Icon(Icons.palette_rounded, size: 16),
+                        label: const Text(
+                          'COLOURS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: GameColors.primary,
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                      ),
+                    ),
+            ),
           if (!_submitted && !_naming)
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: FilledButton(
                 onPressed: _finishDrawing,
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   minimumSize: Size.zero,
                   visualDensity: VisualDensity.compact,
                 ),
-                child: const Text('DONE', style: TextStyle(fontWeight: FontWeight.w800)),
+                child: const Text(
+                  'DONE',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ),
         ],
@@ -114,7 +147,10 @@ class _DrawViewState extends State<DrawView> {
                 children: [
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: GameColors.surface,
                       borderRadius: BorderRadius.circular(16),
@@ -244,7 +280,11 @@ class _TitlePopupState extends State<_TitlePopup> {
                 const Text(
                   'NAME YOUR INVENTION',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: GameColors.textMuted, fontSize: 11, letterSpacing: 2),
+                  style: TextStyle(
+                    color: GameColors.textMuted,
+                    fontSize: 11,
+                    letterSpacing: 2,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Center(
@@ -279,7 +319,10 @@ class _TitlePopupState extends State<_TitlePopup> {
                 const SizedBox(height: 6),
                 TextButton(
                   onPressed: widget.onCancel,
-                  child: const Text('← Keep drawing', style: TextStyle(color: GameColors.textMuted)),
+                  child: const Text(
+                    '← Keep drawing',
+                    style: TextStyle(color: GameColors.textMuted),
+                  ),
                 ),
               ],
             ),
@@ -295,11 +338,15 @@ class _DrawToolbar extends StatelessWidget {
 
   final DrawingController controller;
 
+  /// Black and yellow are always free — between them and the eraser you can
+  /// draw anything the game asks for, so the lock never costs anyone points.
+  static const _freeColors = [Colors.black, Color(0xFFFDD835)];
+
   static const _palette = [
     Colors.black,
+    Color(0xFFFDD835),
     Color(0xFFE53935),
     Color(0xFFFB8C00),
-    Color(0xFFFDD835),
     Color(0xFF43A047),
     Color(0xFF1E88E5),
     Color(0xFF8E24AA),
@@ -312,8 +359,8 @@ class _DrawToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
+    return ListenableBuilder(
+      listenable: Listenable.merge([controller, Entitlements.instance]),
       builder: (context, _) => Column(
         children: [
           SizedBox(
@@ -327,19 +374,39 @@ class _DrawToolbar extends StatelessWidget {
                   return _EraserChip(controller: controller);
                 }
                 final color = _palette[index - 1];
-                final selected = !controller.isErasing && controller.color == color;
+                final locked =
+                    !_freeColors.contains(color) &&
+                    !Entitlements.instance.hasFullPalette;
+                final selected =
+                    !controller.isErasing && controller.color == color;
                 return GestureDetector(
-                  onTap: () => controller.color = color,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: selected ? GameColors.primary : GameColors.surfaceHigh,
-                        width: selected ? 4 : 2,
+                  // A locked swatch opens the offer rather than doing nothing,
+                  // so the lock explains itself the moment you touch it.
+                  onTap: locked
+                      ? () => showUnlockSheet(context)
+                      : () => controller.color = color,
+                  child: Opacity(
+                    opacity: locked ? 0.4 : 1,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected
+                              ? GameColors.primary
+                              : GameColors.surfaceHigh,
+                          width: selected ? 4 : 2,
+                        ),
                       ),
+                      child: locked
+                          ? const Icon(
+                              Icons.lock_rounded,
+                              size: 15,
+                              color: Colors.white,
+                            )
+                          : null,
                     ),
                   ),
                 );
@@ -348,7 +415,11 @@ class _DrawToolbar extends StatelessWidget {
           ),
           Row(
             children: [
-              const Icon(Icons.brush_rounded, size: 16, color: GameColors.textMuted),
+              const Icon(
+                Icons.brush_rounded,
+                size: 16,
+                color: GameColors.textMuted,
+              ),
               Expanded(
                 child: SliderTheme(
                   data: SliderThemeData(
@@ -358,7 +429,8 @@ class _DrawToolbar extends StatelessWidget {
                     thumbColor: GameColors.primary,
                     overlayShape: SliderComponentShape.noOverlay,
                     thumbShape: RoundSliderThumbShape(
-                      enabledThumbRadius: (4 + controller.brushWidth / 2.6).clamp(6, 14),
+                      enabledThumbRadius: (4 + controller.brushWidth / 2.6)
+                          .clamp(6, 14),
                     ),
                   ),
                   // Dragging always switches to drawing mode with this width,
@@ -411,12 +483,17 @@ class _EraserChip extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: (selected ? GameColors.primary : GameColors.pink).withValues(alpha: 0.4),
+              color: (selected ? GameColors.primary : GameColors.pink)
+                  .withValues(alpha: 0.4),
               blurRadius: selected ? 10 : 4,
             ),
           ],
         ),
-        child: const Icon(Icons.backspace_rounded, size: 20, color: Color(0xFF241800)),
+        child: const Icon(
+          Icons.backspace_rounded,
+          size: 20,
+          color: Color(0xFF241800),
+        ),
       ),
     );
   }

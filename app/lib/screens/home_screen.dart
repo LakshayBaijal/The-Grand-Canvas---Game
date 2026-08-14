@@ -289,6 +289,27 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Create-or-join, kept off the menu so the front page stays two buttons.
+  Future<void> _openFriendsSheet() async {
+    _codeController.clear();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _FriendsSheet(
+        codeController: _codeController,
+        onCreate: () {
+          Navigator.of(sheetContext).pop();
+          _friendly();
+        },
+        onJoin: (code) {
+          Navigator.of(sheetContext).pop();
+          _friendly(code: code);
+        },
+      ),
+    );
+  }
+
   Future<void> _openLeaderboard() async {
     if (!await _ensureConnected()) return;
     if (!mounted) return;
@@ -418,67 +439,36 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
               const SizedBox(height: 20),
-              _ModeCard(
-                title: 'RANKED',
-                subtitle:
-                    'Matched with up to 4 strangers. Invest fake money, '
-                    'climb the leaderboard.',
-                badge: '🏆 TROPHIES',
-                accent: GameColors.primary,
-                filled: true,
-                onPressed: _busy ? null : _playRanked,
-              ),
-              const SizedBox(height: 12),
-              _ModeCard(
-                title: 'PLAY WITH FRIENDS',
-                subtitle:
-                    'Private room you share by code. Vote 1st / 2nd / 3rd. '
-                    'Nothing counts.',
-                badge: 'JUST FOR FUN',
-                accent: GameColors.lime,
-                filled: false,
-                onPressed: _busy ? null : () => _friendly(),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _codeController,
-                      maxLength: 4,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                        hintText: 'Room code',
-                        counterText: '',
-                        prefixIcon: Icon(
-                          Icons.tag_rounded,
-                          color: GameColors.textMuted,
-                        ),
+              // Side by side: the front page shouldn't be a stack of full
+              // width slabs, and the friends flow moves into a sheet so its
+              // two extra controls aren't on the menu at all.
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _ModeCard(
+                        title: 'QUICK\nMATCH',
+                        subtitle: 'Play strangers.\nClimb the board.',
+                        badge: '🏆',
+                        accent: GameColors.primary,
+                        filled: true,
+                        onPressed: _busy ? null : _playRanked,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Explicit width: a Row lays non-flex children out with an
-                  // unbounded main axis, and the button's theme wants to fill
-                  // whatever it's given.
-                  SizedBox(
-                    width: 92,
-                    height: 56,
-                    child: OutlinedButton(
-                      onPressed: _busy
-                          ? null
-                          : () {
-                              final code = _codeController.text.trim();
-                              if (code.isEmpty) {
-                                setState(() => _error = 'Enter the room code');
-                                return;
-                              }
-                              _friendly(code: code);
-                            },
-                      child: const Text('JOIN'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ModeCard(
+                        title: 'PLAY WITH\nFRIENDS',
+                        subtitle: 'Private room.\nJust for fun.',
+                        badge: '👥',
+                        accent: GameColors.lime,
+                        filled: false,
+                        onPressed: _busy ? null : _openFriendsSheet,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               OutlinedButton.icon(
@@ -628,7 +618,7 @@ class _ProfileBar extends StatelessWidget {
                     profile == null
                         ? 'Connecting…'
                         : profile.rank == null
-                        ? 'Unranked — play a ranked game'
+                        ? 'Unranked — play a quick match'
                         : 'Rank #${profile.rank} · ${profile.games} game'
                               '${profile.games == 1 ? '' : 's'}',
                     style: const TextStyle(
@@ -753,46 +743,31 @@ class _ModeCardState extends State<_ModeCard> {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                title,
-                                style: TextStyle(
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.2,
-                                  color: filled ? GameColors.onPrimary : accent,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              badge,
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                                color: filled
-                                    ? GameColors.onPrimary.withValues(
-                                        alpha: 0.7,
-                                      )
-                                    : GameColors.textMuted,
-                              ),
-                            ),
-                          ],
+                        Text(badge, style: const TextStyle(fontSize: 20)),
+                        const SizedBox(height: 8),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            height: 1.15,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                            color: filled ? GameColors.onPrimary : accent,
+                          ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           subtitle,
                           style: TextStyle(
-                            fontSize: 12.5,
-                            height: 1.35,
+                            fontSize: 11.5,
+                            height: 1.3,
                             color: filled
-                                ? GameColors.onPrimary.withValues(alpha: 0.75)
+                                ? GameColors.onPrimary.withValues(alpha: 0.72)
                                 : GameColors.textMuted,
                           ),
                         ),
@@ -929,6 +904,163 @@ class _ServerSettings extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+}
+
+/// Create a private room, or join one by code. Lives in a sheet so the menu
+/// itself stays down to two buttons.
+class _FriendsSheet extends StatefulWidget {
+  const _FriendsSheet({
+    required this.codeController,
+    required this.onCreate,
+    required this.onJoin,
+  });
+
+  final TextEditingController codeController;
+  final VoidCallback onCreate;
+  final void Function(String code) onJoin;
+
+  @override
+  State<_FriendsSheet> createState() => _FriendsSheetState();
+}
+
+class _FriendsSheetState extends State<_FriendsSheet> {
+  String? _error;
+
+  void _join() {
+    final code = widget.codeController.text.trim();
+    if (code.isEmpty) {
+      setState(() => _error = 'Enter the room code');
+      return;
+    }
+    widget.onJoin(code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF221B52), GameColors.surface],
+          ),
+          border: Border.all(
+            color: GameColors.lime.withValues(alpha: 0.5),
+            width: 1.6,
+          ),
+          boxShadow: GameDecor.glow(GameColors.lime, strength: 0.7),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: GameColors.surfaceHigh,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'PLAY WITH FRIENDS',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.6,
+                color: GameColors.lime,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Nothing here counts towards the leaderboard.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: GameColors.textMuted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: widget.onCreate,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text('CREATE A ROOM'),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const Expanded(child: Divider(color: GameColors.border)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OR JOIN ONE',
+                    style: TextStyle(
+                      color: GameColors.textMuted,
+                      fontSize: 10,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+                const Expanded(child: Divider(color: GameColors.border)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: widget.codeController,
+                    maxLength: 4,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.characters,
+                    onSubmitted: (_) => _join(),
+                    decoration: const InputDecoration(
+                      hintText: 'Room code',
+                      counterText: '',
+                      prefixIcon: Icon(
+                        Icons.tag_rounded,
+                        color: GameColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Explicit width: a Row lays non-flex children out with an
+                // unbounded main axis, and the button fills what it's given.
+                SizedBox(
+                  width: 92,
+                  height: 56,
+                  child: OutlinedButton(
+                    onPressed: _join,
+                    child: const Text('JOIN'),
+                  ),
+                ),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFFF6B6B),
+                  fontSize: 12.5,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
+import 'services/entitlements.dart';
 import 'services/game_connection.dart';
+import 'services/store.dart';
 import 'theme.dart';
 
 void main() {
@@ -13,6 +15,10 @@ void main() {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  assertReadyForRelease();
+  // Read from disk before the first frame so the palette is never briefly
+  // locked for someone who already paid.
+  Entitlements.instance.load();
   runApp(const BadMentalCanvasApp());
 }
 
@@ -40,7 +46,8 @@ class _BadMentalCanvasAppState extends State<BadMentalCanvasApp> {
       theme: buildGameTheme(),
       // Scaffolds are transparent so every screen sits on the one lit
       // backdrop rather than each painting its own flat fill.
-      builder: (context, child) => AppBackground(child: child ?? const SizedBox()),
+      builder: (context, child) =>
+          AppBackground(child: child ?? const SizedBox()),
       home: HomeScreen(connection: _connection),
     );
   }

@@ -128,6 +128,46 @@ screen density, and it uses the game's own palette rather than fighting it.
 > nothing touches gets constructed by `dispose()` instead, and building a
 > ticker while unmounting throws.
 
+## Money
+
+One thing is paid for, and it's decoration.
+
+**Free forever:** every mode, every prompt, the whole canvas, the leaderboard,
+and the black pen, the yellow pen and the eraser. Between those three you can
+draw anything a prompt asks for.
+
+**Paid:** the other seven colours.
+
+| | |
+| --- | --- |
+| Watch one rewarded video | full palette for **24 hours** (stacks if you watch again) |
+| One-off purchase | full palette **forever** |
+
+The rule that makes this safe: **paying can never buy a better score.** Colour
+is not worth points, the drawings are judged by other players, and a two-colour
+drawing competes on equal terms. A competitive ladder where money buys an
+advantage is a dead ladder.
+
+**There are no interstitials, no banners, and nothing that interrupts a round.**
+The only ad in the game is one the player chose to watch, from a sheet they
+opened themselves — by tapping a locked colour, or the `COLOURS` chip in the
+corner of the drawing screen. Once unlocked, the chip disappears; there's
+nothing left to sell, so it stops asking.
+
+`app/lib/services/entitlements.dart` owns what's unlocked and persists it.
+`app/lib/services/store.dart` is the seam where the SDKs plug in — nothing else
+in the app talks to an ad or billing library, so the two integrations can be
+done independently.
+
+> **`DebugStore` grants every unlock for free.** That's right for development
+> and wrong for release. `assertReadyForRelease()` trips in a release build
+> while the stub is still wired up. Replacing it means `google_mobile_ads` (a
+> rewarded unit, the app id in the manifest and plist, and preloading so
+> "watch" doesn't sit on a spinner) and `in_app_purchase` (a non-consumable in
+> the Play Console, receipt verification, and a real `restorePurchases`). The
+> price must come from the store at runtime — Play requires the localized
+> price, and the hardcoded `₹99` is only a placeholder.
+
 ## The idle canvas
 
 The home screen and the lobby both show a sheet of paper with a bot drawing on
