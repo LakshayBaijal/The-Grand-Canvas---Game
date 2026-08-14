@@ -73,17 +73,182 @@ const TOPIC_SUBJECTS: Partial<Record<Topic, readonly PartFn[]>> = {
   garden: [parts.plant],
 };
 
-function detectTopics(prompt: string): Topic[] {
-  const words = prompt.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
-  const wordSet = new Set(words);
-  const hits: Topic[] = [];
-  for (const [topic, keywords] of Object.entries(TOPIC_WORDS) as [Topic, string[]][]) {
-    if (keywords.some((k) => wordSet.has(k))) hits.push(topic);
+/** A few parts take a centre and radius rather than a box; these let them sit
+ *  in the same lookup as everything else. */
+const centred = (
+  draw: (pen: Pen, rng: Rng, cx: number, cy: number, r: number) => void,
+  scale = 0.42,
+): PartFn => (pen, rng, box) =>
+  draw(pen, rng, box.x + box.w / 2, box.y + box.h / 2, Math.min(box.w, box.h) * scale);
+
+const dumbbellShape = centred(parts.dumbbell, 0.5);
+const coinShape = centred(parts.coin);
+const bulbShape = centred(parts.lightbulb, 0.34);
+
+/**
+ * Words that name one specific drawable thing.
+ *
+ * This is the accuracy layer. Topic matching is a fallback that says "this is
+ * vaguely about food"; a hit here says "they wrote *coffee*, so draw a mug".
+ * Checked before topics, and checked against the player's own answer before
+ * the rest of the sentence, because the answer is the part that was actually
+ * chosen — the template around it is the same boilerplate every round.
+ */
+const WORD_SHAPES: Record<string, PartFn> = {
+  // time
+  alarm: parts.alarmClock, clock: parts.alarmClock, snooze: parts.alarmClock,
+  oversleeping: parts.alarmClock, overslept: parts.alarmClock, timer: parts.alarmClock,
+
+  // drinks and food
+  coffee: parts.mug, tea: parts.mug, espresso: parts.mug, latte: parts.mug,
+  mug: parts.mug, cup: parts.mug, brew: parts.mug,
+  toast: parts.toast, bread: parts.toast, toaster: parts.toast, burnt: parts.toast,
+  pizza: parts.foodStack, burger: parts.foodStack, sandwich: parts.foodStack,
+  snack: parts.foodStack, food: parts.foodStack, lunch: parts.foodStack,
+  dinner: parts.foodStack, breakfast: parts.foodStack, meal: parts.foodStack,
+  leftovers: parts.foodStack, takeaway: parts.foodStack,
+  icecream: parts.iceCream, dessert: parts.iceCream, melting: parts.iceCream,
+  bottle: parts.bottle, water: parts.bottle, juice: parts.bottle,
+
+  // getting around
+  car: parts.car, traffic: parts.car, commute: parts.car, driving: parts.car,
+  drive: parts.car, parking: parts.car, bus: parts.car, taxi: parts.car,
+  jam: parts.car, roadworks: parts.car,
+  bike: parts.bicycle, bicycle: parts.bicycle, cycling: parts.bicycle,
+  suitcase: parts.suitcase, luggage: parts.suitcase, packing: parts.suitcase,
+  holiday: parts.suitcase, airport: parts.suitcase,
+  stairs: parts.stairs, lift: parts.stairs, elevator: parts.stairs, escalator: parts.stairs,
+
+  // animals
+  dog: parts.animal, puppy: parts.animal, paws: parts.animal, barking: parts.animal,
+  cat: parts.animal, kitten: parts.animal, pet: parts.animal, fur: parts.animal,
+  bird: parts.bird, pigeon: parts.bird, seagull: parts.bird, crow: parts.bird,
+
+  // household
+  sock: parts.sock, socks: parts.sock,
+  laundry: parts.washingMachine, washing: parts.washingMachine,
+  dishes: parts.washingMachine, dishwasher: parts.washingMachine,
+  key: parts.keys, keys: parts.keys, keyring: parts.keys, wallet: parts.keys,
+  door: parts.door, doorbell: parts.door, knocking: parts.door, lock: parts.door,
+  bin: parts.trashBin, trash: parts.trashBin, rubbish: parts.trashBin,
+  garbage: parts.trashBin, recycling: parts.trashBin,
+  chair: parts.chair, desk: parts.chair, sofa: parts.chair, seat: parts.chair,
+  house: parts.house, home: parts.house, apartment: parts.house, flat: parts.house,
+  box: parts.crate, boxes: parts.crate, parcel: parts.crate, delivery: parts.crate,
+  package: parts.crate, shoe: parts.shoe, shoes: parts.shoe, boots: parts.shoe,
+
+  // tech
+  phone: parts.phoneDevice, mobile: parts.phoneDevice, texting: parts.phoneDevice,
+  laptop: parts.laptop, computer: parts.laptop, meeting: parts.laptop,
+  zoom: parts.laptop, email: parts.laptop, spreadsheet: parts.laptop,
+  wifi: parts.wifiIcon, internet: parts.wifiIcon, signal: parts.wifiIcon,
+  router: parts.wifiIcon, broadband: parts.wifiIcon, buffering: parts.wifiIcon,
+  cable: parts.cables, cables: parts.cables, cords: parts.cables, wires: parts.cables,
+  headphones: parts.cables, earphones: parts.cables, tangled: parts.cables,
+  charger: parts.battery, battery: parts.battery, charging: parts.battery,
+  inbox: parts.envelope, letter: parts.envelope, post: parts.envelope, mail: parts.envelope,
+
+  // money
+  bill: coinShape, bills: coinShape, money: coinShape, cash: coinShape,
+  tax: coinShape, rent: coinShape, price: coinShape,
+  shopping: parts.shoppingBag, groceries: parts.shoppingBag, grocery: parts.shoppingBag,
+  bags: parts.shoppingBag, bag: parts.shoppingBag,
+
+  // rest
+  bed: parts.bed, sleep: parts.bed, nap: parts.bed, pillow: parts.bed,
+  mattress: parts.bed, duvet: parts.bed, snoring: parts.bed,
+
+  // outdoors
+  umbrella: parts.umbrella, rain: parts.umbrella, drizzle: parts.umbrella,
+  downpour: parts.umbrella, puddles: parts.umbrella,
+  snow: parts.snowflake, winter: parts.snowflake, frost: parts.snowflake,
+  freezing: parts.snowflake, ice: parts.snowflake,
+  sun: parts.sun, summer: parts.sun, sunshine: parts.sun, sunburn: parts.sun,
+  plant: parts.plant, plants: parts.plant, garden: parts.plant, flowers: parts.plant,
+  weeds: parts.plant, tree: parts.tree, trees: parts.tree, leaves: parts.tree,
+  fan: parts.fan, aircon: parts.fan, heatwave: parts.fan,
+
+  // fitness
+  gym: parts.treadmill, treadmill: parts.treadmill, running: parts.treadmill,
+  cardio: parts.treadmill, jogging: parts.treadmill,
+  weights: dumbbellShape, dumbbell: dumbbellShape, lifting: dumbbellShape,
+  ball: parts.ball, football: parts.ball, cricket: parts.ball, tennis: parts.ball,
+
+  // noise
+  noise: parts.speaker, loud: parts.speaker, noisy: parts.speaker,
+  speaker: parts.speaker, volume: parts.speaker, shouting: parts.speaker,
+  music: parts.speaker, alarms: parts.speaker,
+
+  // elsewhere
+  rocket: parts.rocket, space: parts.rocket, moon: parts.rocket, planet: parts.rocket,
+  idea: bulbShape, bulb: bulbShape, electricity: bulbShape,
+};
+
+/** Crude stemmer: enough to make "cables"/"cable" and "running"/"run" land on
+ *  the same entry without pulling in a real NLP dependency. */
+function stem(word: string): string[] {
+  const forms = [word];
+  if (word.endsWith("ies") && word.length > 4) forms.push(`${word.slice(0, -3)}y`);
+  if (word.endsWith("es") && word.length > 3) forms.push(word.slice(0, -2));
+  if (word.endsWith("s") && word.length > 3) forms.push(word.slice(0, -1));
+  if (word.endsWith("ing") && word.length > 5) {
+    forms.push(word.slice(0, -3), `${word.slice(0, -3)}e`);
   }
-  return hits;
+  if (word.endsWith("ed") && word.length > 4) forms.push(word.slice(0, -2), word.slice(0, -1));
+  return forms;
 }
 
-/** Stable-ish seed from the prompt plus the artist, so two bots given the
+function wordsOf(text: string): string[] {
+  return text.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+}
+
+/** Every word plus its stems, so lookups can be a plain Set test. */
+function expand(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const word of wordsOf(text)) for (const form of stem(word)) out.add(form);
+  return out;
+}
+
+/** The most specific shape the text names, or null. */
+function findNamedShape(words: Set<string>): PartFn | null {
+  const hits: PartFn[] = [];
+  for (const word of words) {
+    const shape = WORD_SHAPES[word];
+    if (shape && !hits.includes(shape)) hits.push(shape);
+  }
+  return hits.length > 0 ? hits[0] : null;
+}
+
+/**
+ * Scores every topic by how many of its keywords the text uses, weighting the
+ * player's answer far above the template. Returns the best, rather than a
+ * random one of everything that matched — a prompt about a dog shouldn't have
+ * an even chance of coming out as a spaceship because "space" appeared in the
+ * boilerplate.
+ */
+function detectTopic(rng: Rng, prompt: string, answer: string): { primary: Topic | null; all: Topic[] } {
+  const answerWords = expand(answer);
+  const promptWords = expand(prompt);
+
+  const scored: { topic: Topic; score: number }[] = [];
+  for (const [topic, keywords] of Object.entries(TOPIC_WORDS) as [Topic, string[]][]) {
+    let score = 0;
+    for (const keyword of keywords) {
+      if (answerWords.has(keyword)) score += 4;
+      else if (promptWords.has(keyword)) score += 1;
+    }
+    if (score > 0) scored.push({ topic, score });
+  }
+  if (scored.length === 0) return { primary: null, all: [] };
+
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0].score;
+  // Ties broken at random so repeated prompts still vary.
+  const top = scored.filter((s) => s.score === best).map((s) => s.topic);
+  return { primary: rng.pick(top), all: scored.map((s) => s.topic) };
+}
+
+/** Stable-ish seed from the prompt plus the artist, so two artists given the
  *  same prompt still draw different things. */
 function seedFrom(prompt: string, salt: string): number {
   let h = 2166136261;
@@ -109,7 +274,7 @@ type Ctx = {
 /** The main mass of the drawing: the topic's own silhouette when it has one,
  *  otherwise a machine. */
 function chassis(pen: Pen, rng: Rng, ctx: Ctx, box: Box): void {
-  if (ctx.subjects.length > 0 && rng.chance(0.75)) rng.pick(ctx.subjects)(pen, rng, box);
+  if (ctx.subjects.length > 0 && rng.chance(0.85)) rng.pick(ctx.subjects)(pen, rng, box);
   else parts.machineBody(pen, rng, box);
 }
 
@@ -419,16 +584,26 @@ const showcase: Layout = (pen, rng, ctx) => {
   const box: Box = { x: 0.5 - w / 2 + rng.range(-0.04, 0.04), y: rng.range(0.24, 0.34), w, h };
   rng.pick(ctx.subjects)(pen, rng, box);
 
-  const gw = rng.range(0.13, 0.19);
-  const gh = rng.range(0.1, 0.15);
-  const gadget = beside(rng, box, gw, gh);
-  parts.machineBody(pen, rng, gadget);
-  details(pen, rng, gadget, rng.int(1, 2));
-  if (rng.chance(0.5)) parts.antenna(pen, rng, gadget);
+  // The bolted-on invention is the joke, but not every time — a clean object
+  // is often the clearer read.
+  if (rng.chance(0.7)) {
+    const gw = rng.range(0.12, 0.17);
+    const gh = rng.range(0.09, 0.14);
+    const gadget = beside(rng, box, gw, gh);
+    parts.machineBody(pen, rng, gadget);
+    details(pen, rng, gadget, rng.int(1, 2));
+    if (rng.chance(0.5)) parts.antenna(pen, rng, gadget);
+  }
   accents(pen, rng, ctx, box);
   return box;
 };
 
+/** Layouts that actually put the subject on stage.
+ *
+ * Most of the general layouts build their body from `machineBody` directly,
+ * which is right when all we have is a vague topic — but wrong the moment we
+ * know the prompt says "alarm". Knowing what to draw and then burying it under
+ * a generic contraption is the whole failure mode this avoids. */
 const GENERAL_LAYOUTS: readonly Layout[] = [
   hero,
   tower,
@@ -438,6 +613,16 @@ const GENERAL_LAYOUTS: readonly Layout[] = [
   wearable,
   duo,
   beforeAfter,
+  hanging,
+];
+
+/** Weighted so a named subject is nearly always the hero: mostly `showcase`
+ *  (the object large, with the invention bolted on), sometimes a plain hero or
+ *  a scene with the person it's for, occasionally hanging above its target. */
+const NAMED_LAYOUTS: readonly Layout[] = [
+  showcase, showcase, showcase, showcase, showcase,
+  hero, hero,
+  duo,
   hanging,
 ];
 
@@ -460,11 +645,17 @@ function finishingMarks(pen: Pen, rng: Rng, ctx: Ctx): void {
 }
 
 /**
- * Composes a doodle for [prompt]. Picks a page layout first, then fills it —
- * so two drawings differ in their whole arrangement, not just in which knobs
- * ended up on the same box.
+ * Composes a doodle for [prompt].
+ *
+ * [answer] is the blank the player filled in, passed separately because it is
+ * the only part of the sentence they chose — matching leans on it heavily.
+ * Pass "" when there isn't one (the idle canvas), and the whole sentence is
+ * used instead.
+ *
+ * Picks a page layout first, then fills it, so two drawings differ in their
+ * whole arrangement rather than just in which knobs ended up on the same box.
  */
-export function drawForPrompt(prompt: string, artistSalt: string): Stroke[] {
+export function drawForPrompt(prompt: string, answer: string, artistSalt: string): Stroke[] {
   const rng = new Rng(seedFrom(prompt, artistSalt));
   // Some "people" have a steadier hand than others, and press harder.
   const pen = new Pen(rng, rng.range(0.7, 1.5));
@@ -474,16 +665,27 @@ export function drawForPrompt(prompt: string, artistSalt: string): Stroke[] {
   const accent = rng.pick(ACCENTS);
   pen.setColor(ink);
 
-  const topics = detectTopics(prompt);
-  const primary = topics.length > 0 ? rng.pick(topics) : null;
-  const subjects = primary ? TOPIC_SUBJECTS[primary] ?? [] : [];
+  const { primary, all: topics } = detectTopic(rng, prompt, answer);
+
+  // Three tiers, most specific first: a thing the answer names, a thing the
+  // sentence names, then whatever the topic can generally be drawn as.
+  const named = findNamedShape(expand(answer)) ?? findNamedShape(expand(prompt));
+  const subjects: readonly PartFn[] = named
+    ? [named]
+    : primary
+        ? TOPIC_SUBJECTS[primary] ?? []
+        : [];
   const ctx: Ctx = { ink, accent, primary, topics, subjects };
 
   // A prompt with something drawable in it should often lead with that thing
   // rather than burying it behind another machine.
-  const pool = subjects.length > 0
-    ? [...GENERAL_LAYOUTS, showcase, showcase, showcase, showcase]
-    : GENERAL_LAYOUTS;
+  // When we know exactly what to draw, only layouts that stage the subject are
+  // eligible. When it's a topical guess, spread across everything as before.
+  const pool = subjects.length === 0
+    ? GENERAL_LAYOUTS
+    : named
+        ? NAMED_LAYOUTS
+        : [...GENERAL_LAYOUTS, showcase, showcase, showcase, showcase];
   const focus = rng.pick(pool)(pen, rng, ctx);
 
   // Some layouts can land thin — a bare silhouette and little else, which

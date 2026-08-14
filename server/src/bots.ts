@@ -104,8 +104,10 @@ export function botTitle(prompt: string): string {
 
 // --- drawing ---------------------------------------------------------------
 
-export function botDrawing(prompt: string, botId: string): Stroke[] {
-  return drawForPrompt(prompt, botId);
+/** [answer] is the blank the player filled in — the part of the sentence the
+ *  drawing should actually be about. */
+export function botDrawing(prompt: string, answer: string, botId: string): Stroke[] {
+  return drawForPrompt(prompt, answer, botId);
 }
 
 // --- investing -------------------------------------------------------------

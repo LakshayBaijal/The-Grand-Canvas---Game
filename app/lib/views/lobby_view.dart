@@ -174,6 +174,10 @@ class _PlayerRow extends StatelessWidget {
   }
 }
 
+/// Everyone in the room looks the same. Seats filled by the server are
+/// deliberately indistinguishable from people — the game is more fun when you
+/// assume you're up against a person, and telling you otherwise only ever
+/// makes a lobby feel emptier than it plays.
 class _PlayerChip extends StatelessWidget {
   const _PlayerChip({
     required this.player,
@@ -212,30 +216,6 @@ class _PlayerChip extends StatelessWidget {
                 top: -4,
                 right: -4,
                 child: Icon(Icons.star_rounded, size: 16, color: GameColors.primary),
-              ),
-            if (player.isBot)
-              Positioned(
-                bottom: -3,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: GameColors.surfaceHigh,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'CPU',
-                      style: TextStyle(
-                        color: GameColors.textMuted,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
               ),
           ],
         ),

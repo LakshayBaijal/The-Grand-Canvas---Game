@@ -175,10 +175,11 @@ function finishPromptWriting(lobby: Lobby) {
   console.log(`[phase] ${lobby.code} drawing "${lobby.completedPrompt}"`);
 
   const prompt = lobby.completedPrompt;
+  const answer = lobby.promptAnswer;
   for (const id of botIds(lobby)) {
     scheduleBotAction(lobby, botDelayMs(DRAW_SECONDS), () => {
       if (lobby.phase !== "drawing") return;
-      recordDrawing(lobby, id, botTitle(prompt), botDrawing(prompt, id));
+      recordDrawing(lobby, id, botTitle(prompt), botDrawing(prompt, answer, id));
       broadcastWaiting(lobby, lobby.roundDrawings.size, lobby.players.size);
       if (everyoneDrew(lobby)) finishDrawingRound(lobby);
     });
@@ -384,7 +385,8 @@ wss.on("connection", (ws) => {
         prompt,
         artistName: randomBotName(),
         title: botTitle(prompt),
-        strokes: botDrawing(prompt, randomUUID()),
+        // No writer for these, so the whole sentence is the signal.
+        strokes: botDrawing(prompt, "", randomUUID()),
       });
       return;
     }

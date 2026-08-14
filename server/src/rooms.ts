@@ -69,6 +69,10 @@ export type Lobby = {
   usedTemplateIndices: Set<number>;
   currentTemplate: string;
   completedPrompt: string;
+  /** Just the words the writer typed into the blank. Kept apart from the
+   *  finished sentence because it's the only part anyone chose, which makes it
+   *  the best signal for what a drawing should depict. */
+  promptAnswer: string;
 
   // --- this round's submissions ---
   roundDrawings: Map<string, { title: string; strokes: Stroke[] }>;
@@ -130,6 +134,7 @@ function emptyLobby(hostId: string, mode: GameMode): Lobby {
     usedTemplateIndices: new Set(),
     currentTemplate: "",
     completedPrompt: "",
+    promptAnswer: "",
     roundDrawings: new Map(),
     investments: new Map(),
     rankings: new Map(),
@@ -322,6 +327,7 @@ export function beginPromptWriting(lobby: Lobby): void {
   lobby.usedTemplateIndices.add(index);
   lobby.currentTemplate = template;
   lobby.completedPrompt = "";
+  lobby.promptAnswer = "";
   lobby.phase = "prompt_writing";
   lobby.roundDrawings = new Map();
   lobby.investments = new Map();
@@ -329,6 +335,7 @@ export function beginPromptWriting(lobby: Lobby): void {
 }
 
 export function recordPrompt(lobby: Lobby, text: string): void {
+  lobby.promptAnswer = text.trim().slice(0, 60);
   lobby.completedPrompt = fillTemplate(lobby.currentTemplate, text);
 }
 
@@ -575,6 +582,7 @@ export function resetToLobby(lobby: Lobby): void {
   lobby.usedTemplateIndices = new Set();
   lobby.currentTemplate = "";
   lobby.completedPrompt = "";
+  lobby.promptAnswer = "";
   lobby.roundDrawings = new Map();
   lobby.investments = new Map();
   lobby.rankings = new Map();

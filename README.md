@@ -97,11 +97,14 @@ Ranked players go into one global queue. A game starts the instant 5 are
 waiting; otherwise the longest-waiting player's clock runs out and bots fill
 the rest of the lobby.
 
-`BOT_FILL_SECONDS` in `server/src/matchmaking.ts` controls that wait, and it's
-currently **40 seconds** — short on purpose. With a small player base a long
-window doesn't find you opponents, it just loses the player who got bored.
-**Raise it as the player base grows**; past a certain point waiting longer
-starts buying real opponents instead of only costing time.
+`BOT_FILL_SECONDS` in `server/src/matchmaking.ts` controls that wait — **two
+minutes**, roughly what other matchmade games hold out for before they stop
+waiting for a perfect lobby.
+
+**Players are never told which seats were filled.** The queue shows a plain
+countdown, filled seats look identical to people, and nothing in the UI says
+"bot". A lobby you believe is full of people is more fun than one labelled as
+padding, and the drawing engine is good enough to carry it.
 
 Ranked lobbies are built in one shot and are never joinable afterwards, so a
 game in progress can't be gate-crashed, and they start themselves — there's no
@@ -155,27 +158,37 @@ one long scribble. A typical drawing takes 10-15 seconds.
 
 ## Bots
 
-Empty seats can be filled with bots so a game works with fewer people. They
-use ordinary first names and show a small `CPU` badge in the lobby, and they
-are ordinary lobby members server-side — every phase check treats them exactly
-like humans, so there's no separate bot code path through the game.
+Empty seats can be filled so a game works with fewer people. They use ordinary
+first names, are never labelled in the UI, and are ordinary lobby members
+server-side — every phase check treats them exactly like humans, so there's no
+separate bot code path through the game.
 
 What they do:
 
-- **Draw** — a procedural doodle engine (`server/src/doodle/`) picks a **page
-  layout** first, then fills it from hand-authored parts. The layout is what
-  keeps drawings from blurring together: a centred machine, a tall stack, a
-  wide production bench, a machine with eyes and limbs, a handheld gadget
-  mid-use, someone wearing it on their head, a machine facing the person it's
-  for, a before/after pair of panels, something mounted overhead, or the
-  everyday object itself with the invention bolted on. Topical extras layer on
-  when the prompt mentions something depictable — flames, wings, rain, coins,
-  sound waves, stick figures. Every drawing here is an "invention", so a
-  contraption still reads as a plausible answer when no keyword matches.
+- **Draw** — a procedural doodle engine (`server/src/doodle/`) works out *what*
+  to draw, then picks a **page layout** to stage it in.
 
-  Measured over 1040 samples: 351 distinct ink-footprint signatures, with the
-  most common accounting for 3% of drawings. If you add parts, add a layout
-  now and then too — arrangement varies the look far more than detailing does.
+  **What** comes from three tiers, most specific first. `WORD_SHAPES` in
+  `doodle/compose.ts` maps ~180 concrete words to one specific drawing —
+  *coffee* → a mug, *alarm* → an alarm clock, *tangled cables* → a cable knot.
+  It's checked against **the blank the player filled in** before the rest of
+  the sentence, because the answer is the only part anyone chose; the template
+  around it is the same boilerplate every round. Failing that, topics are
+  *scored* (answer words count 4×) and the best one picks from a small set of
+  subjects. Failing that, a contraption — which fits every prompt in this game
+  by definition.
+
+  **How** is the layout: a centred hero, a tall stack, a wide production bench,
+  a machine with eyes and limbs, a handheld gadget mid-use, someone wearing it,
+  a machine facing the person it's for, a before/after pair of panels,
+  something mounted overhead, or the object itself with the invention bolted
+  on. When the subject is known, only layouts that actually stage it are
+  eligible — knowing the prompt says "alarm" and then burying a clock under a
+  generic contraption was the whole failure mode.
+
+  Measured over 1040 samples: 351 distinct ink-footprint signatures, most
+  common 3%. If you add parts, add a layout now and then too — arrangement
+  varies the look far more than detailing does.
 - **Look hand-drawn** — `pen.ts` simulates an unsteady hand: lines bow slightly
   off-target, high-frequency tremor, circles that don't quite close, corner
   overshoot, jittered endpoints. Nothing is geometrically perfect.
@@ -354,14 +367,22 @@ clock, and the run waits them out rather than faking the timings.
   — otherwise players can't spend their full budget and always eat the
   unspent-money penalty.
 - **Bot names** — `BOT_NAMES` in `server/src/bots.ts`.
-- **What bots draw** — add parts in `server/src/doodle/parts.ts`, then wire them
-  into `doodle/compose.ts`: into the `details` pool for machine fittings, into
-  `TOPIC_SUBJECTS` for things with their own silhouette, or into
-  `topicAccents` for garnish. A new topic needs keywords in `TOPIC_WORDS` plus
-  one of those three. **New page layouts** go in the same file — write one
-  returning its focus `Box` and add it to `GENERAL_LAYOUTS`; that's the highest
-  -leverage way to add variety. `MIN_STROKES` is the floor that stops a thin
-  layout from looking abandoned.
+- **What gets drawn** — add a shape to `server/src/doodle/parts.ts`, then wire
+  it into `doodle/compose.ts`. For accuracy, the highest-leverage place is
+  `WORD_SHAPES`: map the words people actually write straight to the shape.
+  Otherwise the `details` pool (machine fittings), `TOPIC_SUBJECTS` (topical
+  silhouettes) or `topicAccents` (garnish). A new topic needs keywords in
+  `TOPIC_WORDS` plus one of those.
+
+  **New page layouts** go in the same file — write one returning its focus
+  `Box`, add it to `GENERAL_LAYOUTS`, and to `NAMED_LAYOUTS` too if it stages
+  its subject rather than a machine. `MIN_STROKES` is the floor that stops a
+  thin layout from looking abandoned.
+
+  Worth knowing: shapes are judged by silhouette, not by how correct the
+  geometry is. The first `keys()` hung two blades off a ring and every single
+  one read as a stick figure; drawn side-on with a bow and teeth it's instantly
+  a key. Render a contact sheet and look at it before trusting a new shape.
 - **Custom art** — drop images into `app/assets/`, register them in
   `pubspec.yaml`, and reference them from the views. The game logic doesn't need
   to change.

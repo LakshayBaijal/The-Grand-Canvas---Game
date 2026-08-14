@@ -420,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _ModeCard(
                 title: 'PLAY WITH FRIENDS',
                 subtitle:
-                    'Private room, add bots to fill it, vote 1st / 2nd / 3rd. '
+                    'Private room you share by code. Vote 1st / 2nd / 3rd. '
                     'Nothing counts.',
                 badge: 'JUST FOR FUN',
                 accent: GameColors.lime,

@@ -11,8 +11,8 @@ import '../widgets/doodle_stage.dart';
 /// Waiting for a ranked match.
 ///
 /// The wait is the weakest moment in any matchmade game, so the idle canvas
-/// runs the whole time — there's always a bot drawing something in front of
-/// you rather than a bare spinner.
+/// runs the whole time — there's always a drawing appearing in front of you
+/// rather than a bare spinner.
 class QueueScreen extends StatefulWidget {
   const QueueScreen({super.key, required this.connection, required this.onCancel});
 
@@ -109,6 +109,13 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 }
 
+/// mm:ss — a two-minute wait reads badly as a bare "118s".
+String _clock(int seconds) {
+  final m = seconds ~/ 60;
+  final s = (seconds % 60).toString().padLeft(2, '0');
+  return '$m:$s';
+}
+
 class _QueueCard extends StatelessWidget {
   const _QueueCard({
     required this.waiting,
@@ -181,7 +188,7 @@ class _QueueCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             secondsUntilBots > 0
-                ? 'Starting with bots in ${secondsUntilBots}s if nobody else joins'
+                ? 'Starting in ${_clock(secondsUntilBots)}'
                 : 'Starting…',
             style: const TextStyle(color: GameColors.textMuted, fontSize: 12.5),
           ),
