@@ -186,9 +186,23 @@ What they do:
   eligible — knowing the prompt says "alarm" and then burying a clock under a
   generic contraption was the whole failure mode.
 
-  Measured over 1040 samples: 351 distinct ink-footprint signatures, most
-  common 3%. If you add parts, add a layout now and then too — arrangement
-  varies the look far more than detailing does.
+  **Watch the frequencies.** The idle canvas means people see a lot of these
+  back to back, so anything that shows up in a third of drawings stops reading
+  as detail and starts reading as "the same picture again". The antenna's
+  signal arcs were the worst offender — it sat in the details pool *and* was
+  called explicitly by four layouts *and* by the tech accent. There's a
+  measurement recipe in [Tests](#tests); current numbers:
+
+  | | share of drawings |
+  | --- | --- |
+  | contains an antenna | 20% (was 56%) |
+  | contains wheels | 3% (was 12%) |
+  | distinct parts in use | 68 (was 50) |
+
+  If you add parts, add a **layout** now and then too — arrangement varies the
+  look far more than detailing does. And when adding a fitting, put it in the
+  `details` pool rather than calling it directly from a layout, or it stacks on
+  top of the pool's own odds.
 - **Look hand-drawn** — `pen.ts` simulates an unsteady hand: lines bow slightly
   off-target, high-frequency tremor, circles that don't quite close, corner
   overshoot, jittered endpoints. Nothing is geometrically perfect.
@@ -345,6 +359,19 @@ a ranked game starting itself, trophies scaling with the human share, the
 leaderboard excluding bots, and friendly games leaving the ladder untouched.
 It takes a few minutes on purpose: bots deliberately use most of the phase
 clock, and the run waits them out rather than faking the timings.
+
+**Looking at the drawings** is the only way to check the doodle engine — the
+useful questions ("does this read as a key?", "is the same mark in every
+picture?") aren't assertable. Two throwaway techniques worth reusing:
+
+- *Contact sheet.* Render a grid of drawings to SVG (one `<path>` per stroke),
+  rasterise with `qlmanage -t`, and look at it. This is what caught a `keys()`
+  that was geometrically a keyring and visually a stick figure, every time.
+- *Frequency count.* Copy `doodle/{compose,parts,pen}.ts` to a scratch
+  directory, swap `import * as parts` for a counting `Proxy`, and run a few
+  hundred drawings. Counting each part once per drawing gives "share of
+  drawings containing it", which is the number that matters for repetition.
+  Doing this against `git show HEAD:...` too gives an honest before/after.
 
 ## Making it your own
 

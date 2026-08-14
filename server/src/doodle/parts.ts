@@ -105,8 +105,10 @@ export function antenna(pen: Pen, rng: Rng, box: Box): void {
   const topY = box.y - rng.range(0.08, 0.15);
   pen.line({ x: box.x + box.w * 0.5, y: box.y }, { x, y: topY }, 0.8);
   pen.circle(x, topY - 0.012, rng.range(0.012, 0.02));
-  // Signal waves radiating off the tip.
-  if (rng.chance(0.6)) {
+  // Signal waves radiating off the tip. Kept rare: these arcs are the single
+  // most recognizable mark in the whole set, so they stop reading as detail
+  // and start reading as "the same drawing" very quickly.
+  if (rng.chance(0.2)) {
     pen.setWidth(2.5);
     for (let i = 1; i <= 2; i++) {
       pen.arc(x, topY - 0.012, 0.03 + i * 0.022, -2.5, -0.65, 0.6);
@@ -1271,4 +1273,749 @@ export function suitcase(pen: Pen, rng: Rng, box: Box): void {
   pen.setWidth(3.2);
   pen.arc(box.x + box.w * 0.5, y, box.w * 0.16, Math.PI, Math.PI * 2, 0.7);
   pen.line({ x: box.x, y: y + h * 0.35 }, { x: box.x + box.w, y: y + h * 0.35 }, 0.5);
+}
+
+// --- more everyday objects --------------------------------------------------
+
+export function glasses(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cy = box.y + box.h * 0.5;
+  const r = Math.min(box.w * 0.22, box.h * 0.3);
+  const gap = box.w * 0.06;
+  pen.circle(box.x + box.w * 0.5 - r - gap / 2, cy, r);
+  pen.circle(box.x + box.w * 0.5 + r + gap / 2, cy, r);
+  pen.setWidth(3);
+  pen.arc(box.x + box.w * 0.5, cy - r * 0.2, gap * 0.9, Math.PI, Math.PI * 2, 0.6);
+  for (const side of [-1, 1]) {
+    const x = box.x + box.w * 0.5 + side * (r * 2 + gap / 2);
+    pen.line({ x, y: cy - r * 0.3 }, { x: x + side * box.w * 0.12, y: cy - r * 0.6 }, 0.6);
+  }
+}
+
+export function toothbrush(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  pen.rect(cx - box.w * 0.07, box.y + box.h * 0.18, box.w * 0.14, box.h * 0.8);
+  pen.setWidth(3.2);
+  pen.rect(cx - box.w * 0.11, box.y + box.h * 0.06, box.w * 0.22, box.h * 0.14);
+  for (let i = 0; i < 4; i++) {
+    const x = cx - box.w * 0.09 + (i / 3) * box.w * 0.18;
+    pen.line({ x, y: box.y + box.h * 0.06 }, { x, y: box.y - box.h * 0.04 }, 0.4);
+  }
+}
+
+export function kettle(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.48;
+  const bodyTop = box.y + box.h * 0.34;
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.24, y: bodyTop },
+      { x: cx - box.w * 0.3, y: box.y + box.h },
+      { x: cx + box.w * 0.3, y: box.y + box.h },
+      { x: cx + box.w * 0.24, y: bodyTop },
+    ],
+    false,
+    0.8,
+  );
+  pen.line({ x: cx - box.w * 0.24, y: bodyTop }, { x: cx + box.w * 0.24, y: bodyTop }, 0.6);
+  pen.setWidth(3.4);
+  pen.arc(cx, bodyTop, box.w * 0.2, Math.PI, Math.PI * 2, 0.7);
+  // Spout, and steam because it's always boiling.
+  pen.polyline(
+    [
+      { x: cx + box.w * 0.26, y: bodyTop + box.h * 0.14 },
+      { x: cx + box.w * 0.42, y: bodyTop + box.h * 0.04 },
+      { x: cx + box.w * 0.38, y: bodyTop + box.h * 0.2 },
+    ],
+    false,
+    0.7,
+  );
+  pen.setWidth(2.6);
+  pen.coil(cx + box.w * 0.42, bodyTop - box.h * 0.02, bodyTop - box.h * 0.3, box.w * 0.05, 2);
+}
+
+export function fridge(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const w = box.w * 0.62;
+  const x = box.x + (box.w - w) / 2;
+  pen.rect(x, box.y, w, box.h);
+  pen.setWidth(3);
+  const splitY = box.y + box.h * 0.34;
+  pen.line({ x, y: splitY }, { x: x + w, y: splitY }, 0.5);
+  for (const y of [splitY - box.h * 0.08, splitY + box.h * 0.08]) {
+    pen.line({ x: x + w * 0.78, y }, { x: x + w * 0.78, y: y + box.h * 0.12 }, 0.5);
+  }
+}
+
+export function microwave(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const h = box.h * 0.6;
+  const y = box.y + (box.h - h) / 2;
+  pen.rect(box.x, y, box.w, h);
+  pen.setWidth(3);
+  pen.rect(box.x + box.w * 0.07, y + h * 0.14, box.w * 0.58, h * 0.72);
+  for (let i = 0; i < 3; i++) {
+    pen.circle(box.x + box.w * 0.82, y + h * (0.26 + i * 0.24), box.w * 0.035);
+  }
+}
+
+export function television(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const h = box.h * 0.66;
+  pen.rect(box.x, box.y, box.w, h);
+  pen.setWidth(2.8);
+  pen.zigzag(
+    { x: box.x + box.w * 0.14, y: box.y + h * 0.55 },
+    { x: box.x + box.w * 0.86, y: box.y + h * 0.5 },
+    rng.int(5, 8),
+    h * 0.14,
+  );
+  pen.setWidth(rng.range(3.5, 4.5));
+  pen.line({ x: box.x + box.w * 0.5, y: box.y + h }, { x: box.x + box.w * 0.5, y: box.y + box.h * 0.9 }, 0.7);
+  pen.line(
+    { x: box.x + box.w * 0.3, y: box.y + box.h * 0.9 },
+    { x: box.x + box.w * 0.7, y: box.y + box.h * 0.9 },
+    0.6,
+  );
+}
+
+export function book(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const top = box.y + box.h * 0.28;
+  const bottom = box.y + box.h * 0.8;
+  // Two pages meeting at the spine.
+  for (const side of [-1, 1]) {
+    pen.polyline(
+      [
+        { x: cx, y: top },
+        { x: cx + side * box.w * 0.42, y: top - box.h * 0.08 },
+        { x: cx + side * box.w * 0.42, y: bottom - box.h * 0.06 },
+        { x: cx, y: bottom },
+      ],
+      false,
+      0.8,
+    );
+  }
+  pen.line({ x: cx, y: top }, { x: cx, y: bottom }, 0.6);
+  pen.setWidth(2.4);
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 2; i++) {
+      const y = top + box.h * (0.12 + i * 0.14);
+      pen.line({ x: cx + side * box.w * 0.08, y }, { x: cx + side * box.w * 0.34, y }, 0.4);
+    }
+  }
+}
+
+export function pencil(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const w = box.w * 0.16;
+  const tipY = box.y + box.h * 0.86;
+  pen.polyline(
+    [
+      { x: cx - w, y: box.y + box.h * 0.08 },
+      { x: cx + w, y: box.y + box.h * 0.08 },
+      { x: cx + w, y: tipY - box.h * 0.12 },
+      { x: cx, y: tipY },
+      { x: cx - w, y: tipY - box.h * 0.12 },
+    ],
+    true,
+    0.8,
+  );
+  pen.setWidth(2.8);
+  pen.line({ x: cx - w, y: box.y + box.h * 0.24 }, { x: cx + w, y: box.y + box.h * 0.24 }, 0.4);
+  pen.line(
+    { x: cx - w * 0.5, y: tipY - box.h * 0.06 },
+    { x: cx + w * 0.5, y: tipY - box.h * 0.06 },
+    0.4,
+  );
+}
+
+export function scissors(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const cx = box.x + box.w * 0.5;
+  const pivotY = box.y + box.h * 0.52;
+  for (const side of [-1, 1]) {
+    pen.line({ x: cx, y: pivotY }, { x: cx + side * box.w * 0.22, y: box.y }, 0.6);
+    pen.ellipse(
+      cx - side * box.w * 0.16,
+      box.y + box.h * 0.85,
+      box.w * 0.1,
+      box.h * 0.12,
+      0.8,
+    );
+    pen.line({ x: cx, y: pivotY }, { x: cx - side * box.w * 0.14, y: box.y + box.h * 0.75 }, 0.6);
+  }
+  pen.setWidth(2.6);
+  pen.circle(cx, pivotY, box.w * 0.03);
+}
+
+export function hammer(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  pen.rect(cx - box.w * 0.05, box.y + box.h * 0.24, box.w * 0.1, box.h * 0.72);
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.28, y: box.y + box.h * 0.1 },
+      { x: cx + box.w * 0.24, y: box.y + box.h * 0.06 },
+      { x: cx + box.w * 0.3, y: box.y + box.h * 0.24 },
+      { x: cx - box.w * 0.2, y: box.y + box.h * 0.26 },
+      { x: cx - box.w * 0.3, y: box.y + box.h * 0.18 },
+    ],
+    true,
+    0.8,
+  );
+}
+
+export function paintbrush(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  pen.rect(cx - box.w * 0.05, box.y, box.w * 0.1, box.h * 0.56);
+  pen.setWidth(3.2);
+  pen.rect(cx - box.w * 0.08, box.y + box.h * 0.56, box.w * 0.16, box.h * 0.1);
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.08, y: box.y + box.h * 0.66 },
+      { x: cx - box.w * 0.1, y: box.y + box.h * 0.94 },
+      { x: cx + box.w * 0.1, y: box.y + box.h * 0.94 },
+      { x: cx + box.w * 0.08, y: box.y + box.h * 0.66 },
+    ],
+    false,
+    0.7,
+  );
+}
+
+export function camera(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const h = box.h * 0.6;
+  const y = box.y + box.h * 0.24;
+  pen.rect(box.x, y, box.w, h);
+  pen.setWidth(3.2);
+  pen.rect(box.x + box.w * 0.28, y - h * 0.18, box.w * 0.24, h * 0.18);
+  pen.circle(box.x + box.w * 0.5, y + h * 0.52, Math.min(box.w, h) * 0.24);
+  pen.circle(box.x + box.w * 0.5, y + h * 0.52, Math.min(box.w, h) * 0.12);
+  pen.setWidth(2.6);
+  pen.circle(box.x + box.w * 0.84, y + h * 0.2, box.w * 0.035);
+}
+
+export function watch(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.5;
+  const r = Math.min(box.w, box.h) * 0.26;
+  pen.circle(cx, cy, r);
+  pen.setWidth(3);
+  pen.line({ x: cx, y: cy }, { x: cx + r * 0.5, y: cy - r * 0.3 }, 0.4);
+  pen.line({ x: cx, y: cy }, { x: cx, y: cy - r * 0.65 }, 0.4);
+  pen.setWidth(rng.range(3.5, 4.5));
+  for (const dir of [-1, 1]) {
+    pen.polyline(
+      [
+        { x: cx - r * 0.55, y: cy + dir * r },
+        { x: cx - r * 0.5, y: cy + dir * (r + box.h * 0.22) },
+        { x: cx + r * 0.5, y: cy + dir * (r + box.h * 0.22) },
+        { x: cx + r * 0.55, y: cy + dir * r },
+      ],
+      false,
+      0.7,
+    );
+  }
+}
+
+export function broom(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  pen.line({ x: cx + box.w * 0.12, y: box.y }, { x: cx - box.w * 0.06, y: box.y + box.h * 0.62 }, 0.8);
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.24, y: box.y + box.h * 0.66 },
+      { x: cx + box.w * 0.12, y: box.y + box.h * 0.58 },
+      { x: cx + box.w * 0.2, y: box.y + box.h },
+      { x: cx - box.w * 0.3, y: box.y + box.h },
+    ],
+    true,
+    0.8,
+  );
+  pen.setWidth(2.6);
+  for (let i = 0; i < 4; i++) {
+    const t = i / 3;
+    pen.line(
+      { x: cx - box.w * 0.22 + t * box.w * 0.32, y: box.y + box.h * 0.7 },
+      { x: cx - box.w * 0.26 + t * box.w * 0.44, y: box.y + box.h * 0.98 },
+      0.4,
+    );
+  }
+}
+
+export function bucket(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const topW = box.w * 0.56;
+  const topY = box.y + box.h * 0.3;
+  pen.polyline(
+    [
+      { x: cx - topW / 2, y: topY },
+      { x: cx - topW * 0.36, y: box.y + box.h },
+      { x: cx + topW * 0.36, y: box.y + box.h },
+      { x: cx + topW / 2, y: topY },
+    ],
+    false,
+    0.8,
+  );
+  pen.ellipse(cx, topY, topW / 2, box.h * 0.06, 0.7);
+  pen.setWidth(3.2);
+  pen.arc(cx, topY, topW * 0.56, Math.PI * 1.05, Math.PI * 1.95, 0.7);
+}
+
+export function ladder(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const inset = box.w * 0.2;
+  pen.line({ x: box.x + inset, y: box.y }, { x: box.x + inset * 0.4, y: box.y + box.h }, 0.7);
+  pen.line(
+    { x: box.x + box.w - inset, y: box.y },
+    { x: box.x + box.w - inset * 0.4, y: box.y + box.h },
+    0.7,
+  );
+  pen.setWidth(3.2);
+  const rungs = rng.int(4, 5);
+  for (let i = 0; i < rungs; i++) {
+    const t = (i + 0.5) / rungs;
+    const spread = inset * (1 - t * 0.6);
+    pen.line(
+      { x: box.x + spread, y: box.y + box.h * t },
+      { x: box.x + box.w - spread, y: box.y + box.h * t },
+      0.5,
+    );
+  }
+}
+
+export function trafficCone(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.1, y: box.y + box.h * 0.14 },
+      { x: cx - box.w * 0.3, y: box.y + box.h * 0.84 },
+      { x: cx + box.w * 0.3, y: box.y + box.h * 0.84 },
+      { x: cx + box.w * 0.1, y: box.y + box.h * 0.14 },
+    ],
+    true,
+    0.8,
+  );
+  pen.setWidth(3.2);
+  pen.rect(cx - box.w * 0.38, box.y + box.h * 0.84, box.w * 0.76, box.h * 0.14);
+  pen.setWidth(2.8);
+  pen.line(
+    { x: cx - box.w * 0.19, y: box.y + box.h * 0.46 },
+    { x: cx + box.w * 0.19, y: box.y + box.h * 0.46 },
+    0.4,
+  );
+}
+
+export function lamp(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const shadeY = box.y + box.h * 0.34;
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.18, y: box.y + box.h * 0.06 },
+      { x: cx - box.w * 0.34, y: shadeY },
+      { x: cx + box.w * 0.34, y: shadeY },
+      { x: cx + box.w * 0.18, y: box.y + box.h * 0.06 },
+    ],
+    true,
+    0.8,
+  );
+  pen.line({ x: cx, y: shadeY }, { x: cx, y: box.y + box.h * 0.9 }, 0.7);
+  pen.setWidth(3.4);
+  pen.ellipse(cx, box.y + box.h * 0.94, box.w * 0.2, box.h * 0.05, 0.7);
+}
+
+export function tap(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 5.5));
+  const x = box.x + box.w * 0.24;
+  pen.polyline(
+    [
+      { x, y: box.y + box.h * 0.66 },
+      { x, y: box.y + box.h * 0.2 },
+      { x: box.x + box.w * 0.66, y: box.y + box.h * 0.2 },
+      { x: box.x + box.w * 0.66, y: box.y + box.h * 0.42 },
+    ],
+    false,
+    0.8,
+  );
+  pen.setWidth(3.4);
+  pen.line({ x: x - box.w * 0.12, y: box.y + box.h * 0.36 }, { x: x + box.w * 0.12, y: box.y + box.h * 0.36 }, 0.5);
+  pen.line({ x, y: box.y + box.h * 0.36 }, { x, y: box.y + box.h * 0.26 }, 0.5);
+  // The drip, which is the whole reason a tap gets drawn.
+  pen.setWidth(3);
+  for (let i = 0; i < rng.int(2, 3); i++) {
+    const y = box.y + box.h * (0.56 + i * 0.16);
+    const s = box.h * 0.05;
+    pen.polyline(
+      [
+        { x: box.x + box.w * 0.66, y: y - s },
+        { x: box.x + box.w * 0.66 + s * 0.7, y: y + s * 0.3 },
+        { x: box.x + box.w * 0.66, y: y + s },
+        { x: box.x + box.w * 0.66 - s * 0.7, y: y + s * 0.3 },
+      ],
+      true,
+      0.5,
+    );
+  }
+}
+
+export function plate(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.52;
+  const cy = box.y + box.h * 0.5;
+  pen.ellipse(cx, cy, box.w * 0.34, box.h * 0.3, 0.8);
+  pen.setWidth(3);
+  pen.ellipse(cx, cy, box.w * 0.24, box.h * 0.2, 0.8);
+  // Fork alongside.
+  const fx = box.x + box.w * 0.1;
+  pen.line({ x: fx, y: cy - box.h * 0.28 }, { x: fx, y: cy + box.h * 0.3 }, 0.6);
+  pen.setWidth(2.4);
+  for (const off of [-0.022, 0, 0.022]) {
+    pen.line({ x: fx + off, y: cy - box.h * 0.28 }, { x: fx + off, y: cy - box.h * 0.08 }, 0.4);
+  }
+}
+
+export function pan(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.42;
+  const topY = box.y + box.h * 0.44;
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.28, y: topY },
+      { x: cx - box.w * 0.22, y: box.y + box.h * 0.86 },
+      { x: cx + box.w * 0.22, y: box.y + box.h * 0.86 },
+      { x: cx + box.w * 0.28, y: topY },
+    ],
+    false,
+    0.8,
+  );
+  pen.line({ x: cx - box.w * 0.28, y: topY }, { x: cx + box.w * 0.28, y: topY }, 0.6);
+  pen.setWidth(4.4);
+  pen.line({ x: cx + box.w * 0.28, y: topY + box.h * 0.05 }, { x: box.x + box.w, y: topY - box.h * 0.02 }, 0.7);
+  pen.setWidth(2.6);
+  for (const fx of [-0.12, 0.06]) {
+    pen.coil(cx + box.w * fx, topY - box.h * 0.03, topY - box.h * 0.28, box.w * 0.04, 2);
+  }
+}
+
+export function backpack(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const w = box.w * 0.56;
+  const x = box.x + (box.w - w) / 2;
+  const topY = box.y + box.h * 0.18;
+  pen.polyline(
+    [
+      { x, y: box.y + box.h },
+      { x, y: topY },
+      { x: x + w * 0.5, y: box.y + box.h * 0.04 },
+      { x: x + w, y: topY },
+      { x: x + w, y: box.y + box.h },
+    ],
+    true,
+    0.8,
+  );
+  pen.setWidth(3);
+  pen.rect(x + w * 0.16, box.y + box.h * 0.58, w * 0.68, box.h * 0.28);
+  pen.arc(x + w * 0.5, topY + box.h * 0.06, w * 0.3, 0.2, Math.PI - 0.2, 0.6);
+}
+
+export function hat(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const brimY = box.y + box.h * 0.66;
+  pen.arc(cx, brimY, box.w * 0.26, Math.PI, Math.PI * 2, 0.8);
+  pen.setWidth(rng.range(4, 5.5));
+  pen.arc(cx, brimY, box.w * 0.46, 0, Math.PI, 0.7);
+  pen.line({ x: cx - box.w * 0.46, y: brimY }, { x: cx + box.w * 0.46, y: brimY }, 0.6);
+  pen.setWidth(3);
+  pen.line({ x: cx - box.w * 0.26, y: brimY - box.h * 0.06 }, { x: cx + box.w * 0.26, y: brimY - box.h * 0.06 }, 0.5);
+}
+
+export function pill(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.5;
+  const rx = box.w * 0.34;
+  const ry = box.h * 0.17;
+  pen.ellipse(cx, cy, rx, ry, 0.8);
+  pen.setWidth(3);
+  pen.line({ x: cx, y: cy - ry }, { x: cx, y: cy + ry }, 0.5);
+}
+
+export function calendar(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  pen.rect(box.x, box.y + box.h * 0.14, box.w, box.h * 0.8);
+  pen.setWidth(3.2);
+  pen.line(
+    { x: box.x, y: box.y + box.h * 0.36 },
+    { x: box.x + box.w, y: box.y + box.h * 0.36 },
+    0.5,
+  );
+  for (const fx of [0.26, 0.74]) {
+    pen.line({ x: box.x + box.w * fx, y: box.y + box.h * 0.14 }, { x: box.x + box.w * fx, y: box.y }, 0.5);
+  }
+  pen.setWidth(2.4);
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 3; c++) {
+      pen.circle(
+        box.x + box.w * (0.24 + c * 0.26),
+        box.y + box.h * (0.52 + r * 0.24),
+        box.w * 0.035,
+      );
+    }
+  }
+}
+
+export function signpost(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  pen.line({ x: cx, y: box.y + box.h * 0.18 }, { x: cx, y: box.y + box.h }, 0.7);
+  pen.rect(box.x + box.w * 0.14, box.y, box.w * 0.72, box.h * 0.26);
+  pen.setWidth(2.6);
+  for (let i = 0; i < 2; i++) {
+    pen.zigzag(
+      { x: box.x + box.w * 0.24, y: box.y + box.h * (0.09 + i * 0.09) },
+      { x: box.x + box.w * 0.76, y: box.y + box.h * (0.09 + i * 0.09) },
+      rng.int(5, 8),
+      box.h * 0.012,
+    );
+  }
+}
+
+// --- more ways for a machine to stand --------------------------------------
+
+export function treads(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const y = box.y + box.h;
+  const r = Math.min(box.w, box.h) * 0.13;
+  pen.polyline(
+    [
+      { x: box.x + box.w * 0.1, y: y + r * 0.2 },
+      { x: box.x + box.w * 0.9, y: y + r * 0.2 },
+      { x: box.x + box.w * 0.9, y: y + r * 1.8 },
+      { x: box.x + box.w * 0.1, y: y + r * 1.8 },
+    ],
+    true,
+    0.8,
+  );
+  pen.setWidth(2.6);
+  for (let i = 0; i < 4; i++) {
+    pen.circle(box.x + box.w * (0.2 + i * 0.2), y + r, r * 0.42);
+  }
+}
+
+export function tripod(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const bottom = box.y + box.h;
+  const cx = box.x + box.w * 0.5;
+  for (const fx of [0.2, 0.5, 0.8]) {
+    pen.line(
+      { x: cx, y: bottom },
+      { x: box.x + box.w * fx, y: bottom + rng.range(0.08, 0.13) },
+      0.7,
+    );
+  }
+}
+
+export function skids(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const bottom = box.y + box.h;
+  const footY = bottom + rng.range(0.07, 0.11);
+  for (const fx of [0.24, 0.76]) {
+    pen.line({ x: box.x + box.w * fx, y: bottom }, { x: box.x + box.w * fx, y: footY }, 0.6);
+  }
+  pen.polyline(
+    [
+      { x: box.x + box.w * 0.1, y: footY },
+      { x: box.x + box.w * 0.9, y: footY },
+      { x: box.x + box.w * 1.02, y: footY - 0.03 },
+    ],
+    false,
+    0.7,
+  );
+}
+
+export function plinth(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const bottom = box.y + box.h;
+  const h = rng.range(0.05, 0.08);
+  pen.polyline(
+    [
+      { x: box.x + box.w * 0.16, y: bottom },
+      { x: box.x - box.w * 0.04, y: bottom + h },
+      { x: box.x + box.w * 1.04, y: bottom + h },
+      { x: box.x + box.w * 0.84, y: bottom },
+    ],
+    false,
+    0.8,
+  );
+}
+
+/** Not standing on anything — a puff of exhaust and some motion lines under it. */
+export function hover(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.6, 3.4));
+  const bottom = box.y + box.h;
+  for (let i = 0; i < rng.int(2, 3); i++) {
+    const y = bottom + 0.03 + i * 0.028;
+    const inset = box.w * (0.1 + i * 0.12);
+    pen.line({ x: box.x + inset, y }, { x: box.x + box.w - inset, y }, 0.5);
+  }
+}
+
+export function pole(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 5.5));
+  const cx = box.x + box.w * 0.5;
+  const bottom = box.y + box.h;
+  const footY = bottom + rng.range(0.1, 0.15);
+  pen.line({ x: cx, y: bottom }, { x: cx, y: footY }, 0.7);
+  pen.setWidth(3.4);
+  pen.ellipse(cx, footY, box.w * 0.22, 0.016, 0.7);
+}
+
+// --- more fittings to bolt on ----------------------------------------------
+
+export function vent(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.6, 3.4));
+  const w = box.w * rng.range(0.24, 0.36);
+  const x = box.x + (box.w - w) * rng.range(0.15, 0.85);
+  const y = box.y + box.h * rng.range(0.5, 0.72);
+  for (let i = 0; i < rng.int(3, 4); i++) {
+    pen.line({ x, y: y + i * box.h * 0.07 }, { x: x + w, y: y + i * box.h * 0.07 }, 0.4);
+  }
+}
+
+export function hatch(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3, 4));
+  const cx = box.x + box.w * rng.range(0.28, 0.72);
+  const cy = box.y + box.h * rng.range(0.3, 0.62);
+  const r = Math.min(box.w, box.h) * rng.range(0.14, 0.2);
+  pen.circle(cx, cy, r);
+  pen.setWidth(2.4);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    pen.circle(cx + Math.cos(a) * r * 0.72, cy + Math.sin(a) * r * 0.72, r * 0.12);
+  }
+}
+
+export function nameplate(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.6, 3.2));
+  const w = box.w * rng.range(0.34, 0.5);
+  const h = box.h * 0.14;
+  const x = box.x + (box.w - w) * rng.range(0.2, 0.8);
+  const y = box.y + box.h * rng.range(0.55, 0.78);
+  pen.rect(x, y, w, h);
+  pen.setWidth(2.2);
+  pen.zigzag({ x: x + w * 0.1, y: y + h * 0.55 }, { x: x + w * 0.9, y: y + h * 0.55 }, rng.int(6, 10), h * 0.14);
+}
+
+export function hose(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const side = rng.chance(0.5) ? -1 : 1;
+  const x = side < 0 ? box.x : box.x + box.w;
+  const y = box.y + box.h * rng.range(0.3, 0.6);
+  pen.coil(x + side * 0.06, y, y + rng.range(0.08, 0.14), rng.range(0.02, 0.032), rng.int(2, 4));
+}
+
+export function nozzle(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * rng.range(0.3, 0.7);
+  const y = box.y + box.h;
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.1, y },
+      { x: cx - box.w * 0.05, y: y + 0.05 },
+      { x: cx + box.w * 0.05, y: y + 0.05 },
+      { x: cx + box.w * 0.1, y },
+    ],
+    false,
+    0.7,
+  );
+  // Spray cone.
+  pen.setWidth(2.6);
+  for (const off of [-0.05, 0, 0.05]) {
+    pen.line({ x: cx, y: y + 0.055 }, { x: cx + off, y: y + 0.11 }, 0.5);
+  }
+}
+
+export function crank(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const side = rng.chance(0.5) ? -1 : 1;
+  const x = side < 0 ? box.x : box.x + box.w;
+  const y = box.y + box.h * rng.range(0.35, 0.65);
+  pen.circle(x, y, box.w * 0.05);
+  pen.polyline(
+    [
+      { x, y },
+      { x: x + side * box.w * 0.16, y: y - box.h * 0.04 },
+      { x: x + side * box.w * 0.16, y: y - box.h * 0.16 },
+    ],
+    false,
+    0.7,
+  );
+  pen.circle(x + side * box.w * 0.16, y - box.h * 0.18, box.w * 0.035);
+}
+
+export function propeller(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const cx = box.x + box.w * rng.range(0.35, 0.65);
+  const cy = box.y - box.h * 0.08;
+  pen.line({ x: cx, y: box.y }, { x: cx, y: cy }, 0.6);
+  for (const dir of [-1, 1]) {
+    pen.ellipse(cx + dir * box.w * 0.16, cy, box.w * 0.16, box.h * 0.04, 0.8);
+  }
+  pen.circle(cx, cy, box.w * 0.03);
+}
+
+export function solarPanel(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.2, 4));
+  const w = box.w * rng.range(0.4, 0.6);
+  const cx = box.x + box.w * rng.range(0.3, 0.7);
+  const y = box.y - rng.range(0.05, 0.09);
+  pen.polyline(
+    [
+      { x: cx - w / 2, y },
+      { x: cx + w / 2, y: y - 0.025 },
+      { x: cx + w / 2 + 0.02, y: y + 0.02 },
+      { x: cx - w / 2 + 0.02, y: y + 0.045 },
+    ],
+    true,
+    0.7,
+  );
+  pen.setWidth(2.2);
+  for (const t of [0.33, 0.66]) {
+    pen.line({ x: cx - w / 2 + w * t, y: y - 0.025 * t }, { x: cx - w / 2 + w * t + 0.02, y: y + 0.02 + 0.025 * (1 - t) }, 0.4);
+  }
+  pen.setWidth(rng.range(3.2, 4));
+  pen.line({ x: cx, y: y + 0.03 }, { x: cx, y: box.y }, 0.6);
+}
+
+export function bellOnTop(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const cx = box.x + box.w * rng.range(0.3, 0.7);
+  const r = Math.min(box.w, box.h) * 0.14;
+  pen.arc(cx, box.y - r * 0.2, r, Math.PI, Math.PI * 2, 0.7);
+  pen.line({ x: cx - r, y: box.y - r * 0.2 }, { x: cx + r, y: box.y - r * 0.2 }, 0.6);
+  pen.setWidth(2.6);
+  pen.circle(cx, box.y - r * 0.02, r * 0.16);
+}
+
+export function tank(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const side = rng.chance(0.5) ? -1 : 1;
+  const w = box.w * 0.2;
+  const h = box.h * rng.range(0.4, 0.6);
+  const x = side < 0 ? box.x - w - 0.015 : box.x + box.w + 0.015;
+  const y = box.y + box.h * 0.3;
+  pen.rect(x, y, w, h);
+  pen.ellipse(x + w / 2, y, w / 2, h * 0.08, 0.7);
+  pen.setWidth(3);
+  pen.line({ x: side < 0 ? x + w : x, y: y + h * 0.4 }, { x: side < 0 ? box.x : box.x + box.w, y: y + h * 0.5 }, 0.7);
 }

@@ -113,7 +113,7 @@ const WORD_SHAPES: Record<string, PartFn> = {
   // getting around
   car: parts.car, traffic: parts.car, commute: parts.car, driving: parts.car,
   drive: parts.car, parking: parts.car, bus: parts.car, taxi: parts.car,
-  jam: parts.car, roadworks: parts.car,
+  jam: parts.car, gridlock: parts.car,
   bike: parts.bicycle, bicycle: parts.bicycle, cycling: parts.bicycle,
   suitcase: parts.suitcase, luggage: parts.suitcase, packing: parts.suitcase,
   holiday: parts.suitcase, airport: parts.suitcase,
@@ -178,6 +178,51 @@ const WORD_SHAPES: Record<string, PartFn> = {
   noise: parts.speaker, loud: parts.speaker, noisy: parts.speaker,
   speaker: parts.speaker, volume: parts.speaker, shouting: parts.speaker,
   music: parts.speaker, alarms: parts.speaker,
+
+  // kitchen
+  kettle: parts.kettle, boiling: parts.kettle, fridge: parts.fridge,
+  freezer: parts.fridge, microwave: parts.microwave, reheating: parts.microwave,
+  pan: parts.pan, frying: parts.pan, saucepan: parts.pan, cooking: parts.pan,
+  plate: parts.plate, plates: parts.plate, cutlery: parts.plate, fork: parts.plate,
+  tap: parts.tap, faucet: parts.tap, dripping: parts.tap, plumbing: parts.tap,
+  sink: parts.tap, leak: parts.tap, leaking: parts.tap,
+
+  // around the house
+  glasses: parts.glasses, specs: parts.glasses, spectacles: parts.glasses,
+  toothbrush: parts.toothbrush, teeth: parts.toothbrush, brushing: parts.toothbrush,
+  dentist: parts.toothbrush,
+  broom: parts.broom, sweeping: parts.broom, mop: parts.broom, mopping: parts.broom,
+  vacuum: parts.broom, vacuuming: parts.broom, hoover: parts.broom,
+  bucket: parts.bucket, ladder: parts.ladder, shelf: parts.ladder,
+  ceiling: parts.ladder, lightbulb: parts.lamp, lamp: parts.lamp, lighting: parts.lamp,
+  television: parts.television, telly: parts.television, netflix: parts.television,
+  remote: parts.television, streaming: parts.television,
+  hat: parts.hat, cap: parts.hat, haircut: parts.hat,
+  backpack: parts.backpack, rucksack: parts.backpack, schoolbag: parts.backpack,
+
+  // desk and admin
+  book: parts.book, books: parts.book, reading: parts.book, homework: parts.book,
+  studying: parts.book, manual: parts.book, instructions: parts.book,
+  pen: parts.pencil, pencil: parts.pencil, writing: parts.pencil, notes: parts.pencil,
+  handwriting: parts.pencil, signature: parts.pencil,
+  scissors: parts.scissors, cutting: parts.scissors, wrapping: parts.scissors,
+  camera: parts.camera, photo: parts.camera, photos: parts.camera, selfie: parts.camera,
+  pictures: parts.camera,
+  calendar: parts.calendar, schedule: parts.calendar, appointment: parts.calendar,
+  reminder: parts.calendar, birthday: parts.calendar,
+  sign: parts.signpost, signs: parts.signpost, directions: parts.signpost,
+  rules: parts.signpost, forms: parts.signpost, paperwork: parts.signpost,
+  watch: parts.watch, wristwatch: parts.watch,
+
+  // diy and health
+  hammer: parts.hammer, nails: parts.hammer, flatpack: parts.hammer,
+  assembly: parts.hammer, diy: parts.hammer,
+  paint: parts.paintbrush, painting: parts.paintbrush, decorating: parts.paintbrush,
+  brush: parts.paintbrush,
+  pill: parts.pill, pills: parts.pill, medicine: parts.pill, tablets: parts.pill,
+  headache: parts.pill,
+  cone: parts.trafficCone, roadworks: parts.trafficCone, construction: parts.trafficCone,
+  detour: parts.trafficCone,
 
   // elsewhere
   rocket: parts.rocket, space: parts.rocket, moon: parts.rocket, planet: parts.rocket,
@@ -293,6 +338,17 @@ function details(pen: Pen, rng: Rng, box: Box, count: number): void {
     () => parts.cord(pen, rng, box),
     () => parts.smoke(pen, rng, box),
     () => parts.handle(pen, rng, box),
+    () => parts.vent(pen, rng, box),
+    () => parts.hatch(pen, rng, box),
+    () => parts.nameplate(pen, rng, box),
+    () => parts.hose(pen, rng, box),
+    () => parts.nozzle(pen, rng, box),
+    () => parts.crank(pen, rng, box),
+    () => parts.propeller(pen, rng, box),
+    () => parts.solarPanel(pen, rng, box),
+    () => parts.bellOnTop(pen, rng, box),
+    () => parts.tank(pen, rng, box),
+    () => parts.eyes(pen, rng, box),
     () => parts.gear(
       pen,
       rng,
@@ -305,12 +361,25 @@ function details(pen: Pen, rng: Rng, box: Box, count: number): void {
   for (let i = 0; i < Math.min(count, shuffled.length); i++) shuffled[i]();
 }
 
-/** Something to stand on — or nothing, which is itself a change of look. */
+/** Something to stand on — or nothing, which is itself a change of look.
+ *
+ * Deliberately many options with none dominant. Wheels used to be 38% of every
+ * drawing that called this, which is exactly the kind of thing that makes a
+ * gallery of doodles look like one doodle. */
 function base(pen: Pen, rng: Rng, box: Box): void {
-  const roll = rng.next();
-  if (roll < 0.38) parts.wheels(pen, rng, box);
-  else if (roll < 0.72) parts.legs(pen, rng, box);
-  else if (roll < 0.88) parts.spring(pen, rng, box);
+  const options: (() => void)[] = [
+    () => parts.wheels(pen, rng, box),
+    () => parts.legs(pen, rng, box),
+    () => parts.spring(pen, rng, box),
+    () => parts.treads(pen, rng, box),
+    () => parts.tripod(pen, rng, box),
+    () => parts.skids(pen, rng, box),
+    () => parts.plinth(pen, rng, box),
+    () => parts.hover(pen, rng, box),
+    () => parts.pole(pen, rng, box),
+    () => {}, // sitting on nothing at all
+  ];
+  rng.pick(options)();
 }
 
 /** Finds room beside [box] for a prop of the given size, flipping to the
@@ -354,7 +423,6 @@ function topicAccents(pen: Pen, rng: Rng, topic: Topic, box: Box, accent: string
       break;
     case "tech":
       parts.screen(pen, rng, box);
-      parts.antenna(pen, rng, box);
       break;
     case "person":
       parts.stickPerson(pen, rng, box.x - rng.range(0.08, 0.13), box.y + box.h + 0.06, rng.range(0.2, 0.28));
@@ -457,8 +525,7 @@ const creature: Layout = (pen, rng, ctx) => {
   parts.legs(pen, rng, box);
   parts.robotArm(pen, rng, box);
   if (rng.chance(0.5)) parts.robotArm(pen, rng, box);
-  if (rng.chance(0.6)) parts.antenna(pen, rng, box);
-  if (rng.chance(0.5)) parts.buttons(pen, rng, box);
+  details(pen, rng, box, rng.int(1, 2));
   accents(pen, rng, ctx, box);
   return box;
 };
@@ -496,7 +563,6 @@ const wearable: Layout = (pen, rng, ctx) => {
   const box: Box = { x: x - w / 2, y: headY - headR - h - 0.01, w, h };
   parts.machineBody(pen, rng, box);
   details(pen, rng, box, rng.int(1, 2));
-  if (rng.chance(0.7)) parts.antenna(pen, rng, box);
   accents(pen, rng, ctx, box);
   return box;
 };
@@ -592,7 +658,6 @@ const showcase: Layout = (pen, rng, ctx) => {
     const gadget = beside(rng, box, gw, gh);
     parts.machineBody(pen, rng, gadget);
     details(pen, rng, gadget, rng.int(1, 2));
-    if (rng.chance(0.5)) parts.antenna(pen, rng, gadget);
   }
   accents(pen, rng, ctx, box);
   return box;
@@ -633,12 +698,12 @@ const MIN_STROKES = 14;
 /** Marks added on top of whatever was drawn, sparingly. */
 function finishingMarks(pen: Pen, rng: Rng, ctx: Ctx): void {
   pen.setColor(rng.chance(0.6) ? ctx.accent : ctx.ink);
-  if (rng.chance(0.45)) parts.sparkles(pen, rng, { x: 0.2, y: 0.12, w: 0.6, h: 0.3 });
-  if (rng.chance(0.28)) {
+  if (rng.chance(0.3)) parts.sparkles(pen, rng, { x: 0.2, y: 0.12, w: 0.6, h: 0.3 });
+  if (rng.chance(0.16)) {
     pen.setColor(ctx.accent);
     parts.lightbulb(pen, rng, rng.range(0.13, 0.24), rng.range(0.15, 0.23), rng.range(0.035, 0.05));
   }
-  if (rng.chance(0.22)) {
+  if (rng.chance(0.16)) {
     pen.setColor(ctx.accent);
     parts.exclaim(pen, rng, rng.range(0.78, 0.9), rng.range(0.16, 0.26), rng.range(0.04, 0.06));
   }
