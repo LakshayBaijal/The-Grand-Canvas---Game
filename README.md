@@ -69,12 +69,20 @@ like humans, so there's no separate bot code path through the game.
 
 What they do:
 
-- **Draw** — a procedural doodle engine (`server/src/doodle/`) composes a
-  contraption from hand-authored parts (bodies, dials, levers, antennas,
-  wheels, gears), then layers on topical extras when the prompt mentions
-  something depictable — flames, wings, food, rockets, coins, stick figures.
-  Every drawing in this game is an "invention", so a contraption always reads
-  as a plausible answer even when no keyword matches.
+- **Draw** — a procedural doodle engine (`server/src/doodle/`) picks a **page
+  layout** first, then fills it from hand-authored parts. The layout is what
+  keeps drawings from blurring together: a centred machine, a tall stack, a
+  wide production bench, a machine with eyes and limbs, a handheld gadget
+  mid-use, someone wearing it on their head, a machine facing the person it's
+  for, a before/after pair of panels, something mounted overhead, or the
+  everyday object itself with the invention bolted on. Topical extras layer on
+  when the prompt mentions something depictable — flames, wings, rain, coins,
+  sound waves, stick figures. Every drawing here is an "invention", so a
+  contraption still reads as a plausible answer when no keyword matches.
+
+  Measured over 1040 samples: 351 distinct ink-footprint signatures, with the
+  most common accounting for 3% of drawings. If you add parts, add a layout
+  now and then too — arrangement varies the look far more than detailing does.
 - **Look hand-drawn** — `pen.ts` simulates an unsteady hand: lines bow slightly
   off-target, high-frequency tremor, circles that don't quite close, corner
   overshoot, jittered endpoints. Nothing is geometrically perfect.
@@ -229,8 +237,13 @@ cd server && npx tsc --noEmit -p .
   unspent-money penalty.
 - **Bot names** — `BOT_NAMES` in `server/src/bots.ts`.
 - **What bots draw** — add parts in `server/src/doodle/parts.ts`, then wire them
-  into a topic in `doodle/compose.ts`. Adding a topic means adding its keywords
-  to `TOPIC_WORDS` and a case to `drawTopicSubject`/`drawTopicAccents`.
+  into `doodle/compose.ts`: into the `details` pool for machine fittings, into
+  `TOPIC_SUBJECTS` for things with their own silhouette, or into
+  `topicAccents` for garnish. A new topic needs keywords in `TOPIC_WORDS` plus
+  one of those three. **New page layouts** go in the same file — write one
+  returning its focus `Box` and add it to `GENERAL_LAYOUTS`; that's the highest
+  -leverage way to add variety. `MIN_STROKES` is the floor that stops a thin
+  layout from looking abandoned.
 - **Custom art** — drop images into `app/assets/`, register them in
   `pubspec.yaml`, and reference them from the views. The game logic doesn't need
   to change.

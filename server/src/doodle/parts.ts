@@ -9,11 +9,13 @@ export type Box = { x: number; y: number; w: number; h: number };
 export function machineBody(pen: Pen, rng: Rng, box: Box): void {
   pen.setWidth(rng.range(5, 7));
 
-  // Vary the silhouette so not every invention is the same rectangle.
-  const shape = rng.next();
-  if (shape < 0.6) {
+  // Vary the silhouette so not every invention is the same rectangle. The
+  // outline is what a viewer registers first, so this matters more for
+  // "that's a different drawing" than any amount of extra detailing does.
+  const shape = rng.int(0, 6);
+  if (shape <= 1) {
     pen.rect(box.x, box.y, box.w, box.h);
-  } else if (shape < 0.82) {
+  } else if (shape === 2) {
     // Tapered console — wider at the base.
     pen.polyline(
       [
@@ -25,9 +27,46 @@ export function machineBody(pen: Pen, rng: Rng, box: Box): void {
       true,
       0.9,
     );
-  } else {
+  } else if (shape === 3) {
     // Rounded canister.
     pen.ellipse(box.x + box.w * 0.5, box.y + box.h * 0.5, box.w * 0.5, box.h * 0.5, 0.8);
+  } else if (shape === 4) {
+    // Stepped — a smaller unit bolted on top of a bigger one.
+    const splitY = box.y + box.h * rng.range(0.3, 0.45);
+    const topInset = box.w * rng.range(0.16, 0.3);
+    pen.rect(box.x + topInset, box.y, box.w - topInset * 2, splitY - box.y);
+    pen.rect(box.x, splitY, box.w, box.y + box.h - splitY);
+  } else if (shape === 5) {
+    // Dome top on a plain body.
+    const domeY = box.y + box.h * rng.range(0.26, 0.38);
+    pen.arc(box.x + box.w * 0.5, domeY, box.w * 0.5, Math.PI, Math.PI * 2, 0.8);
+    pen.polyline(
+      [
+        { x: box.x, y: domeY },
+        { x: box.x, y: box.y + box.h },
+        { x: box.x + box.w, y: box.y + box.h },
+        { x: box.x + box.w, y: domeY },
+      ],
+      false,
+      0.9,
+    );
+  } else {
+    // Angled corners — reads as moulded plastic rather than a crate.
+    const c = Math.min(box.w, box.h) * rng.range(0.16, 0.28);
+    pen.polyline(
+      [
+        { x: box.x + c, y: box.y },
+        { x: box.x + box.w - c, y: box.y },
+        { x: box.x + box.w, y: box.y + c },
+        { x: box.x + box.w, y: box.y + box.h - c },
+        { x: box.x + box.w - c, y: box.y + box.h },
+        { x: box.x + c, y: box.y + box.h },
+        { x: box.x, y: box.y + box.h - c },
+        { x: box.x, y: box.y + c },
+      ],
+      true,
+      0.85,
+    );
   }
 
   // A seam or panel line across the body sells "manufactured object".
@@ -161,6 +200,333 @@ export function pipe(pen: Pen, rng: Rng, box: Box): void {
     false,
     0.8,
   );
+}
+
+/** Two eyes on the body — the cheapest way to turn an appliance into a
+ *  character, and it changes the read of the whole drawing. */
+export function eyes(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3, 4));
+  const cy = box.y + box.h * rng.range(0.2, 0.34);
+  const r = Math.min(box.w, box.h) * rng.range(0.09, 0.14);
+  const gap = box.w * rng.range(0.19, 0.28);
+  const cx = box.x + box.w * 0.5;
+  for (const side of [-1, 1]) {
+    pen.circle(cx + side * gap, cy, r);
+    // Pupils placed a hair off-centre so it looks at something.
+    pen.circle(cx + side * gap + rng.range(-r * 0.3, r * 0.3), cy + rng.range(-r * 0.2, r * 0.2), r * 0.3);
+  }
+}
+
+export function smoke(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const x = box.x + box.w * rng.range(0.22, 0.78);
+  const stackTop = box.y - rng.range(0.035, 0.065);
+  pen.rect(x - 0.02, stackTop, 0.04, box.y - stackTop);
+  pen.setWidth(2.8);
+  pen.coil(x, stackTop - 0.015, stackTop - rng.range(0.1, 0.17), rng.range(0.018, 0.03), rng.int(2, 4));
+}
+
+export function cord(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3, 4));
+  const side = rng.chance(0.5) ? -1 : 1;
+  const startX = side < 0 ? box.x : box.x + box.w;
+  const startY = box.y + box.h * rng.range(0.55, 0.8);
+  const endX = startX + side * rng.range(0.1, 0.17);
+  const endY = startY + rng.range(0.05, 0.1);
+  // Sags in the middle the way a real cable does.
+  pen.polyline(
+    [
+      { x: startX, y: startY },
+      { x: startX + side * 0.05, y: startY + rng.range(0.05, 0.09) },
+      { x: endX, y: endY },
+    ],
+    false,
+    1.2,
+  );
+  pen.rect(endX - 0.018, endY, 0.036, 0.026);
+  pen.setWidth(2.4);
+  for (const o of [-0.008, 0.008]) {
+    pen.line({ x: endX + o, y: endY + 0.026 }, { x: endX + o, y: endY + 0.042 }, 0.4);
+  }
+}
+
+export function handle(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  pen.arc(box.x + box.w * 0.5, box.y, box.w * rng.range(0.22, 0.34), Math.PI * 1.05, Math.PI * 1.95, 0.7);
+}
+
+/** Hopper on top — instantly says "you put something in here". */
+export function funnel(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * rng.range(0.35, 0.65);
+  const topW = box.w * rng.range(0.4, 0.62);
+  const topY = box.y - rng.range(0.09, 0.15);
+  pen.polyline(
+    [
+      { x: cx - topW / 2, y: topY },
+      { x: cx - topW * 0.14, y: box.y },
+      { x: cx + topW * 0.14, y: box.y },
+      { x: cx + topW / 2, y: topY },
+    ],
+    false,
+    0.8,
+  );
+}
+
+export function robotArm(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const side = rng.chance(0.5) ? -1 : 1;
+  const baseX = side < 0 ? box.x : box.x + box.w;
+  const baseY = box.y + box.h * rng.range(0.25, 0.5);
+  const elbowX = baseX + side * rng.range(0.08, 0.13);
+  const elbowY = baseY - rng.range(0.02, 0.08);
+  const handX = elbowX + side * rng.range(0.04, 0.08);
+  const handY = elbowY + rng.range(0.03, 0.08);
+  pen.polyline(
+    [
+      { x: baseX, y: baseY },
+      { x: elbowX, y: elbowY },
+      { x: handX, y: handY },
+    ],
+    false,
+    0.8,
+  );
+  pen.setWidth(3);
+  pen.line({ x: handX, y: handY }, { x: handX + side * 0.035, y: handY - 0.026 }, 0.6);
+  pen.line({ x: handX, y: handY }, { x: handX + side * 0.035, y: handY + 0.02 }, 0.6);
+}
+
+export function conveyor(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const y = box.y + box.h + rng.range(0.035, 0.06);
+  const x0 = box.x - rng.range(0.03, 0.08);
+  const x1 = box.x + box.w + rng.range(0.03, 0.08);
+  const r = rng.range(0.022, 0.032);
+  pen.line({ x: x0, y }, { x: x1, y }, 0.8);
+  pen.line({ x: x0, y: y + r * 2 }, { x: x1, y: y + r * 2 }, 0.8);
+  for (const cx of [x0 + r, (x0 + x1) / 2, x1 - r]) pen.circle(cx, y + r, r * 0.8);
+}
+
+/** The universal "here's an idea" mark. */
+export function lightbulb(pen: Pen, rng: Rng, cx: number, cy: number, r: number): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  pen.circle(cx, cy, r);
+  pen.setWidth(3);
+  pen.rect(cx - r * 0.42, cy + r * 0.85, r * 0.84, r * 0.5);
+  pen.setWidth(2.4);
+  for (let i = 0; i < rng.int(3, 5); i++) {
+    const ang = -Math.PI / 2 + (i - 1.5) * 0.55;
+    pen.line(
+      { x: cx + Math.cos(ang) * r * 1.4, y: cy + Math.sin(ang) * r * 1.4 },
+      { x: cx + Math.cos(ang) * r * 1.9, y: cy + Math.sin(ang) * r * 1.9 },
+      0.4,
+    );
+  }
+}
+
+export function motionLines(pen: Pen, rng: Rng, x: number, y: number, size: number, dir = -1): void {
+  pen.setWidth(rng.range(2.4, 3.2));
+  for (let i = 0; i < rng.int(2, 3); i++) {
+    const yy = y + (i - 1) * size * 0.45;
+    pen.line({ x, y: yy }, { x: x + dir * size * rng.range(0.6, 1), y: yy }, 0.5);
+  }
+}
+
+export function exclaim(pen: Pen, rng: Rng, x: number, y: number, size: number): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  pen.line({ x, y: y - size }, { x: x + rng.range(-0.006, 0.006), y: y + size * 0.28 }, 0.5);
+  pen.circle(x, y + size * 0.6, size * 0.09);
+}
+
+/** Sound radiating out of something — the "this is loud" mark. */
+export function soundWaves(pen: Pen, rng: Rng, x: number, y: number, dir = 1): void {
+  pen.setWidth(rng.range(2.4, 3));
+  for (let i = 1; i <= 3; i++) {
+    const r = 0.028 + i * 0.024;
+    pen.arc(x, y, r, dir > 0 ? -1.05 : Math.PI - 1.05, dir > 0 ? 1.05 : Math.PI + 1.05, 0.6);
+  }
+}
+
+export function face(pen: Pen, rng: Rng, cx: number, cy: number, r: number, happy: boolean): void {
+  pen.setWidth(rng.range(3, 4));
+  pen.circle(cx, cy, r);
+  pen.setWidth(2.6);
+  for (const side of [-1, 1]) pen.circle(cx + side * r * 0.36, cy - r * 0.22, r * 0.09);
+  if (happy) pen.arc(cx, cy + r * 0.08, r * 0.5, 0.35, Math.PI - 0.35, 0.6);
+  else pen.arc(cx, cy + r * 0.62, r * 0.5, -Math.PI + 0.35, -0.35, 0.6);
+}
+
+export function panelFrame(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.6, 3.4));
+  pen.rect(box.x, box.y, box.w, box.h, 1.1);
+}
+
+// --- everyday objects ------------------------------------------------------
+// Ordinary things the prompts keep naming. A drawing built around one of
+// these reads completely differently from a drawing built around a machine,
+// which is most of what stops the bots repeating themselves.
+
+export function mug(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5.5));
+  const w = box.w * 0.6;
+  const x = box.x + (box.w - w) / 2;
+  pen.polyline(
+    [
+      { x, y: box.y },
+      { x: x + w * 0.08, y: box.y + box.h },
+      { x: x + w * 0.92, y: box.y + box.h },
+      { x: x + w, y: box.y },
+    ],
+    false,
+    0.8,
+  );
+  pen.line({ x, y: box.y }, { x: x + w, y: box.y }, 0.7);
+  pen.setWidth(3.5);
+  pen.arc(x + w, box.y + box.h * 0.42, box.h * 0.24, -1.3, 1.3, 0.7);
+  pen.setWidth(2.6);
+  for (const fx of [0.35, 0.62]) {
+    pen.coil(x + w * fx, box.y - 0.015, box.y - rng.range(0.07, 0.11), 0.014, 2);
+  }
+}
+
+export function bed(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const y = box.y + box.h * 0.45;
+  pen.rect(box.x, y, box.w, box.h * 0.35);
+  pen.polyline(
+    [
+      { x: box.x, y },
+      { x: box.x, y: box.y },
+      { x: box.x + box.w * 0.22, y: box.y },
+    ],
+    false,
+    0.8,
+  );
+  pen.setWidth(3);
+  pen.rect(box.x + box.w * 0.06, y - box.h * 0.11, box.w * 0.22, box.h * 0.13);
+  for (const fx of [0.04, 0.94]) {
+    pen.line(
+      { x: box.x + box.w * fx, y: y + box.h * 0.35 },
+      { x: box.x + box.w * fx, y: y + box.h * 0.52 },
+      0.6,
+    );
+  }
+}
+
+export function umbrella(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.38;
+  const r = box.w * 0.5;
+  pen.arc(cx, cy, r, Math.PI, Math.PI * 2, 0.7);
+  pen.setWidth(3);
+  const scallops = 3;
+  for (let i = 0; i < scallops; i++) {
+    const x0 = cx - r + (i / scallops) * 2 * r;
+    const x1 = cx - r + ((i + 1) / scallops) * 2 * r;
+    pen.arc((x0 + x1) / 2, cy, (x1 - x0) / 2, 0, Math.PI, 0.6);
+  }
+  pen.setWidth(3.5);
+  pen.line({ x: cx, y: cy }, { x: cx, y: box.y + box.h }, 0.8);
+  pen.arc(cx - 0.024, box.y + box.h, 0.024, 0, Math.PI, 0.6);
+}
+
+export function phoneDevice(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const w = box.w * 0.46;
+  const h = box.h * 0.95;
+  const x = box.x + (box.w - w) / 2;
+  pen.rect(x, box.y, w, h);
+  pen.setWidth(2.8);
+  pen.rect(x + w * 0.12, box.y + h * 0.1, w * 0.76, h * 0.66);
+  pen.circle(x + w * 0.5, box.y + h * 0.87, w * 0.1);
+}
+
+export function alarmClock(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.55;
+  const r = Math.min(box.w, box.h) * 0.4;
+  pen.circle(cx, cy, r);
+  pen.setWidth(3.2);
+  for (const side of [-1, 1]) pen.arc(cx + side * r * 0.78, cy - r * 0.72, r * 0.28, Math.PI, Math.PI * 2, 0.6);
+  pen.setWidth(3);
+  pen.line({ x: cx, y: cy }, { x: cx + r * 0.5, y: cy - r * 0.25 }, 0.5);
+  pen.line({ x: cx, y: cy }, { x: cx - r * 0.12, y: cy - r * 0.62 }, 0.5);
+  for (const side of [-1, 1]) {
+    pen.line({ x: cx + side * r * 0.6, y: cy + r * 0.8 }, { x: cx + side * r * 0.9, y: cy + r * 1.08 }, 0.5);
+  }
+}
+
+export function plant(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const potTop = box.y + box.h * 0.62;
+  pen.polyline(
+    [
+      { x: box.x + box.w * 0.28, y: potTop },
+      { x: box.x + box.w * 0.36, y: box.y + box.h },
+      { x: box.x + box.w * 0.64, y: box.y + box.h },
+      { x: box.x + box.w * 0.72, y: potTop },
+    ],
+    false,
+    0.8,
+  );
+  pen.line({ x: box.x + box.w * 0.28, y: potTop }, { x: box.x + box.w * 0.72, y: potTop }, 0.7);
+  pen.setWidth(3.2);
+  const cx = box.x + box.w * 0.5;
+  pen.line({ x: cx, y: potTop }, { x: cx, y: box.y + box.h * 0.14 }, 1.3);
+  const leaves = rng.int(2, 4);
+  for (let i = 0; i < leaves; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const y = potTop - (i + 1) * (box.h * 0.15);
+    pen.ellipse(cx + side * box.w * 0.15, y, box.w * 0.15, box.h * 0.055, 0.8);
+  }
+}
+
+export function fan(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.4;
+  const r = Math.min(box.w, box.h) * 0.42;
+  pen.circle(cx, cy, r);
+  pen.setWidth(3);
+  const spin = rng.range(0, Math.PI);
+  for (let i = 0; i < 3; i++) {
+    const ang = spin + (i / 3) * Math.PI * 2;
+    pen.ellipse(cx + Math.cos(ang) * r * 0.5, cy + Math.sin(ang) * r * 0.5, r * 0.36, r * 0.2, 0.8);
+  }
+  pen.circle(cx, cy, r * 0.14);
+  pen.setWidth(3.5);
+  pen.line({ x: cx, y: cy + r }, { x: cx, y: box.y + box.h }, 0.8);
+  pen.line({ x: cx - box.w * 0.16, y: box.y + box.h }, { x: cx + box.w * 0.16, y: box.y + box.h }, 0.6);
+}
+
+export function crate(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  pen.rect(box.x, box.y, box.w, box.h);
+  pen.setWidth(2.8);
+  pen.line({ x: box.x, y: box.y }, { x: box.x + box.w, y: box.y + box.h }, 0.6);
+  pen.line({ x: box.x + box.w, y: box.y }, { x: box.x, y: box.y + box.h }, 0.6);
+}
+
+export function sock(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const w = box.w * 0.3;
+  const x = box.x + box.w * 0.3;
+  pen.polyline(
+    [
+      { x, y: box.y },
+      { x: x + w, y: box.y },
+      { x: x + w, y: box.y + box.h * 0.6 },
+      { x: x + w * 2.0, y: box.y + box.h * 0.68 },
+      { x: x + w * 2.1, y: box.y + box.h },
+      { x, y: box.y + box.h },
+    ],
+    true,
+    0.8,
+  );
+  pen.setWidth(2.6);
+  pen.line({ x, y: box.y + box.h * 0.16 }, { x: x + w, y: box.y + box.h * 0.16 }, 0.5);
 }
 
 // --- topical extras --------------------------------------------------------

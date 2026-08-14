@@ -50,6 +50,7 @@ export class Pen {
   readonly strokes: Stroke[] = [];
   private color = "#1A1A1A";
   private width = 5;
+  private widthScale = 1;
 
   constructor(
     private readonly rng: Rng,
@@ -61,8 +62,15 @@ export class Pen {
     this.color = color;
   }
 
+  /** Multiplies every width set from here on. Parts ask for widths in
+   *  absolute terms; this lets one artist press harder than another without
+   *  every part needing to know about it. */
+  setWidthScale(scale: number): void {
+    this.widthScale = scale;
+  }
+
   setWidth(width: number): void {
-    this.width = width;
+    this.width = width * this.widthScale;
   }
 
   private clamp(p: Pt): Point {

@@ -33,9 +33,9 @@ class LiveDoodle extends StatefulWidget {
 
 class _LiveDoodleState extends State<LiveDoodle> with SingleTickerProviderStateMixin {
   /// Roughly how long the hand spends on one captured point. The doodle engine
-  /// emits ~200-500 points per drawing, so this lands most of them in the
-  /// 8-16 second range.
-  static const _msPerPoint = 26.0;
+  /// emits ~190-520 points per drawing, so this lands most of them in the
+  /// 8-17 second range.
+  static const _msPerPoint = 23.0;
 
   /// Time charged for lifting the pen between strokes, expressed in points so
   /// it can live on the same timeline. Without it every stroke runs into the
