@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/game_event.dart';
 import '../models/lobby_state.dart';
+import '../models/round_models.dart';
 import '../theme.dart';
 import '../widgets/doodle_stage.dart';
 
@@ -34,7 +35,10 @@ class LobbyView extends StatelessWidget {
   final DoodleEvent? doodle;
   final VoidCallback onNextDoodle;
 
-  bool get _isHost => lobby.hostId == myId;
+  bool get _isFriendly => lobby.mode == GameMode.friendly;
+  // Ranked lobbies fill themselves and start themselves; there's no host to
+  // press anything, so none of the host controls apply.
+  bool get _isHost => _isFriendly && lobby.hostId == myId;
   bool get _canStart => lobby.players.length >= _minPlayers;
   bool get _hasBots => lobby.players.any((p) => p.isBot);
   bool get _hasRoom => lobby.players.length < _maxPlayers;
@@ -42,7 +46,7 @@ class LobbyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('LOBBY')),
+      appBar: AppBar(title: Text(_isFriendly ? 'FRIENDLY LOBBY' : 'RANKED MATCH')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -50,7 +54,9 @@ class LobbyView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 4),
-              _RoomCodeBar(code: lobby.code),
+              // Only friendly games are joinable by code; showing one for a
+              // ranked match would just invite people to try it.
+              if (_isFriendly) _RoomCodeBar(code: lobby.code),
               const SizedBox(height: 12),
               // The idle canvas takes whatever room the lobby isn't using —
               // waiting for people to join is the dullest part of a party
@@ -100,9 +106,11 @@ class LobbyView extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   alignment: Alignment.center,
-                  child: const Text(
-                    'Waiting for the host to start…',
-                    style: TextStyle(color: GameColors.textMuted, fontSize: 15),
+                  child: Text(
+                    _isFriendly
+                        ? 'Waiting for the host to start…'
+                        : 'Starting…',
+                    style: const TextStyle(color: GameColors.textMuted, fontSize: 15),
                   ),
                 ),
               const SizedBox(height: 12),

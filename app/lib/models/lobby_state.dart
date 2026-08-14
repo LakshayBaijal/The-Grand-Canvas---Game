@@ -1,3 +1,5 @@
+import 'round_models.dart';
+
 class Player {
   const Player({required this.id, required this.nickname, required this.isBot});
 
@@ -13,15 +15,22 @@ class Player {
 }
 
 class LobbyState {
-  const LobbyState({required this.code, required this.hostId, required this.players});
+  const LobbyState({
+    required this.code,
+    required this.hostId,
+    required this.mode,
+    required this.players,
+  });
 
   final String code;
   final String hostId;
+  final GameMode mode;
   final List<Player> players;
 
   factory LobbyState.fromJson(Map<String, dynamic> json) => LobbyState(
         code: json['code'] as String,
         hostId: json['hostId'] as String,
+        mode: GameMode.fromJson(json['mode'] as String),
         players: (json['players'] as List)
             .map((p) => Player.fromJson(p as Map<String, dynamic>))
             .toList(),

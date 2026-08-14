@@ -3,22 +3,40 @@
 A Jackbox-style party drawing game for **3–5 players**, built for Android and iOS.
 Everyone plays on their own phone — no shared TV screen needed.
 
-## How the game plays
+## Two modes
 
-Same structure as Jackbox's **Patently Stupid**: one round per player, everyone
-draws a solution to the same problem, then bets fake money on their favorites.
+The game splits into a competitive ladder and a casual one, deliberately kept
+apart so the leaderboard means something.
 
-1. **Lobby** — one player opens a room; others join by 4-letter code, or hit **Quick Play** to be dropped into a random open lobby. Short on people? The host can **Add Player** to fill empty seats with bots (see below). While you wait, a bot draws on the [idle canvas](#the-idle-canvas).
-2. **Invent a problem** — one player each round gets a Mad-Libs-style sentence with a blank (e.g. *"Scientists have finally created a device to stop people from ___."*) and fills it in. Only real players get writer turns — this is the creative half of the game.
+| | **Ranked** | **Play with friends** |
+| --- | --- | --- |
+| Who you play | Matchmade with up to 4 strangers | Whoever you send the 4-letter code to |
+| Filling empty seats | Automatic, after a short wait | Host taps **Add Player** |
+| Voting | Spread **$1800** across the drawings | Pick a **1st / 2nd / 3rd** (3 / 2 / 1 points) |
+| Penalties | Unspent money comes out of your winnings | None |
+| Trophies | **Yes** — moves the global leaderboard | **No** — nothing counts |
+| Rematch | Queue again | Host taps **Play Again** |
+
+Friendly games award nothing on purpose: you choose the opponents and you can
+stack the room with bots, so any trophies from them would be free.
+
+## How a game plays
+
+Same structure as Jackbox's **Patently Stupid**: one round per human player,
+everyone draws a solution to the same problem, then backs their favourites.
+
+1. **Get into a game** — **Ranked** drops you in a queue; **Play with friends** opens a private room others join by code. Either way you watch the [idle canvas](#the-idle-canvas) while you wait.
+2. **Invent a problem** — one player each round gets a Mad-Libs-style sentence with a blank (e.g. *"Every office has an ongoing problem with ___."*) and fills it in. Only real players get writer turns — this is the creative half of the game.
 3. **Draw** — that completed sentence goes to **everyone** (including the writer), who all draw a solution, then name their invention in a popup. 75 seconds.
 4. **Present** — every drawing is shown one at a time, image first, then its title.
-5. **Invest** — every player gets **$1800** to distribute across everyone's drawing but their own. Spend it all: unspent money is deducted from your own winnings.
-6. **Reveal** — see how much each invention raised, who backed it, and the score breakdown.
-7. Repeat until every human player has had one turn writing the blank, then final scores. The host can hit **Play Again** to run it back.
+5. **Vote** — invest money (ranked) or pick a podium (friendly).
+6. **Reveal** — see what each invention pulled in, who backed it, and the score breakdown.
+7. Repeat until every human player has had one turn writing the blank, then final scores.
 
 ### Scoring
 
-Per round, your score changes by **`money raised + placement bonus − unspent money`**:
+**Ranked** — per round, your score changes by
+**`money raised + placement bonus − unspent money`**:
 
 | | |
 | --- | --- |
@@ -31,6 +49,81 @@ Each player starts a round with $2000 and pays a $200 entry fee, leaving
 placement bonuses except at 5 players — they're two independent rules rather
 than a closed economy. Tunable via `INVESTMENT_BUDGET`, `INVESTMENT_STEP` and
 `PLACEMENT_BONUSES` in `server/src/rooms.ts`.
+
+**Friendly** — every voter awards a 1st, 2nd and 3rd, worth **3 / 2 / 1**
+points. No budget, no bonuses, nothing to lose. `RANKING_POINTS` in the same
+file.
+
+## Profiles, trophies and the leaderboard
+
+Your account lives on the device. The first launch generates a permanent id and
+asks for a name once; after that the name is never asked for again, and it
+follows you across games, networks and app restarts. Deleting the app is the
+only thing that clears it. Renaming keeps the same account and the same
+trophies — the id is the identity, the name is just a label.
+
+Finishing a **ranked** game pays trophies by final placement:
+
+| 1st | 2nd | 3rd | 4th | 5th |
+| --- | --- | --- | --- | --- |
+| 30 | 18 | 10 | 5 | 2 |
+
+**Scaled by how much of the lobby was real people.** Beating four bots isn't the
+same achievement as beating four humans, and without the scaling anyone could
+farm the ladder by queueing alone until the bot backfill fired. Everyone who
+finishes still takes at least 1, so a game is never wasted time.
+
+Trophies only ever accumulate — losing never costs you any. The leaderboard is
+something you climb by playing, not a rating you can fall off. `TROPHIES_BY_PLACE`
+in `server/src/rooms.ts`.
+
+Profiles live in SQLite (`server/src/store.ts`, via node's built-in
+`node:sqlite` — no dependency, no native build) at `data/leaderboard.db`, or
+wherever `DB_PATH` points. Unlike lobbies, which are deliberately in-memory and
+disposable, this survives restarts: a leaderboard that resets on deploy would
+be worthless.
+
+> **Two honest limits.** (1) Identity is *self-asserted* — the device sends its
+> own id, and nothing stops a modified client claiming another one or inflating
+> its results. Fine among friends; if the ladder ever becomes worth cheating
+> for, it needs real accounts. (2) "Global" means *global to one server*. Until
+> `server/` is deployed somewhere public (see
+> [Before shipping](#before-shipping-to-the-play-store)), each machine running
+> it has its own separate leaderboard.
+
+## Matchmaking
+
+Ranked players go into one global queue. A game starts the instant 5 are
+waiting; otherwise the longest-waiting player's clock runs out and bots fill
+the rest of the lobby.
+
+`BOT_FILL_SECONDS` in `server/src/matchmaking.ts` controls that wait, and it's
+currently **40 seconds** — short on purpose. With a small player base a long
+window doesn't find you opponents, it just loses the player who got bored.
+**Raise it as the player base grows**; past a certain point waiting longer
+starts buying real opponents instead of only costing time.
+
+Ranked lobbies are built in one shot and are never joinable afterwards, so a
+game in progress can't be gate-crashed, and they start themselves — there's no
+host, because nobody there chose anybody.
+
+## Motion and feedback
+
+Results are the payoff of a whole game, so they animate rather than just
+appearing: the winner's trophy lands with a bounce, scores and trophies count
+up, score rows and reveal cards cascade in, and a win gets a confetti burst
+(only for the player who actually won). Phases cross-fade instead of cutting,
+the matchmaking seats light up as people arrive, and the "waiting for the
+others" screen has a progress bar so it reads as progress rather than a stall.
+
+All of it is drawn procedurally in `app/lib/widgets/celebration.dart` — no GIF
+or image assets. A few KB of code instead of megabytes of frames, sharp at any
+screen density, and it uses the game's own palette rather than fighting it.
+
+> One gotcha worth knowing if you add more: build `AnimationController`s in
+> `initState`, not as a lazily-initialised `late final` field. A controller
+> nothing touches gets constructed by `dispose()` instead, and building a
+> ticker while unmounting throws.
 
 ## The idle canvas
 
@@ -107,8 +200,11 @@ with real players.
 Game/
 ├── server/          Node.js + TypeScript WebSocket game server
 │   └── src/
-│       ├── index.ts     connection handling + phase orchestration
-│       ├── rooms.ts      lobby state machine, scoring, matchmaking
+│       ├── index.ts       connection handling + phase orchestration
+│       ├── rooms.ts        lobby state machine, both scoring modes, trophies
+│       ├── matchmaking.ts  the ranked queue + bot backfill
+│       ├── store.ts        SQLite profiles, trophies, leaderboard
+│   └── test/e2e.mjs      full ranked + friendly run against a live server
 │       ├── prompts.ts    fill-in-the-blank templates + idle-canvas sentences
 │       ├── bots.ts       bot names, titles, investing behaviour, pacing
 │       ├── doodle/       procedural hand-drawn doodle engine
@@ -121,12 +217,14 @@ Game/
         ├── main.dart
         ├── theme.dart            colours & component styling in one place
         ├── models/               protocol data classes
-        ├── services/             WebSocket connection
-        ├── screens/              home + the phase-driven game screen
+        ├── services/             WebSocket connection, device identity
+        ├── screens/              home, queue, leaderboard, and the
+        │                         phase-driven game screen
         ├── views/                one view per game phase
         └── widgets/              drawing canvas, countdown timer,
                                   live_doodle.dart + doodle_stage.dart
-                                  (the idle canvas)
+                                  (the idle canvas), celebration.dart
+                                  (confetti, count-ups, cascades)
 ```
 
 ## Playing on your phone (day-to-day, no rebuild needed)
@@ -219,6 +317,22 @@ cd app && flutter analyze && flutter test
 cd server && npx tsc --noEmit -p .
 ```
 
+The interesting behaviour is in the server's state machine, which unit tests
+don't reach — so there's a full end-to-end run that drives real WebSocket
+clients through a complete ranked game and a complete friendly game:
+
+```bash
+cd server
+npm run dev          # in one terminal
+npm run test:e2e     # in another
+```
+
+It covers identity persistence and rename, the ranked queue filling with bots,
+a ranked game starting itself, trophies scaling with the human share, the
+leaderboard excluding bots, and friendly games leaving the ladder untouched.
+It takes a few minutes on purpose: bots deliberately use most of the phase
+clock, and the run waits them out rather than faking the timings.
+
 ## Making it your own
 
 - **Prompt templates** — edit `PROMPT_TEMPLATES` in `server/src/prompts.ts`.
@@ -230,6 +344,10 @@ cd server && npx tsc --noEmit -p .
   (`PROMPT_SECONDS`, `DRAW_SECONDS`, `INVEST_SECONDS`, `REVEAL_SECONDS`). If you
   change them, update the matching constants in the corresponding view files so
   the progress bars stay accurate.
+- **How long ranked players wait for a match** — `BOT_FILL_SECONDS` in
+  `server/src/matchmaking.ts`. See [Matchmaking](#matchmaking) before changing it.
+- **Trophy payouts** — `TROPHIES_BY_PLACE` in `server/src/rooms.ts`. Friendly
+  vote points are `RANKING_POINTS` in the same file.
 - **Investment budget** — `INVESTMENT_BUDGET`, `INVESTMENT_STEP` and
   `PLACEMENT_BONUSES` in `server/src/rooms.ts`. The step is sent to the app at
   runtime, so only change it here. **Keep the step dividing the budget exactly**
@@ -252,14 +370,19 @@ cd server && npx tsc --noEmit -p .
 
 The game is fully playable, but these are needed for a public release:
 
-1. **Host the server publicly.** Right now it only runs on your Mac. Deploy
-   `server/` to something like Fly.io or Railway (cheap or free at this scale),
-   then set the app's default server address — `_defaultServer` in
-   `app/lib/screens/home_screen.dart` — to that host, and switch `ws://` to
-   `wss://` in `app/lib/services/game_connection.dart` once you have TLS. Once
-   there's a fixed public address, the mDNS auto-discovery (which only works
-   on a local network) stops being necessary — players just always connect to
-   the same place.
+1. **Host the server publicly — now required, not optional.** Ranked mode and
+   the leaderboard only make sense against one shared server; right now each
+   machine running `server/` has its own separate ladder, and matchmaking can
+   only pair people on the same Wi-Fi. Deploy `server/` to something like
+   Fly.io or Railway (cheap or free at this scale), then set the app's default
+   server address — `_defaultServer` in `app/lib/screens/home_screen.dart` — to
+   that host, and switch `ws://` to `wss://` in
+   `app/lib/services/game_connection.dart` once you have TLS. Once there's a
+   fixed public address, the mDNS auto-discovery (which only works on a local
+   network) stops being necessary.
+
+   **Give it a persistent disk** and point `DB_PATH` at it — on most hosts the
+   filesystem is wiped on every deploy, which would reset the leaderboard.
 2. **Application ID.** Currently `com.drawandfool.draw_and_fool` in
    `app/android/app/build.gradle.kts` (left over from before the rename — it's
    just an internal identifier, invisible to players). Change it to a domain
@@ -276,13 +399,13 @@ The game is fully playable, but these are needed for a public release:
 ### Known considerations
 
 - Games are held in memory, so restarting the server drops in-progress lobbies.
-  That's fine for a party game; add a datastore only if you want games to survive
-  deploys.
+  That's fine for a party game. Profiles and trophies are *not* in memory — see
+  [Profiles, trophies and the leaderboard](#profiles-trophies-and-the-leaderboard).
 - There's no reconnect-into-a-running-game yet. If a player's phone drops, the
   round continues without them and the remaining players aren't blocked.
 - **`MIN_PLAYERS_TO_START` is currently `1`** (in `server/src/rooms.ts`, mirrored
-  by `_minPlayers` in `app/lib/views/lobby_view.dart`) so you can test the
-  drawing screen solo. Playing truly alone means nobody invests in your drawing,
+  by `_minPlayers` in `app/lib/views/lobby_view.dart`) so you can test a friendly
+  game solo. Ranked games ignore it — they always fill to 5. Playing truly alone means nobody invests in your drawing,
   so it always raises $0 — add a couple of bots instead, which gives a real game
   loop with one person. Consider setting both back to `3` before release.
 - Since only humans get writer turns, a lobby of 1 human + 2 bots is a

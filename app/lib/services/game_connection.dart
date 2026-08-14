@@ -7,6 +7,7 @@ import '../models/game_event.dart';
 import '../models/lobby_state.dart';
 import '../models/round_models.dart';
 import '../models/stroke.dart';
+import 'identity.dart';
 
 /// Owns the single WebSocket connection to the game server and translates raw
 /// JSON frames into typed [GameEvent]s.
@@ -15,6 +16,24 @@ class GameConnection {
   final _eventController = StreamController<GameEvent>.broadcast();
 
   Stream<GameEvent> get events => _eventController.stream;
+
+  GameEvent? _lastPhase;
+
+  /// The most recent message that decides which screen a game should be on.
+  ///
+  /// A broadcast stream drops anything sent before a listener attaches, and a
+  /// ranked match starts the moment it's made — so its first phase message can
+  /// land in the gap between the home screen pushing [GameScreen] and that
+  /// screen subscribing. Replaying the last one closes that gap.
+  GameEvent? get lastPhaseEvent => _lastPhase;
+
+  static bool _isPhaseEvent(GameEvent event) =>
+      event is LobbyStateEvent ||
+      event is PromptWritingEvent ||
+      event is RoundStartEvent ||
+      event is VotingPhaseEvent ||
+      event is RoundRevealEvent ||
+      event is FinalResultsEvent;
 
   /// Resolves once the server's `welcome` arrives, so callers can wait for a
   /// live connection before sending their first action.
@@ -29,6 +48,7 @@ class GameConnection {
         final event = _decode(raw as String);
         if (event == null) return;
         if (event is WelcomeEvent && !ready.isCompleted) ready.complete();
+        if (_isPhaseEvent(event)) _lastPhase = event;
         _eventController.add(event);
       },
       onError: (Object error) {
@@ -53,6 +73,7 @@ class GameConnection {
   Future<void> disconnect() async {
     final channel = _channel;
     _channel = null;
+    _lastPhase = null;
     await channel?.sink.close();
   }
 
@@ -63,6 +84,23 @@ class GameConnection {
         return WelcomeEvent(json['connectionId'] as String);
       case 'lobby_state':
         return LobbyStateEvent(LobbyState.fromJson(json));
+      case 'profile':
+        return ProfileEvent(Profile.fromJson(json['profile'] as Map<String, dynamic>));
+      case 'leaderboard':
+        return LeaderboardEvent(
+          entries: (json['entries'] as List)
+              .map((e) => LeaderboardEntry.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          you: json['you'] == null
+              ? null
+              : Profile.fromJson(json['you'] as Map<String, dynamic>),
+        );
+      case 'queue_status':
+        return QueueStatusEvent(
+          waiting: json['waiting'] as int,
+          target: json['target'] as int,
+          botFillAtMs: json['botFillAtMs'] as int,
+        );
       case 'prompt_writing':
         return PromptWritingEvent(
           template: json['template'] as String,
@@ -82,23 +120,26 @@ class GameConnection {
         );
       case 'waiting_update':
         return WaitingUpdateEvent(json['submitted'] as int, json['total'] as int);
-      case 'investing_phase':
-        return InvestingPhaseEvent(
+      case 'voting_phase':
+        return VotingPhaseEvent(
+          scoring: Scoring.fromJson(json['scoring'] as String),
           prompt: json['prompt'] as String,
           entries: (json['entries'] as List)
               .map((e) => DrawingEntry.fromJson(e as Map<String, dynamic>))
               .toList(),
           budget: json['budget'] as int,
           step: json['step'] as int,
+          places: json['places'] as int,
           deadlineMs: json['deadlineMs'] as int,
           roundIndex: json['roundIndex'] as int,
           totalRounds: json['totalRounds'] as int,
         );
       case 'round_reveal':
         return RoundRevealEvent(
+          scoring: Scoring.fromJson(json['scoring'] as String),
           prompt: json['prompt'] as String,
           entries: (json['entries'] as List)
-              .map((e) => InvestmentResult.fromJson(e as Map<String, dynamic>))
+              .map((e) => RoundResult.fromJson(e as Map<String, dynamic>))
               .toList(),
           scores: (json['scores'] as List)
               .map((s) => ScoreRow.fromJson(s as Map<String, dynamic>))
@@ -108,9 +149,12 @@ class GameConnection {
         );
       case 'final_results':
         return FinalResultsEvent(
-          (json['scores'] as List)
+          mode: GameMode.fromJson(json['mode'] as String),
+          scores: (json['scores'] as List)
               .map((s) => ScoreRow.fromJson(s as Map<String, dynamic>))
               .toList(),
+          trophies: (json['trophies'] as Map<String, dynamic>)
+              .map((k, v) => MapEntry(k, v as int)),
         );
       case 'doodle':
         return DoodleEvent(
@@ -130,12 +174,30 @@ class GameConnection {
     }
   }
 
-  void createLobby(String nickname) => _send({'type': 'create_lobby', 'nickname': nickname});
+  /// Identity handshake. Must be sent before anything except `request_doodle`.
+  void hello(Identity identity) => _send({
+        'type': 'hello',
+        'playerId': identity.playerId,
+        'nickname': identity.nickname,
+      });
 
-  void quickPlay(String nickname) => _send({'type': 'quick_play', 'nickname': nickname});
+  void setNickname(String nickname) => _send({'type': 'set_nickname', 'nickname': nickname});
 
-  void joinLobby(String code, String nickname) =>
-      _send({'type': 'join_lobby', 'code': code, 'nickname': nickname});
+  void getLeaderboard() => _send({'type': 'get_leaderboard'});
+
+  void findMatch() => _send({'type': 'find_match'});
+
+  void cancelMatch() => _send({'type': 'cancel_match'});
+
+  void createLobby() => _send({'type': 'create_lobby'});
+
+  void joinLobby(String code) => _send({'type': 'join_lobby', 'code': code});
+
+  void leaveLobby() {
+    // Nothing to replay into the next game we join.
+    _lastPhase = null;
+    _send({'type': 'leave_lobby'});
+  }
 
   void startGame() => _send({'type': 'start_game'});
 
@@ -150,6 +212,9 @@ class GameConnection {
 
   void submitInvestment(Map<String, int> allocations) =>
       _send({'type': 'submit_investment', 'allocations': allocations});
+
+  /// Ordered artistIds, best first. Friendly games only.
+  void submitRanking(List<String> order) => _send({'type': 'submit_ranking', 'order': order});
 
   void playAgain() => _send({'type': 'play_again'});
 

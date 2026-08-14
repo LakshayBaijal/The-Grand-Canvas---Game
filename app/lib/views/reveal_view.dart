@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../models/game_event.dart';
 import '../models/round_models.dart';
 import '../theme.dart';
+import '../widgets/celebration.dart';
 import '../widgets/drawing_canvas.dart';
 
-/// Shows every drawing from the round ranked by how much fake money it
-/// attracted, who invested in it, and the running scores.
+/// Shows every drawing from the round, best first, who backed it, and the
+/// running scores. Reads as money in ranked games and as vote points in
+/// friendly ones — the layout is the same, only the units differ.
 class RevealView extends StatelessWidget {
   const RevealView({super.key, required this.event});
 
@@ -33,8 +35,17 @@ class RevealView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              // Best first, arriving one after another so the winner lands
+              // before the also-rans rather than everything appearing at once.
               for (var i = 0; i < event.entries.length; i++) ...[
-                _EntryCard(rank: i + 1, entry: event.entries[i]),
+                PopIn(
+                  index: i,
+                  child: _EntryCard(
+                    rank: i + 1,
+                    entry: event.entries[i],
+                    scoring: event.scoring,
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
               const SizedBox(height: 10),
@@ -44,7 +55,11 @@ class RevealView extends StatelessWidget {
                 style: TextStyle(color: GameColors.textMuted, letterSpacing: 3, fontSize: 12),
               ),
               const SizedBox(height: 10),
-              for (final row in event.scores) _ScoreLine(row: row),
+              for (var i = 0; i < event.scores.length; i++)
+                PopIn(
+                  index: event.entries.length + i,
+                  child: _ScoreLine(row: event.scores[i], scoring: event.scoring),
+                ),
               const SizedBox(height: 28),
             ],
           ),
@@ -55,14 +70,15 @@ class RevealView extends StatelessWidget {
 }
 
 class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.rank, required this.entry});
+  const _EntryCard({required this.rank, required this.entry, required this.scoring});
 
   final int rank;
-  final InvestmentResult entry;
+  final RoundResult entry;
+  final Scoring scoring;
 
   @override
   Widget build(BuildContext context) {
-    final isTop = rank == 1 && entry.totalInvested > 0;
+    final isTop = rank == 1 && entry.total > 0;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -106,8 +122,14 @@ class _EntryCard extends StatelessWidget {
                       style: const TextStyle(color: GameColors.textMuted, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      '\$${entry.totalInvested} raised',
+                    CountUp(
+                      value: entry.total,
+                      prefix: scoring.isMoney ? '\$' : '',
+                      suffix: scoring.isMoney
+                          ? ' raised'
+                          : entry.total == 1
+                              ? ' point'
+                              : ' points',
                       style: const TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 17,
@@ -119,13 +141,13 @@ class _EntryCard extends StatelessWidget {
               ),
             ],
           ),
-          if (entry.investors.isNotEmpty) ...[
+          if (entry.backers.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (final investor in entry.investors)
+                for (final backer in entry.backers)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
@@ -133,7 +155,9 @@ class _EntryCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      '${investor.name} \$${investor.amount}',
+                      scoring.isMoney
+                          ? '${backer.name} \$${backer.amount}'
+                          : '${backer.name} +${backer.amount}',
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -147,17 +171,24 @@ class _EntryCard extends StatelessWidget {
 }
 
 class _ScoreLine extends StatelessWidget {
-  const _ScoreLine({required this.row});
+  const _ScoreLine({required this.row, required this.scoring});
 
   final ScoreRow row;
+  final Scoring scoring;
 
   @override
   Widget build(BuildContext context) {
-    final breakdown = [
-      if (row.raised > 0) '\$${row.raised} raised',
-      if (row.bonus > 0) '+\$${row.bonus} placement',
-      if (row.penalty > 0) '-\$${row.penalty} unspent',
-    ].join('  ·  ');
+    // Friendly games have no bonuses and no penalties, so their breakdown is
+    // just the points the drawing earned.
+    final breakdown = scoring.isMoney
+        ? [
+            if (row.raised > 0) '\$${row.raised} raised',
+            if (row.bonus > 0) '+\$${row.bonus} placement',
+            if (row.penalty > 0) '-\$${row.penalty} unspent',
+          ].join('  ·  ')
+        : row.raised > 0
+            ? '${row.raised} point${row.raised == 1 ? '' : 's'} from the table'
+            : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),

@@ -7,13 +7,13 @@ import '../models/lobby_state.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
 import '../views/draw_view.dart';
-import '../views/investing_view.dart';
 import '../views/lobby_view.dart';
 import '../views/prompt_writing_view.dart';
 import '../views/results_view.dart';
 import '../views/reveal_view.dart';
+import '../views/voting_view.dart';
 
-enum GamePhase { lobby, promptWriting, drawing, investing, reveal, results }
+enum GamePhase { lobby, promptWriting, drawing, voting, reveal, results }
 
 /// Single screen for the whole game. Everything after joining a lobby is
 /// driven by the server's phase messages, so there are no navigation races
@@ -41,7 +41,7 @@ class _GameScreenState extends State<GameScreen> {
   GamePhase _phase = GamePhase.lobby;
   PromptWritingEvent? _promptWriting;
   RoundStartEvent? _round;
-  InvestingPhaseEvent? _investing;
+  VotingPhaseEvent? _voting;
   RoundRevealEvent? _reveal;
   FinalResultsEvent? _results;
 
@@ -56,6 +56,11 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     _sub = widget.connection.events.listen(_handleEvent);
+    // A ranked match starts the instant matchmaking makes it, so its first
+    // phase message can arrive before this screen has subscribed. Replay
+    // whatever we missed rather than sitting on the lobby forever.
+    final missed = widget.connection.lastPhaseEvent;
+    if (missed != null) _applyPhase(missed);
     widget.connection.requestDoodle();
   }
 
@@ -73,49 +78,10 @@ class _GameScreenState extends State<GameScreen> {
 
   void _handleEvent(GameEvent event) {
     if (!mounted) return;
+    if (_applyPhaseWithSetState(event)) return;
     switch (event) {
-      case LobbyStateEvent(:final lobby):
-        setState(() {
-          _lobby = lobby;
-          // A fresh lobby_state after a game means the host hit "play again".
-          if (_phase == GamePhase.results) {
-            _phase = GamePhase.lobby;
-            _resetRoundState();
-            // Back in the lobby after "play again" — restart the idle canvas.
-            widget.connection.requestDoodle();
-          }
-        });
       case DoodleEvent():
         setState(() => _doodle = event);
-      case PromptWritingEvent():
-        setState(() {
-          _phase = GamePhase.promptWriting;
-          _promptWriting = event;
-        });
-      case RoundStartEvent():
-        setState(() {
-          _phase = GamePhase.drawing;
-          _round = event;
-          _waitingSubmitted = 0;
-          _waitingTotal = _lobby.players.length;
-        });
-      case InvestingPhaseEvent():
-        setState(() {
-          _phase = GamePhase.investing;
-          _investing = event;
-          _waitingSubmitted = 0;
-          _waitingTotal = _lobby.players.length;
-        });
-      case RoundRevealEvent():
-        setState(() {
-          _phase = GamePhase.reveal;
-          _reveal = event;
-        });
-      case FinalResultsEvent():
-        setState(() {
-          _phase = GamePhase.results;
-          _results = event;
-        });
       case WaitingUpdateEvent(:final submitted, :final total):
         setState(() {
           _waitingSubmitted = submitted;
@@ -125,16 +91,64 @@ class _GameScreenState extends State<GameScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       case DisconnectedEvent():
         setState(() => _disconnected = true);
-      case WelcomeEvent():
-      case PongEvent():
+      default:
         break;
     }
+  }
+
+  bool _applyPhaseWithSetState(GameEvent event) {
+    var handled = false;
+    setState(() => handled = _applyPhase(event));
+    return handled;
+  }
+
+  /// Moves the screen to whatever phase [event] describes. Kept separate from
+  /// [_handleEvent] so initState can replay a missed message without calling
+  /// setState before the first build.
+  bool _applyPhase(GameEvent event) {
+    switch (event) {
+      case LobbyStateEvent(:final lobby):
+        _lobby = lobby;
+        // A fresh lobby_state after a game means the host hit "play again".
+        if (_phase == GamePhase.results) {
+          _phase = GamePhase.lobby;
+          _resetRoundState();
+          widget.connection.requestDoodle();
+        }
+      case PromptWritingEvent():
+        _phase = GamePhase.promptWriting;
+        _promptWriting = event;
+      case RoundStartEvent():
+        _phase = GamePhase.drawing;
+        _round = event;
+        _waitingSubmitted = 0;
+        _waitingTotal = _lobby.players.length;
+      case VotingPhaseEvent():
+        _phase = GamePhase.voting;
+        _voting = event;
+        _waitingSubmitted = 0;
+        _waitingTotal = _lobby.players.length;
+      case RoundRevealEvent():
+        _phase = GamePhase.reveal;
+        _reveal = event;
+      case FinalResultsEvent():
+        _phase = GamePhase.results;
+        _results = event;
+      default:
+        return false;
+    }
+    return true;
+  }
+
+  void _leave() {
+    widget.connection.leaveLobby();
+    Navigator.of(context).pop();
   }
 
   void _resetRoundState() {
     _promptWriting = null;
     _round = null;
-    _investing = null;
+    _voting = null;
     _reveal = null;
     _results = null;
   }
@@ -169,6 +183,15 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
 
+    // Phases are whole screens swapping under the player, so cross-fade
+    // rather than cutting. Keyed by phase so the switcher knows it changed.
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      child: KeyedSubtree(key: ValueKey(_phase), child: _buildPhase(context)),
+    );
+  }
+
+  Widget _buildPhase(BuildContext context) {
     return switch (_phase) {
       GamePhase.lobby => LobbyView(
           lobby: _lobby,
@@ -194,20 +217,24 @@ class _GameScreenState extends State<GameScreen> {
           total: _waitingTotal,
           onSubmit: widget.connection.submitDrawing,
         ),
-      GamePhase.investing => InvestingView(
-          key: ValueKey('invest-${_investing!.roundIndex}'),
-          event: _investing!,
+      GamePhase.voting => VotingView(
+          key: ValueKey('vote-${_voting!.roundIndex}'),
+          event: _voting!,
           myId: widget.myId,
           submitted: _waitingSubmitted,
           total: _waitingTotal,
-          onSubmit: widget.connection.submitInvestment,
+          onInvest: widget.connection.submitInvestment,
+          onRank: widget.connection.submitRanking,
         ),
       GamePhase.reveal => RevealView(event: _reveal!),
       GamePhase.results => ResultsView(
+          mode: _results!.mode,
           scores: _results!.scores,
+          trophies: _results!.trophies,
           isHost: _lobby.hostId == widget.myId,
           onPlayAgain: widget.connection.playAgain,
-          onLeave: () => Navigator.of(context).pop(),
+          onLeave: _leave,
+          myId: widget.myId,
         ),
     };
   }

@@ -142,6 +142,20 @@ export function botInvestment(
   return allocations;
 }
 
+/**
+ * A bot's podium for a friendly game: up to [places] other entries, best
+ * first, picked at random. Bots have no taste to model, and a random podium
+ * spreads points around the same way a table of friends roughly does.
+ */
+export function botRanking(entries: DrawingEntry[], botId: string, places: number): string[] {
+  const others = entries.filter((e) => e.artistId !== botId).map((e) => e.artistId);
+  for (let i = others.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [others[i], others[j]] = [others[j], others[i]];
+  }
+  return others.slice(0, places);
+}
+
 /** Bots shouldn't answer instantly — stagger them across most of the phase
  *  so the "3/5 submitted" counter creeps up like it would with real people. */
 export function botDelayMs(phaseSeconds: number): number {

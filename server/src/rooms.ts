@@ -1,9 +1,10 @@
 import type { WebSocket } from "ws";
 import type {
+  Backer,
   DrawingEntry,
-  InvestmentResult,
-  InvestorShare,
+  GameMode,
   PlayerInfo,
+  RoundResult,
   ScoreRow,
   Stroke,
 } from "./types.js";
@@ -12,6 +13,17 @@ import { createBot } from "./bots.js";
 
 export const MAX_PLAYERS = 5;
 export const MIN_PLAYERS_TO_START = 1;
+
+/** Places a friendly-game voter picks, best first, and what each is worth. */
+export const RANKING_POINTS = [3, 2, 1];
+
+/** Trophies for finishing 1st..5th in a ranked game (index 0 = 1st). Trophies
+ *  only ever accumulate — see store.recordRankedResult. */
+export const TROPHIES_BY_PLACE = [30, 18, 10, 5, 2];
+
+/** Beat between a ranked lobby forming and its first prompt, so players can
+ *  see the table they were dealt. */
+export const RANKED_START_DELAY_SECONDS = 3;
 
 export const PROMPT_SECONDS = 40;
 export const DRAW_SECONDS = 75;
@@ -42,14 +54,14 @@ export const PRESENT_SECONDS_PER_ENTRY = 3.5;
  *  there is no separate bot code path through the game. */
 type Player = PlayerInfo & { ws: WebSocket | null; isBot: boolean };
 
-export type Phase = "lobby" | "prompt_writing" | "drawing" | "investing" | "reveal" | "results";
+export type Phase = "lobby" | "prompt_writing" | "drawing" | "voting" | "reveal" | "results";
 
 export type Lobby = {
   code: string;
   hostId: string;
   players: Map<string, Player>;
   phase: Phase;
-  isPublic: boolean;
+  mode: GameMode;
 
   // --- round rotation: one round per player, taking turns writing the blank ---
   writerOrder: string[];
@@ -60,7 +72,10 @@ export type Lobby = {
 
   // --- this round's submissions ---
   roundDrawings: Map<string, { title: string; strokes: Stroke[] }>;
-  investments: Map<string, Map<string, number>>; // investorId -> (artistId -> amount)
+  /** Ranked: investorId -> (artistId -> amount). */
+  investments: Map<string, Map<string, number>>;
+  /** Friendly: voterId -> ordered artistIds, best first. */
+  rankings: Map<string, string[]>;
 
   scores: Map<string, number>;
   roundDeltas: Map<string, number>;
@@ -100,14 +115,16 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
-function newLobby(hostId: string, hostWs: WebSocket, nickname: string, isPublic: boolean): Lobby {
+export type Member = { playerId: string; ws: WebSocket; nickname: string };
+
+function emptyLobby(hostId: string, mode: GameMode): Lobby {
   const code = generateCode();
   const lobby: Lobby = {
     code,
     hostId,
-    players: new Map([[hostId, { id: hostId, nickname, ws: hostWs, isBot: false }]]),
+    players: new Map(),
     phase: "lobby",
-    isPublic,
+    mode,
     writerOrder: [],
     roundIndex: 0,
     usedTemplateIndices: new Set(),
@@ -115,7 +132,8 @@ function newLobby(hostId: string, hostWs: WebSocket, nickname: string, isPublic:
     completedPrompt: "",
     roundDrawings: new Map(),
     investments: new Map(),
-    scores: new Map([[hostId, 0]]),
+    rankings: new Map(),
+    scores: new Map(),
     roundDeltas: new Map(),
     roundRaised: new Map(),
     roundBonus: new Map(),
@@ -128,37 +146,39 @@ function newLobby(hostId: string, hostWs: WebSocket, nickname: string, isPublic:
   return lobby;
 }
 
-export function createLobby(hostId: string, hostWs: WebSocket, nickname: string): Lobby {
-  return newLobby(hostId, hostWs, nickname, false);
+function seat(lobby: Lobby, member: Member): void {
+  lobby.players.set(member.playerId, {
+    id: member.playerId,
+    nickname: member.nickname,
+    ws: member.ws,
+    isBot: false,
+  });
+  lobby.scores.set(member.playerId, 0);
 }
 
-/** Joins a random public lobby that's still waiting in the lobby phase and has
- *  room. If there isn't one, opens a new public lobby instead. */
-export function quickPlay(playerId: string, ws: WebSocket, nickname: string): Lobby {
-  const open = Array.from(lobbies.values()).filter(
-    (l) => l.isPublic && l.phase === "lobby" && l.players.size < MAX_PLAYERS,
-  );
-  if (open.length === 0) return newLobby(playerId, ws, nickname, true);
-
-  open.sort((a, b) => b.players.size - a.players.size);
-  const lobby = open[0];
-  lobby.players.set(playerId, { id: playerId, nickname, ws, isBot: false });
-  lobby.scores.set(playerId, 0);
+/** A private, code-joined game. Scores nothing on the leaderboard. */
+export function createFriendlyLobby(host: Member): Lobby {
+  const lobby = emptyLobby(host.playerId, "friendly");
+  seat(lobby, host);
   return lobby;
 }
 
-export function joinLobby(
-  rawCode: string,
-  playerId: string,
-  ws: WebSocket,
-  nickname: string,
-): Lobby {
+/** A matchmade game, built in one shot from everyone the queue matched
+ *  together — ranked lobbies are never joinable after the fact, so a game in
+ *  progress can't be gate-crashed. */
+export function createRankedLobby(members: Member[]): Lobby {
+  const lobby = emptyLobby(members[0].playerId, "ranked");
+  for (const member of members) seat(lobby, member);
+  return lobby;
+}
+
+export function joinLobby(rawCode: string, member: Member): Lobby {
   const lobby = lobbies.get(rawCode.trim().toUpperCase());
   if (!lobby) throw new Error("No lobby with that code");
+  if (lobby.mode !== "friendly") throw new Error("That code isn't joinable");
   if (lobby.phase !== "lobby") throw new Error("That game already started");
   if (lobby.players.size >= MAX_PLAYERS) throw new Error("That lobby is full");
-  lobby.players.set(playerId, { id: playerId, nickname, ws, isBot: false });
-  lobby.scores.set(playerId, 0);
+  seat(lobby, member);
   return lobby;
 }
 
@@ -215,6 +235,7 @@ export function leaveLobby(playerId: string): Lobby | undefined {
   lobby.players.delete(playerId);
   lobby.roundDrawings.delete(playerId);
   lobby.investments.delete(playerId);
+  lobby.rankings.delete(playerId);
 
   // Bots can't keep a room alive on their own — once the last human leaves,
   // tear the lobby down instead of leaving bots playing to an empty house.
@@ -304,6 +325,7 @@ export function beginPromptWriting(lobby: Lobby): void {
   lobby.phase = "prompt_writing";
   lobby.roundDrawings = new Map();
   lobby.investments = new Map();
+  lobby.rankings = new Map();
 }
 
 export function recordPrompt(lobby: Lobby, text: string): void {
@@ -339,10 +361,24 @@ export function drawingEntries(lobby: Lobby): DrawingEntry[] {
     });
 }
 
-// --- investing --------------------------------------------------------------
+// --- voting -----------------------------------------------------------------
 
-export function beginInvesting(lobby: Lobby): void {
-  lobby.phase = "investing";
+export function beginVoting(lobby: Lobby): void {
+  lobby.phase = "voting";
+}
+
+/** Ranked games invest money; friendly games just pick a podium. */
+export function scoringFor(lobby: Lobby): "money" | "points" {
+  return lobby.mode === "ranked" ? "money" : "points";
+}
+
+export function everyoneVoted(lobby: Lobby): boolean {
+  const submitted = scoringFor(lobby) === "money" ? lobby.investments : lobby.rankings;
+  return Array.from(lobby.players.keys()).every((id) => submitted.has(id));
+}
+
+export function voteCount(lobby: Lobby): number {
+  return scoringFor(lobby) === "money" ? lobby.investments.size : lobby.rankings.size;
 }
 
 /** Cleans and clamps a player's allocations: no self-investment, no
@@ -367,8 +403,18 @@ export function recordInvestment(
   lobby.investments.set(investorId, clean);
 }
 
-export function everyoneInvested(lobby: Lobby): boolean {
-  return Array.from(lobby.players.keys()).every((id) => lobby.investments.has(id));
+/** Cleans a friendly-game podium: no voting for yourself, no duplicates, no
+ *  entries that didn't submit, and no more places than RANKING_POINTS pays. */
+export function recordRanking(lobby: Lobby, voterId: string, order: string[]): void {
+  const clean: string[] = [];
+  for (const artistId of order) {
+    if (artistId === voterId) continue;
+    if (!lobby.roundDrawings.has(artistId)) continue;
+    if (clean.includes(artistId)) continue;
+    clean.push(artistId);
+    if (clean.length === RANKING_POINTS.length) break;
+  }
+  lobby.rankings.set(voterId, clean);
 }
 
 function addScore(lobby: Lobby, playerId: string, points: number): void {
@@ -384,43 +430,43 @@ function amountSpent(lobby: Lobby, investorId: string): number {
   return total;
 }
 
-/** Tallies investments into each drawing's total, pays placement bonuses to
- *  the top 3 earners, penalizes anyone who left budget unspent (deducted
- *  from their own round earnings — spend it or lose it), and returns the
- *  reveal payload sorted by total investment, highest first. */
-export function scoreRoundAndBuildReveal(lobby: Lobby): InvestmentResult[] {
+/** Builds the reveal payload for whichever scoring this lobby uses, applying
+ *  the round's score changes as it goes. Sorted best first either way. */
+export function scoreRoundAndBuildReveal(lobby: Lobby): RoundResult[] {
   lobby.roundDeltas = new Map();
   lobby.roundRaised = new Map();
   lobby.roundBonus = new Map();
   lobby.roundPenalty = new Map();
   lobby.phase = "reveal";
 
+  return scoringFor(lobby) === "money" ? scoreByInvestment(lobby) : scoreByRanking(lobby);
+}
+
+/** Ranked: tallies investments into each drawing's total, pays placement
+ *  bonuses to the top 3 earners, and penalizes anyone who left budget unspent
+ *  (deducted from their own round earnings — spend it or lose it). */
+function scoreByInvestment(lobby: Lobby): RoundResult[] {
   const totals = new Map<string, number>();
-  const investorsByArtist = new Map<string, InvestorShare[]>();
+  const backersByArtist = new Map<string, Backer[]>();
 
   for (const [investorId, allocations] of lobby.investments) {
     const investorName = lobby.players.get(investorId)?.nickname ?? "(left)";
     for (const [artistId, amount] of allocations) {
       totals.set(artistId, (totals.get(artistId) ?? 0) + amount);
-      const list = investorsByArtist.get(artistId) ?? [];
+      const list = backersByArtist.get(artistId) ?? [];
       list.push({ name: investorName, amount });
-      investorsByArtist.set(artistId, list);
+      backersByArtist.set(artistId, list);
     }
   }
 
-  const entries: InvestmentResult[] = drawingEntries(lobby).map((entry) => ({
-    ...entry,
-    totalInvested: totals.get(entry.artistId) ?? 0,
-    investors: (investorsByArtist.get(entry.artistId) ?? []).sort((a, b) => b.amount - a.amount),
-  }));
-  entries.sort((a, b) => b.totalInvested - a.totalInvested);
+  const entries = buildResults(lobby, totals, backersByArtist);
 
   // Placement bonuses, by rank.
   entries.forEach((entry, rank) => {
-    lobby.roundRaised.set(entry.artistId, entry.totalInvested);
+    lobby.roundRaised.set(entry.artistId, entry.total);
     const bonus = PLACEMENT_BONUSES[rank] ?? 0;
     if (bonus > 0) lobby.roundBonus.set(entry.artistId, bonus);
-    addScore(lobby, entry.artistId, entry.totalInvested + bonus);
+    addScore(lobby, entry.artistId, entry.total + bonus);
   });
 
   // Spend-it-or-lose-it: unspent budget comes out of your own earnings.
@@ -433,6 +479,69 @@ export function scoreRoundAndBuildReveal(lobby: Lobby): InvestmentResult[] {
   }
 
   return entries;
+}
+
+/** Friendly: each voter's podium pays 3/2/1. No bonuses and no penalties —
+ *  the whole point of friendly games is that there's nothing to lose. */
+function scoreByRanking(lobby: Lobby): RoundResult[] {
+  const totals = new Map<string, number>();
+  const backersByArtist = new Map<string, Backer[]>();
+
+  for (const [voterId, order] of lobby.rankings) {
+    const voterName = lobby.players.get(voterId)?.nickname ?? "(left)";
+    order.forEach((artistId, place) => {
+      const points = RANKING_POINTS[place] ?? 0;
+      if (points === 0) return;
+      totals.set(artistId, (totals.get(artistId) ?? 0) + points);
+      const list = backersByArtist.get(artistId) ?? [];
+      list.push({ name: voterName, amount: points });
+      backersByArtist.set(artistId, list);
+    });
+  }
+
+  const entries = buildResults(lobby, totals, backersByArtist);
+  for (const entry of entries) {
+    lobby.roundRaised.set(entry.artistId, entry.total);
+    addScore(lobby, entry.artistId, entry.total);
+  }
+  return entries;
+}
+
+function buildResults(
+  lobby: Lobby,
+  totals: Map<string, number>,
+  backersByArtist: Map<string, Backer[]>,
+): RoundResult[] {
+  const entries: RoundResult[] = drawingEntries(lobby).map((entry) => ({
+    ...entry,
+    total: totals.get(entry.artistId) ?? 0,
+    backers: (backersByArtist.get(entry.artistId) ?? []).sort((a, b) => b.amount - a.amount),
+  }));
+  entries.sort((a, b) => b.total - a.total);
+  return entries;
+}
+
+/**
+ * Trophies each human takes away from a finished ranked game, by final
+ * placement.
+ *
+ * Scaled by how much of the lobby was real people: beating four bots is not
+ * the same achievement as beating four humans, and without this any player
+ * could farm the leaderboard by queueing alone until the bot backfill fired.
+ * Everyone who finishes still gets at least 1, so a game is never wasted time.
+ */
+export function trophiesForGame(lobby: Lobby): Record<string, number> {
+  if (lobby.mode !== "ranked") return {};
+  const humans = humanCount(lobby);
+  const share = lobby.players.size > 0 ? humans / lobby.players.size : 0;
+  const awards: Record<string, number> = {};
+
+  scoreRows(lobby).forEach((row, place) => {
+    if (isBot(lobby, row.playerId)) return;
+    const base = TROPHIES_BY_PLACE[place] ?? TROPHIES_BY_PLACE[TROPHIES_BY_PLACE.length - 1];
+    awards[row.playerId] = Math.max(1, Math.round(base * share));
+  });
+  return awards;
 }
 
 export function scoreRows(lobby: Lobby): ScoreRow[] {
@@ -468,6 +577,7 @@ export function resetToLobby(lobby: Lobby): void {
   lobby.completedPrompt = "";
   lobby.roundDrawings = new Map();
   lobby.investments = new Map();
+  lobby.rankings = new Map();
   lobby.roundDeltas = new Map();
   lobby.roundRaised = new Map();
   lobby.roundBonus = new Map();

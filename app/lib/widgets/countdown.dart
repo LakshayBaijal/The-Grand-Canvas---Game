@@ -48,9 +48,12 @@ class _CountdownBarState extends State<CountdownBar> {
   }
 
   void _tick() {
-    final remainingMs = widget.deadlineMs - DateTime.now().millisecondsSinceEpoch;
+    final remainingMs =
+        widget.deadlineMs - DateTime.now().millisecondsSinceEpoch;
     final seconds = (remainingMs / 1000).ceil().clamp(0, 999);
-    if (mounted && seconds != _secondsLeft) setState(() => _secondsLeft = seconds);
+    if (mounted && seconds != _secondsLeft) {
+      setState(() => _secondsLeft = seconds);
+    }
     if (remainingMs <= 0 && !_fired) {
       _fired = true;
       widget.onExpired?.call();
@@ -89,7 +92,9 @@ class _CountdownBarState extends State<CountdownBar> {
               value: fraction,
               minHeight: 8,
               backgroundColor: GameColors.surface,
-              valueColor: AlwaysStoppedAnimation(urgent ? GameColors.pink : GameColors.cyan),
+              valueColor: AlwaysStoppedAnimation(
+                urgent ? GameColors.pink : GameColors.cyan,
+              ),
             ),
           ),
         ),
@@ -100,7 +105,12 @@ class _CountdownBarState extends State<CountdownBar> {
 
 /// "3 / 5 done" style progress shown while waiting on other players.
 class WaitingIndicator extends StatelessWidget {
-  const WaitingIndicator({super.key, required this.label, this.submitted, this.total});
+  const WaitingIndicator({
+    super.key,
+    required this.label,
+    this.submitted,
+    this.total,
+  });
 
   final String label;
   final int? submitted;
@@ -114,15 +124,42 @@ class WaitingIndicator extends StatelessWidget {
         const SizedBox(
           width: 34,
           height: 34,
-          child: CircularProgressIndicator(strokeWidth: 3, color: GameColors.primary),
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            color: GameColors.primary,
+          ),
         ),
         const SizedBox(height: 16),
-        Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16),
+        ),
         if (submitted != null && total != null) ...[
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           Text(
             '$submitted / $total done',
             style: const TextStyle(color: GameColors.textMuted),
+          ),
+          const SizedBox(height: 8),
+          // Watching the bar creep up makes the wait feel like progress
+          // instead of a stall.
+          SizedBox(
+            width: 160,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(end: total! > 0 ? submitted! / total! : 0),
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOut,
+                builder: (context, value, _) => LinearProgressIndicator(
+                  value: value,
+                  minHeight: 6,
+                  backgroundColor: GameColors.surfaceHigh,
+                  color: GameColors.lime,
+                ),
+              ),
+            ),
           ),
         ],
       ],

@@ -16,6 +16,34 @@ class LobbyStateEvent extends GameEvent {
   final LobbyState lobby;
 }
 
+/// The player's permanent record, sent after the identity handshake and again
+/// whenever trophies change.
+class ProfileEvent extends GameEvent {
+  const ProfileEvent(this.profile);
+  final Profile profile;
+}
+
+class LeaderboardEvent extends GameEvent {
+  const LeaderboardEvent({required this.entries, required this.you});
+  final List<LeaderboardEntry> entries;
+  final Profile? you;
+}
+
+/// Progress while waiting for a ranked match.
+class QueueStatusEvent extends GameEvent {
+  const QueueStatusEvent({
+    required this.waiting,
+    required this.target,
+    required this.botFillAtMs,
+  });
+
+  final int waiting;
+  final int target;
+
+  /// When bots will be added so the game can start anyway.
+  final int botFillAtMs;
+}
+
 class PromptWritingEvent extends GameEvent {
   const PromptWritingEvent({
     required this.template,
@@ -56,24 +84,32 @@ class WaitingUpdateEvent extends GameEvent {
   final int total;
 }
 
-class InvestingPhaseEvent extends GameEvent {
-  const InvestingPhaseEvent({
+class VotingPhaseEvent extends GameEvent {
+  const VotingPhaseEvent({
+    required this.scoring,
     required this.prompt,
     required this.entries,
     required this.budget,
     required this.step,
+    required this.places,
     required this.deadlineMs,
     required this.roundIndex,
     required this.totalRounds,
   });
 
+  final Scoring scoring;
   final String prompt;
   final List<DrawingEntry> entries;
+
+  /// Money games: what there is to spend.
   final int budget;
 
-  /// Increment the +/- controls move by; the server guarantees it divides
-  /// [budget] exactly so the whole budget is always spendable.
+  /// Money games: increment the +/- controls move by. The server guarantees it
+  /// divides [budget] exactly so the whole budget is always spendable.
   final int step;
+
+  /// Points games: how many places a voter picks, best first.
+  final int places;
   final int deadlineMs;
   final int roundIndex;
   final int totalRounds;
@@ -81,6 +117,7 @@ class InvestingPhaseEvent extends GameEvent {
 
 class RoundRevealEvent extends GameEvent {
   const RoundRevealEvent({
+    required this.scoring,
     required this.prompt,
     required this.entries,
     required this.scores,
@@ -88,16 +125,26 @@ class RoundRevealEvent extends GameEvent {
     required this.totalRounds,
   });
 
+  final Scoring scoring;
   final String prompt;
-  final List<InvestmentResult> entries;
+  final List<RoundResult> entries;
   final List<ScoreRow> scores;
   final int roundIndex;
   final int totalRounds;
 }
 
 class FinalResultsEvent extends GameEvent {
-  const FinalResultsEvent(this.scores);
+  const FinalResultsEvent({
+    required this.mode,
+    required this.scores,
+    required this.trophies,
+  });
+
+  final GameMode mode;
   final List<ScoreRow> scores;
+
+  /// Ranked games only: playerId -> trophies won just now.
+  final Map<String, int> trophies;
 }
 
 /// One bot drawing to replay on an idle screen. [strokes] are in the order
