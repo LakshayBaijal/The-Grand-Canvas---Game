@@ -175,14 +175,30 @@ stops asking.
 in the app talks to an ad or billing library, so the two integrations can be
 done independently.
 
-> **`DebugStore` grants every unlock for free.** That's right for development
-> and wrong for release. `assertReadyForRelease()` trips in a release build
-> while the stub is still wired up. Replacing it means `google_mobile_ads` (a
-> rewarded unit, the app id in the manifest and plist, and preloading so
-> "watch" doesn't sit on a spinner) and `in_app_purchase` (a non-consumable in
-> the Play Console, receipt verification, and a real `restorePurchases`). The
-> price must come from the store at runtime — Play requires the localized
-> price, and the hardcoded `₹99` is only a placeholder.
+### Testing the unlocks
+
+A normal release build gets `UnavailableStore`: the buttons are there, and
+every purchase politely fails. To build an APK where they actually grant what
+they promise:
+
+```bash
+flutter build apk --release --dart-define=DEV_UNLOCKS=true
+```
+
+That build shows a green **TEST BUILD — nothing is charged and no ad plays**
+line in the unlock sheet, so a test APK can't be mistaken for a real one.
+
+The flag has to be explicit rather than an `assert`, because **asserts are
+stripped from release builds** — an assertion guarding this would have done
+nothing in the one build where it mattered, and free purchases would have
+shipped.
+
+> **Before release:** replace `DebugStore` with `google_mobile_ads` (a rewarded
+> unit, the app id in the manifest and plist, and preloading so "watch" doesn't
+> sit on a spinner) and `in_app_purchase` (a non-consumable in the Play
+> Console, receipt verification, and a real `restorePurchases`). The price must
+> come from the store at runtime — Play requires the localized price, and the
+> hardcoded `₹99` is only a placeholder.
 
 ## The idle canvas
 

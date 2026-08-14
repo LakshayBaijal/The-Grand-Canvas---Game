@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'screens/home_screen.dart';
 import 'services/entitlements.dart';
 import 'services/game_connection.dart';
-import 'services/store.dart';
 import 'theme.dart';
 
 void main() {
@@ -15,7 +14,6 @@ void main() {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  assertReadyForRelease();
   // Read from disk before the first frame so the palette is never briefly
   // locked for someone who already paid.
   Entitlements.instance.load();

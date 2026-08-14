@@ -40,8 +40,11 @@ class _UnlockSheetState extends State<_UnlockSheet> {
     Colors.white,
   ];
 
-  Future<void> _run(Future<bool> Function() action, Future<void> Function() grant,
-      String failure) async {
+  Future<void> _run(
+    Future<bool> Function() action,
+    Future<void> Function() grant,
+    String failure,
+  ) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -64,7 +67,9 @@ class _UnlockSheetState extends State<_UnlockSheet> {
     final entitlements = Entitlements.instance;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
@@ -75,7 +80,10 @@ class _UnlockSheetState extends State<_UnlockSheet> {
             end: Alignment.bottomCenter,
             colors: [Color(0xFF221B52), GameColors.surface],
           ),
-          border: Border.all(color: GameColors.primary.withValues(alpha: 0.5), width: 1.6),
+          border: Border.all(
+            color: GameColors.primary.withValues(alpha: 0.5),
+            width: 1.6,
+          ),
           boxShadow: GameDecor.glow(GameColors.primary, strength: 0.8),
         ),
         child: Column(
@@ -125,17 +133,23 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               'Black, yellow and the eraser are always free — this is purely '
               'about colour, so nobody can buy a better score.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: GameColors.textMuted, fontSize: 12.5, height: 1.4),
+              style: TextStyle(
+                color: GameColors.textMuted,
+                fontSize: 12.5,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: _busy
                   ? null
                   : () => _run(
-                        store.showRewardedAd,
-                        entitlements.grantDayPass,
-                        'No ad was available just now — try again in a bit.',
-                      ),
+                      store.showRewardedAd,
+                      entitlements.grantDayPass,
+                      unlocksAreFake
+                          ? 'No ad was available just now — try again in a bit.'
+                          : 'Ads are not switched on in this build yet.',
+                    ),
               icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
               label: const Text('WATCH A SHORT VIDEO — 24 HOURS'),
             ),
@@ -144,10 +158,12 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               onPressed: _busy
                   ? null
                   : () => _run(
-                        store.buyLifetimePalette,
-                        entitlements.grantLifetime,
-                        "That didn't go through — nothing was charged.",
-                      ),
+                      store.buyLifetimePalette,
+                      entitlements.grantLifetime,
+                      unlocksAreFake
+                          ? "That didn't go through — nothing was charged."
+                          : 'Purchases are not switched on in this build yet.',
+                    ),
               icon: const Icon(Icons.lock_open_rounded, size: 18),
               label: Text('UNLOCK FOREVER — ${store.lifetimePrice}'),
             ),
@@ -156,22 +172,41 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               onPressed: _busy
                   ? null
                   : () => _run(
-                        store.restorePurchases,
-                        entitlements.grantLifetime,
-                        'No previous purchase found on this account.',
-                      ),
-              child: const Text('Restore a previous purchase', style: TextStyle(fontSize: 12.5)),
+                      store.restorePurchases,
+                      entitlements.grantLifetime,
+                      'No previous purchase found on this account.',
+                    ),
+              child: const Text(
+                'Restore a previous purchase',
+                style: TextStyle(fontSize: 12.5),
+              ),
             ),
             if (_busy) ...[
               const SizedBox(height: 10),
               const Center(child: CircularProgressIndicator()),
+            ],
+            if (unlocksAreFake) ...[
+              const SizedBox(height: 12),
+              Text(
+                'TEST BUILD — nothing is charged and no ad plays.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: GameColors.lime.withValues(alpha: 0.85),
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 12.5),
+                style: const TextStyle(
+                  color: Color(0xFFFF6B6B),
+                  fontSize: 12.5,
+                ),
               ),
             ],
           ],

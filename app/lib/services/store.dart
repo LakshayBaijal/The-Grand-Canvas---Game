@@ -56,6 +56,33 @@ class DebugStore implements Store {
   Future<bool> restorePurchases() async => false;
 }
 
+/// What a release build gets until the SDKs are wired up: every purchase
+/// politely fails. Better than granting them, which is what would otherwise
+/// reach the Play Store.
+class UnavailableStore implements Store {
+  const UnavailableStore();
+
+  @override
+  String get lifetimePrice => '₹99';
+
+  @override
+  Future<bool> showRewardedAd() async => false;
+
+  @override
+  Future<bool> buyLifetimePalette() async => false;
+
+  @override
+  Future<bool> restorePurchases() async => false;
+}
+
+/// Opt in with `--dart-define=DEV_UNLOCKS=true` to build a testable APK where
+/// the buttons actually grant what they promise.
+///
+/// It has to be explicit, because `assert` is stripped from release builds —
+/// an assertion guarding this would have silently done nothing in the exact
+/// build that matters, and free purchases would have shipped.
+const _devUnlocks = bool.fromEnvironment('DEV_UNLOCKS');
+
 /// Swap this for the real implementation before shipping.
 ///
 /// What that involves:
@@ -65,13 +92,10 @@ class DebugStore implements Store {
 ///  - **Billing**: `in_app_purchase`, a non-consumable product in the Play
 ///    Console, server-side or local receipt verification, and
 ///    `restorePurchases` hooked to the real query.
-const Store store = DebugStore();
+const Store store = (kDebugMode || _devUnlocks)
+    ? DebugStore()
+    : UnavailableStore();
 
-/// Guards against shipping the stub by accident.
-void assertReadyForRelease() {
-  assert(
-    store is! DebugStore || kDebugMode,
-    'DebugStore grants every unlock for free — wire up the real ad and billing '
-    'SDKs before building a release. See lib/services/store.dart.',
-  );
-}
+/// True when unlocks are being granted without a real ad or payment, so the
+/// UI can say so rather than looking like a working shop.
+const bool unlocksAreFake = kDebugMode || _devUnlocks;
