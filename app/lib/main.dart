@@ -35,7 +35,7 @@ class _BadMentalCanvasAppState extends State<BadMentalCanvasApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Bad Mental Canvas',
+      title: 'The Grand Canvas',
       debugShowCheckedModeBanner: false,
       theme: buildGameTheme(),
       // Scaffolds are transparent so every screen sits on the one lit

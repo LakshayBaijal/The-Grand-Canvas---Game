@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Bad Mental Canvas</string>
+	<string>The Grand Canvas</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,7 +27,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Bad Mental Canvas looks for the game server on your Wi-Fi network so you don't have to type its address.</string>
+	<string>The Grand Canvas looks for the game server on your Wi-Fi network so you don't have to type its address.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_bad-mental-canvas._tcp</string>

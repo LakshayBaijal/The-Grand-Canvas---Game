@@ -1,5 +1,5 @@
 #!/bin/bash
-# Starts the Bad Mental Canvas game server and prints the address your phone
+# Starts The Grand Canvas game server and prints the address your phone
 # should connect to. Run this whenever you want to host a game — no need to
 # rebuild or reinstall the app; it only needs to be done once.
 set -e
@@ -9,7 +9,7 @@ IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null ||
 
 echo ""
 echo "=================================================="
-echo " Bad Mental Canvas server starting..."
+echo " The Grand Canvas server starting..."
 echo ""
 echo " On your phone (same Wi-Fi), open the app, tap"
 echo " 'Server settings', and enter:"

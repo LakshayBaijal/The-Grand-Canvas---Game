@@ -11,9 +11,11 @@ import '../services/identity.dart';
 import '../services/server_discovery.dart';
 import '../theme.dart';
 import '../widgets/doodle_stage.dart';
+import '../widgets/logo.dart';
 import 'game_screen.dart';
 import 'leaderboard_screen.dart';
 import 'queue_screen.dart';
+import 'title_screen.dart';
 
 /// Where the phone should look for the game server. On the Android emulator
 /// 10.0.2.2 is the host machine; on a real phone this is the host's LAN IP.
@@ -54,6 +56,15 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _discovered = false;
   bool _inGame = false;
 
+  /// The title screen is up until boot finishes *and* it has been on screen
+  /// long enough to read. Without the floor it flashes past on a fast start.
+  static const _minTitleTime = Duration(milliseconds: 2200);
+  bool _bootDone = false;
+  bool _titleTimeUp = false;
+  String _bootStatus = 'LOADING';
+
+  bool get _booting => !_bootDone || !_titleTimeUp;
+
   @override
   void initState() {
     super.initState();
@@ -61,16 +72,31 @@ class _HomeScreenState extends State<HomeScreen> {
     _boot();
   }
 
-  /// Load the account, find a server, sign in, start the idle canvas.
+  /// Load the account, find a server, sign in, start the idle canvas. The
+  /// title screen is showing throughout, which is the point — this is real
+  /// work, not a splash timer.
   Future<void> _boot() async {
+    Future.delayed(_minTitleTime, () {
+      if (mounted) setState(() => _titleTimeUp = true);
+    });
+
     final identity = await loadIdentity();
     if (!mounted) return;
     setState(() {
       _identity = identity;
       _nicknameController.text = identity.nickname;
+      _bootStatus = 'FINDING A SERVER';
     });
     await _loadSavedAddress();
     await _autoDiscover();
+    // The menu opens as soon as we know who you are and where the server
+    // probably is. Connecting continues behind it — waiting on an 8-second
+    // socket timeout would strand anyone whose server isn't running.
+    if (!mounted) return;
+    setState(() {
+      _bootDone = true;
+      _bootStatus = 'CONNECTING';
+    });
     await _ensureConnected(silent: true);
   }
 
@@ -94,7 +120,13 @@ class _HomeScreenState extends State<HomeScreen> {
   /// left in place either way.
   Future<void> _autoDiscover() async {
     setState(() => _discovering = true);
-    final found = await discoverServer();
+    // Hard ceiling on top of the lookup's own timeout: multicast can hang
+    // outright on some networks, and startup waits on this — a stuck lookup
+    // must not mean a title screen that never goes away.
+    final found = await discoverServer().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => null,
+    );
     if (!mounted) return;
     setState(() {
       _discovering = false;
@@ -274,12 +306,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final identity = _identity;
-    if (identity == null) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: GameColors.primary),
-        ),
-      );
+    if (identity == null || _booting) {
+      return TitleScreen(status: _bootStatus);
     }
 
     if (_queued) {
@@ -307,24 +335,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 60),
-              const Text(
-                '🎨',
-                style: TextStyle(fontSize: 56),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'BAD MENTAL\nCANVAS',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
-                  height: 1.15,
-                  color: GameColors.primary,
-                ),
-              ),
+              const SizedBox(height: 44),
+              const Center(child: GrandCanvasLogo(size: 116)),
+              const SizedBox(height: 18),
+              const GrandCanvasWordmark(scale: 0.8),
               const SizedBox(height: 30),
               const Text(
                 "WHAT SHOULD WE CALL YOU?",
@@ -385,16 +399,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTapName: _promptRename,
                 onTapTrophies: _openLeaderboard,
               ),
-              const SizedBox(height: 18),
-              const Text(
-                'BAD MENTAL CANVAS',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
-                  color: GameColors.primary,
-                ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  GrandCanvasLogo(size: 46),
+                  SizedBox(width: 12),
+                  GrandCanvasWordmark(scale: 0.62),
+                ],
               ),
               if (_doodle != null) ...[
                 const SizedBox(height: 14),

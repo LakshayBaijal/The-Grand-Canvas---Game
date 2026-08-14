@@ -1,9 +1,9 @@
 import 'package:multicast_dns/multicast_dns.dart';
 
 // Must match SERVICE_TYPE in server/src/discovery.ts.
-const _serviceName = '_bad-mental-canvas._tcp.local';
+const _serviceName = '_grand-canvas._tcp.local';
 
-/// Looks for a Bad Mental Canvas server advertising itself on the local
+/// Looks for a Grand Canvas server advertising itself on the local
 /// Wi-Fi network and returns its `host:port`, or null if none answers within
 /// [timeout]. This is what lets the app "just work" across different
 /// networks (home, office, ...) without anyone typing an IP address.

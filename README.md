@@ -1,4 +1,4 @@
-# 🎨 Bad Mental Canvas
+# 🖼 The Grand Canvas
 
 A Jackbox-style party drawing game for **3–5 players**, built for Android and iOS.
 Everyone plays on their own phone — no shared TV screen needed.
@@ -263,8 +263,8 @@ need this computer's Terminal, `adb`, or Claude to "launch" it each time.
    ```bash
    ./start-server.sh
    ```
-2. On your phone, open **Bad Mental Canvas** and tap **Quick Play** or
-   **Create Private Lobby**.
+2. On your phone, open **The Grand Canvas** and tap **RANKED** or
+   **PLAY WITH FRIENDS**.
 
 That's it — the app looks for the server automatically on whatever Wi-Fi
 network it's on (via mDNS/Bonjour, the same mechanism AirPlay uses), so
@@ -379,6 +379,19 @@ picture?") aren't assertable. Two throwaway techniques worth reusing:
   Each is a sentence with one `___` marking the blank a player fills in.
   `DEMO_PROMPTS` in the same file feeds the idle canvas and is already
   complete — no `___` in those.
+- **Name and mark** — the logo is drawn in code (`app/lib/widgets/logo.dart`):
+  a hand-drawn gallery frame with one stroke inside it, which is the game in
+  one image. It draws itself on the title screen, the same trick the idle
+  canvas uses. No image assets, so it stays sharp at every density and the
+  launcher icon can be generated from it later.
+
+  Renaming touches more than the display name: `android:label`, the iOS
+  `CFBundle*` keys and usage string, and **both halves of the mDNS service
+  name** (`SERVICE_TYPE` in `server/src/discovery.ts` and `_serviceName` in
+  `app/lib/services/server_discovery.dart`) — change one without the other and
+  auto-discovery silently stops working. The Dart package is still
+  `bad_mental_canvas`; it's internal and renaming it would touch every import
+  for no user-visible gain.
 - **Look and feel** — `app/lib/theme.dart` holds everything: the palette, the
   lit `AppBackground` every screen sits on, `GameDecor.panel()` for cards, and
   the button surfaces.

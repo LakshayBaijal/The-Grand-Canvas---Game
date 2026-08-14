@@ -8,8 +8,11 @@ void main() {
 
     await tester.pumpWidget(const BadMentalCanvasApp());
     await tester.pump(); // identity loads off disk
+    // The title screen holds for a beat before anything else shows.
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump();
 
-    expect(find.text('BAD MENTAL\nCANVAS'), findsOneWidget);
+    expect(find.text('GRAND CANVAS'), findsWidgets);
     expect(find.text("LET'S GO"), findsOneWidget);
     // The menu is not reachable until there's a name to attach trophies to.
     expect(find.text('RANKED'), findsNothing);
@@ -22,6 +25,8 @@ void main() {
     });
 
     await tester.pumpWidget(const BadMentalCanvasApp());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
     await tester.pump();
 
     // Never asked for a name again.
@@ -41,6 +46,8 @@ void main() {
     });
 
     await tester.pumpWidget(const BadMentalCanvasApp());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
     await tester.pump();
 
     // No server, so no profile has arrived — it should still render a sane

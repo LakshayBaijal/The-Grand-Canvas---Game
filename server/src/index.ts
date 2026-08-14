@@ -575,6 +575,6 @@ wss.on("connection", (ws) => {
   });
 });
 
-console.log(`Bad Mental Canvas server listening on ws://0.0.0.0:${PORT}`);
+console.log(`The Grand Canvas server listening on ws://0.0.0.0:${PORT}`);
 console.log(`Leaderboard stored at ${DB_PATH}`);
 advertiseOnLocalNetwork(PORT);
