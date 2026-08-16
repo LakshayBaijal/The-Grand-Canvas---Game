@@ -134,9 +134,17 @@ Widget _buttonSurface({
 }) {
   final disabled = states.contains(WidgetState.disabled);
   final pressed = states.contains(WidgetState.pressed);
-  final radius = BorderRadius.circular(18);
+  final radius = BorderRadius.circular(16);
 
-  return DecoratedBox(
+  // A key cap sits on a darker lip. Drawing that lip as a second layer behind
+  // the face — rather than as a border — is what makes the button read as a
+  // physical object with height instead of a flat coloured bar.
+  const lipHeight = 4.0;
+  final lip = disabled
+      ? const Color(0xFF15113A)
+      : Color.lerp(bottom, Colors.black, filled ? 0.42 : 0.55)!;
+
+  final face = DecoratedBox(
     decoration: BoxDecoration(
       borderRadius: radius,
       gradient: LinearGradient(
@@ -144,18 +152,12 @@ Widget _buttonSurface({
         end: Alignment.bottomCenter,
         colors: disabled
             ? const [Color(0xFF221C4C), Color(0xFF1B1640)]
-            // Pressed swaps the gradient so the surface reads as pushed in.
-            : pressed
-                ? [bottom, top]
-                : [top, bottom],
+            : [top, bottom],
       ),
       border: Border.all(
         color: disabled ? GameColors.border : edge,
         width: filled ? 1.2 : 1.8,
       ),
-      boxShadow: disabled || halo == null
-          ? null
-          : GameDecor.glow(halo, strength: pressed ? 0.5 : 1),
     ),
     child: ClipRRect(
       borderRadius: radius,
@@ -163,7 +165,7 @@ Widget _buttonSurface({
         fit: StackFit.passthrough,
         children: [
           // The shine: a highlight fading out by the middle of the button.
-          if (!disabled && !pressed)
+          if (!disabled)
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -171,10 +173,10 @@ Widget _buttonSurface({
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.white.withValues(alpha: filled ? 0.28 : 0.07),
+                      Colors.white.withValues(alpha: filled ? 0.30 : 0.08),
                       Colors.white.withValues(alpha: 0),
                     ],
-                    stops: const [0, 0.55],
+                    stops: const [0, 0.52],
                   ),
                 ),
               ),
@@ -182,6 +184,33 @@ Widget _buttonSurface({
           ?child,
         ],
       ),
+    ),
+  );
+
+  return DecoratedBox(
+    // The lip, plus the halo and the cast shadow that lift it off the page.
+    decoration: BoxDecoration(
+      borderRadius: radius,
+      color: lip,
+      boxShadow: [
+        if (!disabled && halo != null)
+          ...GameDecor.glow(halo, strength: pressed ? 0.45 : 1),
+        if (!disabled)
+          BoxShadow(
+            color: Colors.black.withValues(alpha: pressed ? 0.22 : 0.42),
+            blurRadius: pressed ? 6 : 14,
+            offset: Offset(0, pressed ? 2 : 6),
+          ),
+      ],
+    ),
+    // Pressing drops the face onto the lip, so the travel is visible rather
+    // than just a colour change.
+    child: Padding(
+      padding: EdgeInsets.only(
+        top: pressed ? lipHeight : 0,
+        bottom: pressed ? 0 : lipHeight,
+      ),
+      child: face,
     ),
   );
 }
@@ -242,7 +271,9 @@ ThemeData buildGameTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(56),
+        // +4 for the lip drawn behind the face, so the tappable face keeps its
+        // original height rather than losing 4px to it.
+        minimumSize: const Size.fromHeight(60),
         foregroundColor: GameColors.onPrimary,
         disabledForegroundColor: GameColors.textMuted,
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.1),
@@ -264,7 +295,7 @@ ThemeData buildGameTheme() {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(54),
+        minimumSize: const Size.fromHeight(58),
         foregroundColor: GameColors.textPrimary,
         disabledForegroundColor: GameColors.textMuted,
         side: BorderSide.none,

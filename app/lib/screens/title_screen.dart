@@ -19,6 +19,27 @@ class TitleScreen extends StatefulWidget {
   State<TitleScreen> createState() => _TitleScreenState();
 }
 
+/// One half of the rule either side of the tagline, fading out from the text.
+class _Rule extends StatelessWidget {
+  const _Rule();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            GameColors.textMuted.withValues(alpha: 0),
+            GameColors.textMuted.withValues(alpha: 0.5),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -54,27 +75,44 @@ class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStat
         child: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
+            // The logo block sits on the optical centre (slightly above true
+            // centre, which is where the eye expects a title card to land),
+            // and the loading strip pins to the bottom. Previously both were
+            // in the same flex run, which stranded everything in the top half
+            // with a dead third of the screen underneath.
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Spacer(flex: 2),
+                const Spacer(flex: 5),
                 _stagger(0, 0.5, const GrandCanvasLogo(size: 168, animate: true)),
                 const SizedBox(height: 34),
                 _stagger(0.35, 0.8, const GrandCanvasWordmark()),
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
                 _stagger(
                   0.55, 1,
-                  const Text(
-                    'Draw badly. Win anyway.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: GameColors.textMuted,
-                      fontSize: 15,
-                      letterSpacing: 0.4,
-                    ),
+                  // A rule either side of the tagline, so the line reads as a
+                  // finished lockup rather than loose text under a logo.
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _Rule(),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14),
+                        child: Text(
+                          'Draw badly. Win anyway.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: GameColors.textMuted,
+                            fontSize: 15,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                      _Rule(),
+                    ],
                   ),
                 ),
-                const Spacer(flex: 3),
+                const Spacer(flex: 4),
                 _stagger(
                   0.7, 1,
                   SizedBox(
@@ -101,7 +139,7 @@ class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStat
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
               ],
             ),
           ),

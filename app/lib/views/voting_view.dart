@@ -72,6 +72,38 @@ class _VotingViewState extends State<VotingView> {
   }
 }
 
+/// Lays [children] out centred when they fit, and scrolls when they don't.
+///
+/// A plain `ListView` pins its items to the top, which is right for a full
+/// 5-player lobby and wrong for everything smaller — a 3-drawing round left a
+/// third of the screen empty between the last card and the footer. Centring
+/// only when there's slack keeps short rounds composed without breaking the
+/// scroll a full round needs.
+class _FillOrScroll extends StatelessWidget {
+  const _FillOrScroll({required this.padding, required this.children});
+
+  final EdgeInsets padding;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: padding,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: (constraints.maxHeight - padding.vertical).clamp(0.0, double.infinity),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: children,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Shared chrome: the prompt, the clock, and the "waiting for others" state.
 class _VotingScaffold extends StatelessWidget {
   const _VotingScaffold({
@@ -105,12 +137,17 @@ class _VotingScaffold extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+              // The prompt is what every drawing is answering, so it needs to
+              // be readable at a glance — muted 13px italic made the single
+              // most important line on the screen the faintest thing on it.
               child: Text(
                 event.prompt,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: GameColors.textMuted,
-                  fontSize: 13,
+                  color: GameColors.textPrimary,
+                  fontSize: 14.5,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -224,53 +261,52 @@ class _InvestPanelState extends State<_InvestPanel> {
       submitted: widget.submitted,
       total: widget.total,
       isSubmitted: _submitted,
-      body: ListView.separated(
+      body: _FillOrScroll(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        itemCount: event.entries.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final entry = event.entries[index];
-          final isMine = entry.artistId == widget.myId;
-          final amount = _allocations[entry.artistId] ?? 0;
-          return _EntryRow(
-            entry: entry,
-            isMine: isMine,
-            highlighted: amount > 0,
-            trailing: isMine
-                ? const _YoursTag()
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '\$$amount',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: GameColors.primary,
+        children: [
+          for (final (index, entry) in event.entries.indexed) ...[
+            if (index > 0) const SizedBox(height: 12),
+            _EntryRow(
+              entry: entry,
+              isMine: entry.artistId == widget.myId,
+              highlighted: (_allocations[entry.artistId] ?? 0) > 0,
+              trailing: entry.artistId == widget.myId
+                  ? const _YoursTag()
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '\$${_allocations[entry.artistId] ?? 0}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 17,
+                            color: GameColors.primary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _StepButton(
-                            icon: Icons.remove_rounded,
-                            onTap: amount > 0
-                                ? () => _adjust(entry.artistId, -event.step)
-                                : null,
-                          ),
-                          const SizedBox(width: 6),
-                          _StepButton(
-                            icon: Icons.add_rounded,
-                            onTap: _remaining >= event.step
-                                ? () => _adjust(entry.artistId, event.step)
-                                : null,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-          );
-        },
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _StepButton(
+                              icon: Icons.remove_rounded,
+                              onTap: (_allocations[entry.artistId] ?? 0) > 0
+                                  ? () => _adjust(entry.artistId, -event.step)
+                                  : null,
+                            ),
+                            const SizedBox(width: 8),
+                            _StepButton(
+                              icon: Icons.add_rounded,
+                              onTap: _remaining >= event.step
+                                  ? () => _adjust(entry.artistId, event.step)
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ],
       ),
       footer: Padding(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -568,19 +604,48 @@ class _StepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 30,
-        height: 30,
-        decoration: BoxDecoration(
-          color: onTap != null ? GameColors.primary : GameColors.surfaceHigh,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          icon,
-          size: 16,
-          color: onTap != null ? const Color(0xFF241800) : GameColors.textMuted,
+    final enabled = onTap != null;
+    // 30x30 was well under the 48dp minimum touch target, on the control
+    // players tap most in the whole game.
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Ink(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            gradient: enabled
+                ? const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [GameColors.primaryBright, GameColors.primaryDeep],
+                  )
+                : null,
+            color: enabled ? null : GameColors.surfaceHigh,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: enabled ? GameColors.primaryBright : GameColors.border,
+              width: 1.2,
+            ),
+            boxShadow: enabled
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(
+            icon,
+            size: 22,
+            color: enabled ? const Color(0xFF241800) : GameColors.textMuted,
+          ),
         ),
       ),
     );

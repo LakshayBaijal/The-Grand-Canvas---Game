@@ -89,10 +89,18 @@ class _QueueScreenState extends State<QueueScreen> {
               const SizedBox(height: 8),
               _QueueCard(waiting: _waiting, target: _target, secondsUntilBots: seconds),
               const SizedBox(height: 14),
+              // The stage sizes itself to its (square) paper. Stretching it to
+              // fill left a tall empty region *inside* the panel, because its
+              // own column is MainAxisSize.min — so centre it in the slack
+              // instead, and scroll if the paper is taller than what's left.
               Expanded(
-                child: DoodleStage(
-                  doodle: _doodle,
-                  onNext: widget.connection.requestDoodle,
+                child: Center(
+                  child: SingleChildScrollView(
+                    child: DoodleStage(
+                      doodle: _doodle,
+                      onNext: widget.connection.requestDoodle,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
