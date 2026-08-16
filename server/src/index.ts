@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { advertiseOnLocalNetwork } from "./discovery.js";
-import type { ClientMessage, Profile, ServerMessage } from "./types.js";
+import type { ClientMessage, LeagueInfo, Profile, ServerMessage } from "./types.js";
+import { leagueFor, PLACEMENT_GAMES, seasonEndsAt } from "./ranking.js";
 import {
   botDelayMs,
   botDrawing,
@@ -56,6 +57,7 @@ import {
   setPhaseTimer,
   startWriterRotation,
   totalRounds,
+  ratingsForGame,
   trophiesForGame,
   voteCount,
   type Lobby,
@@ -104,7 +106,17 @@ const identities = new Map<WebSocket, Identity>();
 
 function profileFor(playerId: string): Profile | null {
   const p = store.getProfile(playerId);
-  return p ? { ...p, rank: store.rankOf(playerId) } : null;
+  if (!p) return null;
+  // The stored row carries bookkeeping the client has no use for (bestLeague is
+  // an internal floor marker); the wire shape sends the derived league instead.
+  const { bestLeague: _bestLeague, ...rest } = p;
+  return {
+    ...rest,
+    rank: store.rankOf(playerId),
+    league: leagueFor(p.rating),
+    placementsLeft: Math.max(0, PLACEMENT_GAMES - p.seasonGames),
+    seasonEndsMs: seasonEndsAt(),
+  };
 }
 
 function sendProfile(ws: WebSocket, playerId: string) {
@@ -268,20 +280,50 @@ function finishGame(lobby: Lobby) {
   // Only ranked games touch the leaderboard — friendly ones are played against
   // people you chose and bots you added, so they'd be trivial to farm.
   const trophies = trophiesForGame(lobby);
+  let ratingDeltas: Record<string, number> | undefined;
+  let leagues: Record<string, LeagueInfo> | undefined;
+
   if (lobby.mode === "ranked") {
     const winnerId = rows[0]?.playerId;
+
+    // Ratings are read for everyone *before* any are written, so each player is
+    // rated against the table as it stood at kick-off. Updating as we go would
+    // make the result depend on the order we happened to iterate in.
+    const before = new Map<string, { rating: number; gamesPlayed: number }>();
     for (const row of rows) {
-      const earned = trophies[row.playerId];
+      const profile = store.getProfile(row.playerId);
+      if (profile) before.set(row.playerId, { rating: profile.rating, gamesPlayed: profile.seasonGames });
+    }
+
+    const changes = ratingsForGame(lobby, before);
+    ratingDeltas = {};
+    leagues = {};
+
+    for (const change of changes) {
+      const earned = trophies[change.playerId];
       if (earned === undefined) continue; // bot
-      store.recordRankedResult(row.playerId, {
+      const updated = store.recordRankedResult(change.playerId, {
         trophies: earned,
-        won: row.playerId === winnerId,
-        score: row.score,
+        won: change.playerId === winnerId,
+        score: rows.find((r) => r.playerId === change.playerId)?.score ?? 0,
+        rating: change.after,
       });
+      if (!updated) continue;
+      // Report the delta the floor actually allowed, not the raw one — telling
+      // someone they lost 14 points when protection absorbed it would be a lie.
+      ratingDeltas[change.playerId] = updated.rating - change.before;
+      leagues[change.playerId] = leagueFor(updated.rating);
     }
   }
 
-  broadcast(lobby, { type: "final_results", mode: lobby.mode, scores: rows, trophies });
+  broadcast(lobby, {
+    type: "final_results",
+    mode: lobby.mode,
+    scores: rows,
+    trophies,
+    ratingDeltas,
+    leagues,
+  });
   // Fresh trophy counts and global rank, so the home screen is right the
   // moment they back out of the game.
   if (lobby.mode === "ranked") {
@@ -415,7 +457,16 @@ wss.on("connection", (ws) => {
       case "get_leaderboard": {
         send(ws, {
           type: "leaderboard",
-          entries: store.leaderboard(50).map(({ bestScore: _bestScore, ...row }) => row),
+          entries: store.leaderboard(50).map((row) => ({
+            rank: row.rank,
+            id: row.id,
+            nickname: row.nickname,
+            trophies: row.trophies,
+            games: row.games,
+            wins: row.wins,
+            rating: row.rating,
+            league: leagueFor(row.rating),
+          })),
           you: profileFor(playerId),
         });
         break;

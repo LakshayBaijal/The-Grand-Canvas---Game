@@ -56,7 +56,24 @@ export type ScoreRow = {
   penalty: number;
 };
 
-/** A player's persistent, cross-game record. */
+/** Where a rating sits on the ladder. Derived from the rating, sent ready-made
+ *  so the app never has to know the band thresholds. */
+export type LeagueInfo = {
+  id: string;
+  name: string;
+  /** Rating at which this league starts — also the level it protects down to. */
+  floor: number;
+  /** Rating at which the next league starts, or null at the top. */
+  next: number | null;
+  /** 0..1 through the current band, for a progress bar. */
+  progress: number;
+};
+
+/** A player's persistent, cross-game record.
+ *
+ * Two different measures, deliberately: [trophies] is a career total that only
+ * ever grows, [rating] is current skill and moves both ways. The leaderboard
+ * ranks by rating. */
 export type Profile = {
   id: string;
   nickname: string;
@@ -64,8 +81,16 @@ export type Profile = {
   games: number;
   wins: number;
   bestScore: number;
-  /** Global position, or null until they've finished a ranked game. */
+  /** Global position, or null while still playing placement games. */
   rank: number | null;
+  rating: number;
+  league: LeagueInfo;
+  /** Ranked games finished this season. */
+  seasonGames: number;
+  /** Games still to play before appearing on the board. 0 once placed. */
+  placementsLeft: number;
+  season: number;
+  seasonEndsMs: number;
 };
 
 export type LeaderboardEntry = {
@@ -75,6 +100,8 @@ export type LeaderboardEntry = {
   trophies: number;
   games: number;
   wins: number;
+  rating: number;
+  league: LeagueInfo;
 };
 
 export type ClientMessage =
@@ -178,6 +205,12 @@ export type ServerMessage =
       scores: ScoreRow[];
       /** Ranked games only: playerId -> trophies won just now. */
       trophies: Record<string, number>;
+      /** Ranked games only: playerId -> rating change, which may be negative.
+       *  Absent for friendly games, which move nothing. */
+      ratingDeltas?: Record<string, number>;
+      /** Ranked games only: the league each player is in after this game, so
+       *  the results screen can call out a promotion. */
+      leagues?: Record<string, LeagueInfo>;
     }
   /** A complete bot drawing for the client to replay stroke-by-stroke while
    *  players wait. `strokes` are ordered exactly as they were drawn, which is

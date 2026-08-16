@@ -10,6 +10,13 @@ import type {
 } from "./types.js";
 import { fillTemplate, pickTemplate } from "./prompts.js";
 import { createBot } from "./bots.js";
+import {
+  BOT_RATING,
+  rateGame,
+  START_RATING,
+  type Contender,
+  type RatingChange,
+} from "./ranking.js";
 
 export const MAX_PLAYERS = 5;
 export const MIN_PLAYERS_TO_START = 1;
@@ -558,6 +565,40 @@ export function trophiesForGame(lobby: Lobby): Record<string, number> {
     awards[row.playerId] = Math.max(1, Math.round(base * share));
   });
   return awards;
+}
+
+/**
+ * Rating changes for a finished ranked game.
+ *
+ * Unlike trophies, this can go down — it's the number the leaderboard sorts
+ * by, so it has to be able to. Bots are included as opponents but count for
+ * very little (see BOT_WEIGHT), which is what makes queueing alone against a
+ * bot backfill worth almost nothing either way.
+ *
+ * [ratings] supplies each human's current rating; anyone missing is treated as
+ * unrated and starts from the default.
+ */
+export function ratingsForGame(
+  lobby: Lobby,
+  ratings: Map<string, { rating: number; gamesPlayed: number }>,
+): RatingChange[] {
+  if (lobby.mode !== "ranked") return [];
+
+  const rows = scoreRows(lobby);
+  // Equal scores must share a place, or a coin-flip tie would move ratings.
+  const contenders: Contender[] = rows.map((row, index) => {
+    const firstEqual = rows.findIndex((r) => r.score === row.score);
+    const known = ratings.get(row.playerId);
+    return {
+      playerId: row.playerId,
+      rating: isBot(lobby, row.playerId) ? BOT_RATING : known?.rating ?? START_RATING,
+      isBot: isBot(lobby, row.playerId),
+      place: firstEqual >= 0 ? firstEqual : index,
+      gamesPlayed: known?.gamesPlayed ?? 0,
+    };
+  });
+
+  return rateGame(contenders);
 }
 
 export function scoreRows(lobby: Lobby): ScoreRow[] {

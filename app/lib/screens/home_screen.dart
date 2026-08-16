@@ -617,10 +617,14 @@ class _ProfileBar extends StatelessWidget {
                   Text(
                     profile == null
                         ? 'Connecting…'
-                        : profile.rank == null
-                        ? 'Unranked — play a quick match'
-                        : 'Rank #${profile.rank} · ${profile.games} game'
-                              '${profile.games == 1 ? '' : 's'}',
+                        // While placing, count down the games left rather than
+                        // saying "Unranked" — it reads as progress, not as a
+                        // locked door.
+                        : profile.isPlacing
+                        ? '${profile.league.name} · ${profile.placementsLeft} placement'
+                              '${profile.placementsLeft == 1 ? '' : 's'} to go'
+                        : '${profile.league.name} · ${profile.rating}'
+                              '${profile.rank == null ? '' : ' · #${profile.rank}'}',
                     style: const TextStyle(
                       color: GameColors.textMuted,
                       fontSize: 12,

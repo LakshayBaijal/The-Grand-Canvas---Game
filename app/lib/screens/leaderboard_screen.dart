@@ -112,19 +112,31 @@ class _YourStanding extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                profile.rank == null ? 'Unranked' : '#${profile.rank}',
+                profile.rank == null ? '—' : '#${profile.rank}',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
                   color: GameColors.primary,
                 ),
               ),
+              Text(
+                profile.isPlacing
+                    ? '${profile.placementsLeft} to place'
+                    : profile.league.name,
+                style: const TextStyle(
+                  color: GameColors.cyan,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
           const Spacer(),
-          _Stat(label: 'TROPHIES', value: profile.trophies),
+          // Rating first: it's what the board is ordered by. Trophies stay as
+          // the career number, which is a different (and safer) kind of pride.
+          _Stat(label: 'RATING', value: profile.rating),
           const SizedBox(width: 20),
-          _Stat(label: 'GAMES', value: profile.games),
+          _Stat(label: 'TROPHIES', value: profile.trophies),
           const SizedBox(width: 20),
           _Stat(label: 'WINS', value: profile.wins),
         ],
@@ -212,15 +224,14 @@ class _Row extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${entry.games} game${entry.games == 1 ? '' : 's'} · ${entry.wins} won',
-                  style: const TextStyle(color: GameColors.textMuted, fontSize: 12),
+                  '${entry.league.name} · ${entry.wins} won',
+                  style: const TextStyle(color: GameColors.cyan, fontSize: 12),
                 ),
               ],
             ),
           ),
           CountUp(
-            value: entry.trophies,
-            prefix: '🏆 ',
+            value: entry.rating,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
           ),
         ],

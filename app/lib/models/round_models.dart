@@ -136,6 +136,48 @@ enum GameMode {
 }
 
 /// A player's permanent record, as the server sees it.
+/// A band on the ladder. The server derives this from the rating and sends it
+/// ready-made, so the app never has to know the thresholds.
+class League {
+  const League({
+    required this.id,
+    required this.name,
+    required this.floor,
+    required this.next,
+    required this.progress,
+  });
+
+  final String id;
+  final String name;
+
+  /// Where this league starts — also the rating it protects you down to.
+  final int floor;
+
+  /// Where the next league starts, or null at the top.
+  final int? next;
+
+  /// 0..1 through the current band.
+  final double progress;
+
+  /// Falls back to an unnamed band rather than throwing, so an older server
+  /// that doesn't send leagues can't crash the app.
+  static const unranked = League(
+    id: 'unranked',
+    name: 'Unranked',
+    floor: 0,
+    next: null,
+    progress: 0,
+  );
+
+  factory League.fromJson(Map<String, dynamic> json) => League(
+        id: json['id'] as String? ?? 'unranked',
+        name: json['name'] as String? ?? 'Unranked',
+        floor: (json['floor'] as num?)?.toInt() ?? 0,
+        next: (json['next'] as num?)?.toInt(),
+        progress: (json['progress'] as num?)?.toDouble() ?? 0,
+      );
+}
+
 class Profile {
   const Profile({
     required this.id,
@@ -145,17 +187,38 @@ class Profile {
     required this.wins,
     required this.bestScore,
     required this.rank,
+    required this.rating,
+    required this.league,
+    required this.seasonGames,
+    required this.placementsLeft,
+    required this.season,
+    required this.seasonEndsMs,
   });
 
   final String id;
   final String nickname;
+
+  /// Career total. Only ever goes up.
   final int trophies;
   final int games;
   final int wins;
   final int bestScore;
 
-  /// Global position, or null until a first ranked game is finished.
+  /// Global position, or null while still playing placement games.
   final int? rank;
+
+  /// Current skill. Unlike [trophies] this moves both ways, and it's what the
+  /// leaderboard is ordered by.
+  final int rating;
+  final League league;
+  final int seasonGames;
+
+  /// Ranked games still to play before appearing on the board.
+  final int placementsLeft;
+  final int season;
+  final int seasonEndsMs;
+
+  bool get isPlacing => placementsLeft > 0;
 
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
         id: json['id'] as String,
@@ -165,6 +228,14 @@ class Profile {
         wins: json['wins'] as int,
         bestScore: json['bestScore'] as int,
         rank: json['rank'] as int?,
+        rating: (json['rating'] as num?)?.toInt() ?? 0,
+        league: json['league'] == null
+            ? League.unranked
+            : League.fromJson(json['league'] as Map<String, dynamic>),
+        seasonGames: (json['seasonGames'] as num?)?.toInt() ?? 0,
+        placementsLeft: (json['placementsLeft'] as num?)?.toInt() ?? 0,
+        season: (json['season'] as num?)?.toInt() ?? 0,
+        seasonEndsMs: (json['seasonEndsMs'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -176,6 +247,8 @@ class LeaderboardEntry {
     required this.trophies,
     required this.games,
     required this.wins,
+    required this.rating,
+    required this.league,
   });
 
   final int rank;
@@ -184,6 +257,8 @@ class LeaderboardEntry {
   final int trophies;
   final int games;
   final int wins;
+  final int rating;
+  final League league;
 
   factory LeaderboardEntry.fromJson(Map<String, dynamic> json) => LeaderboardEntry(
         rank: json['rank'] as int,
@@ -192,5 +267,9 @@ class LeaderboardEntry {
         trophies: json['trophies'] as int,
         games: json['games'] as int,
         wins: json['wins'] as int,
+        rating: (json['rating'] as num?)?.toInt() ?? 0,
+        league: json['league'] == null
+            ? League.unranked
+            : League.fromJson(json['league'] as Map<String, dynamic>),
       );
 }
