@@ -126,6 +126,52 @@ export const PROMPT_TEMPLATES: string[] = [
   "There's a real market for anything that solves ___.",
   "Every household could use a gadget that finally deals with ___.",
   "A good invention right now would put an end to ___.",
+
+  // shopping and errands
+  "Every supermarket trip ends the same way: ___.",
+  "Self-checkout machines exist purely to ___.",
+  "Nobody has ever had a good experience trying to ___.",
+  "Online shopping always goes wrong at the point of ___.",
+
+  // repairs and stuff breaking
+  "Everything works fine right up until ___.",
+  "Assembling furniture always comes down to ___.",
+  "Every rented flat has the same unfixable problem: ___.",
+  "It's never worth the money to fix ___.",
+
+  // admin and bureaucracy
+  "Every form ever printed eventually asks you to ___.",
+  "Renewing anything official means dealing with ___.",
+  "Nothing makes an afternoon disappear like ___.",
+
+  // hobbies and downtime
+  "Every hobby eventually turns into ___.",
+  "Nobody warns you that a holiday involves ___.",
+  "Movie night always gets derailed by ___.",
+  "Every board game ends in an argument about ___.",
+
+  // health
+  "The doctor's waiting room is really just ___.",
+  "Getting a decent night's sleep is impossible with ___.",
+  "Every new year's resolution dies because of ___.",
+
+  // seasonal
+  "The first hot day of the year always means ___.",
+  "Every holiday season comes down to ___.",
+  "Nobody is ever prepared for ___.",
+
+  // neighbours and shared spaces
+  "Shared bins are just an invitation to ___.",
+  "Every block of flats has one person who insists on ___.",
+  "Communal kitchens always end up with ___.",
+
+  // more verb blanks, to keep the mix even
+  "There should be an easier way to ___.",
+  "Somebody should be paid handsomely to ___.",
+  "Nobody should have to ___ more than once a year.",
+  "It takes a special kind of patience to ___.",
+  "The hardest part of any morning is having to ___.",
+  "You should never have to ___ in front of other people.",
 ];
 
 /** Already-completed sentences used only for the ambient "someone is doodling"
@@ -163,6 +209,35 @@ export const DEMO_PROMPTS: string[] = [
   "A dead wifi connection always causes a very long meeting.",
   "Late-night snacking always means opening a loud packet quietly.",
   "Cats always seem to have a problem with a closed door.",
+
+  // Added alongside the wider shape map — each of these names something the
+  // engine can now actually depict, so the drawing matches the sentence.
+  "Every supermarket trip ends with one wobbly trolley.",
+  "The worst part of any restaurant is splitting the receipt.",
+  "An hour on hold is plenty of time to think about the queue.",
+  "Every office printer jams at the worst possible moment.",
+  "Nobody has ever remembered a single password.",
+  "Every birthday cake has one candle that won't blow out.",
+  "The neighbour's guitar practice starts at exactly 11pm.",
+  "Rainy days always mean staring out of a foggy window.",
+  "Every winter comes down to building one sad snowman.",
+  "Nothing ruins a morning like a bathroom mirror.",
+  "Renewing anything official means another clipboard of forms.",
+  "Cleaning day always comes down to one empty spray bottle.",
+  "Every shared flat argues about the thermostat.",
+  "Getting anywhere with a pram takes three times as long.",
+  "Every party ends with somebody's abandoned wine glass.",
+  "Assembling furniture always means finding the right spanner.",
+  "Nobody enjoys wearing a helmet that doesn't fit.",
+  "Every games night ends in a fight over one controller.",
+  "The days before payday always mean hiding the credit card.",
+  "Saving money is mostly just ignoring the piggy bank.",
+  "Laundry day ends with a washing line in the rain.",
+  "Every kitchen has one teapot nobody ever uses.",
+  "Every commute comes down to one very slow traffic light.",
+  "Every kitchen fire starts with a forgotten pan.",
+  "Nobody has ever assembled a toolbox and kept it tidy.",
+  "Every fridge eventually contains one mystery leftover.",
 ];
 
 export function pickDemoPrompt(): string {

@@ -59,22 +59,9 @@ const TOPIC_WORDS: Record<Topic, readonly string[]> = {
  *  from the accents instead. */
 type PartFn = (pen: Pen, rng: Rng, box: Box) => void;
 
-const TOPIC_SUBJECTS: Partial<Record<Topic, readonly PartFn[]>> = {
-  vehicle: [parts.car],
-  home: [parts.house, parts.crate],
-  animal: [parts.animal],
-  space: [parts.rocket],
-  food: [parts.foodStack, parts.mug],
-  sleep: [parts.bed, parts.alarmClock],
-  weather: [parts.umbrella, parts.plant, parts.fan],
-  tech: [parts.phoneDevice],
-  time: [parts.alarmClock],
-  clean: [parts.sock, parts.crate],
-  garden: [parts.plant],
-};
-
 /** A few parts take a centre and radius rather than a box; these let them sit
- *  in the same lookup as everything else. */
+ *  in the same lookup as everything else. Declared above the tables below
+ *  because they're referenced from them at module-init time. */
 const centred = (
   draw: (pen: Pen, rng: Rng, cx: number, cy: number, r: number) => void,
   scale = 0.42,
@@ -84,6 +71,31 @@ const centred = (
 const dumbbellShape = centred(parts.dumbbell, 0.5);
 const coinShape = centred(parts.coin);
 const bulbShape = centred(parts.lightbulb, 0.34);
+
+/** Every topic that can be drawn as *something* should be. A topic with no
+ *  entry here falls through to a generic machine, so the gaps were a direct
+ *  source of same-looking output for any prompt the word map didn't catch. */
+const TOPIC_SUBJECTS: Partial<Record<Topic, readonly PartFn[]>> = {
+  vehicle: [parts.car, parts.trafficLight, parts.bicycle],
+  home: [parts.house, parts.crate, parts.windowFrame],
+  animal: [parts.animal, parts.bird],
+  space: [parts.rocket],
+  food: [parts.foodStack, parts.mug, parts.cake],
+  sleep: [parts.bed, parts.alarmClock],
+  weather: [parts.umbrella, parts.plant, parts.fan, parts.snowman],
+  tech: [parts.phoneDevice, parts.laptop, parts.gameController],
+  time: [parts.alarmClock, parts.queue],
+  clean: [parts.sock, parts.crate, parts.sprayBottle, parts.washingLine],
+  garden: [parts.plant, parts.tree],
+  money: [coinShape, parts.piggyBank, parts.receipt],
+  person: [parts.queue, parts.pram],
+  fitness: [parts.treadmill, dumbbellShape],
+  music: [parts.guitar, parts.speaker],
+  fire: [parts.fireExtinguisher],
+  noise: [parts.speaker],
+  water: [parts.bottle, parts.tap],
+  flight: [parts.bird],
+};
 
 /**
  * Words that name one specific drawable thing.
@@ -149,8 +161,15 @@ const WORD_SHAPES: Record<string, PartFn> = {
   inbox: parts.envelope, letter: parts.envelope, post: parts.envelope, mail: parts.envelope,
 
   // money
-  bill: coinShape, bills: coinShape, money: coinShape, cash: coinShape,
-  tax: coinShape, rent: coinShape, price: coinShape,
+  money: coinShape, cash: coinShape, rent: coinShape, price: coinShape,
+  // A restaurant "bill" is a slip of paper, not a coin — and splitting one is
+  // a prompt people actually write.
+  bill: parts.receipt, bills: parts.receipt, receipt: parts.receipt,
+  invoice: parts.receipt, tax: parts.receipt, expenses: parts.receipt,
+  savings: parts.piggyBank, saving: parts.piggyBank, budget: parts.piggyBank,
+  pension: parts.piggyBank,
+  card: parts.creditCard, subscription: parts.creditCard,
+  subscriptions: parts.creditCard, payment: parts.creditCard,
   shopping: parts.shoppingBag, groceries: parts.shoppingBag, grocery: parts.shoppingBag,
   bags: parts.shoppingBag, bag: parts.shoppingBag,
 
@@ -209,9 +228,9 @@ const WORD_SHAPES: Record<string, PartFn> = {
   camera: parts.camera, photo: parts.camera, photos: parts.camera, selfie: parts.camera,
   pictures: parts.camera,
   calendar: parts.calendar, schedule: parts.calendar, appointment: parts.calendar,
-  reminder: parts.calendar, birthday: parts.calendar,
+  reminder: parts.calendar,
   sign: parts.signpost, signs: parts.signpost, directions: parts.signpost,
-  rules: parts.signpost, forms: parts.signpost, paperwork: parts.signpost,
+  rules: parts.signpost,
   watch: parts.watch, wristwatch: parts.watch,
 
   // diy and health
@@ -227,6 +246,46 @@ const WORD_SHAPES: Record<string, PartFn> = {
   // elsewhere
   rocket: parts.rocket, space: parts.rocket, moon: parts.rocket, planet: parts.rocket,
   idea: bulbShape, bulb: bulbShape, electricity: bulbShape,
+
+  // --- added to widen coverage -------------------------------------------
+  // Everything below was a word people plausibly type that previously fell
+  // through to a generic contraption. This map is the highest-leverage place
+  // to add accuracy, so it's worth growing whenever a real answer misses.
+  queue: parts.queue, queues: parts.queue, waiting: parts.queue,
+  lines: parts.queue, crowd: parts.queue, crowds: parts.queue,
+  trolley: parts.trolley, cart: parts.trolley, supermarket: parts.trolley,
+  checkout: parts.trolley,
+  printer: parts.printer, printing: parts.printer, scanner: parts.printer,
+  photocopier: parts.printer,
+  gaming: parts.gameController, videogames: parts.gameController,
+  console: parts.gameController, controller: parts.gameController,
+  spanner: parts.wrench, wrench: parts.wrench, repairs: parts.wrench,
+  repair: parts.wrench, mechanic: parts.wrench, plumber: parts.wrench,
+  padlock: parts.padlock, password: parts.padlock, passwords: parts.padlock,
+  security: parts.padlock, locked: parts.padlock,
+  fever: parts.thermometer, temperature: parts.thermometer,
+  thermostat: parts.thermometer, heating: parts.thermometer,
+  wine: parts.wineGlass, cocktail: parts.wineGlass, drinks: parts.wineGlass,
+  cake: parts.cake, birthday: parts.cake, candles: parts.cake,
+  celebration: parts.cake, party: parts.cake,
+  pram: parts.pram, stroller: parts.pram, buggy: parts.pram, nappies: parts.pram,
+  guitar: parts.guitar, band: parts.guitar, busker: parts.guitar,
+  drying: parts.washingLine, clothesline: parts.washingLine,
+  window: parts.windowFrame, windows: parts.windowFrame,
+  curtains: parts.windowFrame, blinds: parts.windowFrame,
+  teapot: parts.teapot,
+  helmet: parts.helmet, hardhat: parts.helmet, safety: parts.helmet,
+  snowman: parts.snowman,
+  toolbox: parts.toolbox, tools: parts.toolbox,
+  // A clipboard reads as admin far better than a signpost does.
+  forms: parts.clipboard, paperwork: parts.clipboard, admin: parts.clipboard,
+  checklist: parts.clipboard, survey: parts.clipboard, clipboard: parts.clipboard,
+  spray: parts.sprayBottle, disinfectant: parts.sprayBottle,
+  polish: parts.sprayBottle, bleach: parts.sprayBottle,
+  extinguisher: parts.fireExtinguisher,
+  mirror: parts.mirror, reflection: parts.mirror, makeup: parts.mirror,
+  trafficlight: parts.trafficLight, junction: parts.trafficLight,
+  crossing: parts.trafficLight, roundabout: parts.trafficLight,
 };
 
 /** Crude stemmer: enough to make "cables"/"cable" and "running"/"run" land on
@@ -349,6 +408,15 @@ function details(pen: Pen, rng: Rng, box: Box, count: number): void {
     () => parts.bellOnTop(pen, rng, box),
     () => parts.tank(pen, rng, box),
     () => parts.eyes(pen, rng, box),
+    () => parts.rivets(pen, rng, box),
+    () => parts.gauge(pen, rng, box),
+    () => parts.toggleSwitch(pen, rng, box),
+    () => parts.chimney(pen, rng, box),
+    () => parts.clawGrabber(pen, rng, box),
+    () => parts.sirenLight(pen, rng, box),
+    () => parts.keypad(pen, rng, box),
+    () => parts.slot(pen, rng, box),
+    () => parts.beltDrive(pen, rng, box),
     () => parts.gear(
       pen,
       rng,
@@ -377,6 +445,9 @@ function base(pen: Pen, rng: Rng, box: Box): void {
     () => parts.plinth(pen, rng, box),
     () => parts.hover(pen, rng, box),
     () => parts.pole(pen, rng, box),
+    () => parts.stilts(pen, rng, box),
+    () => parts.railTrack(pen, rng, box),
+    () => parts.pontoon(pen, rng, box),
     () => {}, // sitting on nothing at all
   ];
   rng.pick(options)();
@@ -663,6 +734,209 @@ const showcase: Layout = (pen, rng, ctx) => {
   return box;
 };
 
+/** A patent sheet: the thing boxed off, with callout bubbles pointing at its
+ *  parts. Fits the game better than anything else here — the whole premise is
+ *  presenting a stupid invention as if it were a real filing. */
+const patentDiagram: Layout = (pen, rng, ctx) => {
+  const frame: Box = { x: 0.08, y: 0.14, w: 0.84, h: 0.7 };
+  if (rng.chance(0.55)) {
+    parts.panelFrame(pen, rng, frame);
+  } else {
+    // Corner crop marks instead of a full border. Same "this is a filing"
+    // read, without a hard rectangle around a fifth of all drawings.
+    pen.setWidth(rng.range(2.4, 3));
+    const c = 0.07;
+    for (const [cx, cy, sx, sy] of [
+      [frame.x, frame.y, 1, 1],
+      [frame.x + frame.w, frame.y, -1, 1],
+      [frame.x, frame.y + frame.h, 1, -1],
+      [frame.x + frame.w, frame.y + frame.h, -1, -1],
+    ] as const) {
+      pen.line({ x: cx, y: cy }, { x: cx + sx * c, y: cy }, 0.5);
+      pen.line({ x: cx, y: cy }, { x: cx, y: cy + sy * c }, 0.5);
+    }
+  }
+
+  const w = rng.range(0.3, 0.4);
+  const h = rng.range(0.26, 0.34);
+  const box: Box = { x: 0.5 - w / 2 + rng.range(-0.06, 0.02), y: 0.44 - h / 2 + rng.range(-0.03, 0.05), w, h };
+  chassis(pen, rng, ctx, box);
+  details(pen, rng, box, rng.int(1, 3));
+
+  // Callout bubbles on leader lines. No text engine here, so a bubble with a
+  // tick inside stands in for a number — at thumbnail size it reads the same.
+  pen.setWidth(2.2);
+  const spots: { x: number; y: number }[] = [
+    { x: box.x + box.w * 0.2, y: box.y },
+    { x: box.x + box.w, y: box.y + box.h * 0.4 },
+    { x: box.x + box.w * 0.5, y: box.y + box.h },
+  ];
+  const n = rng.int(2, 3);
+  for (let i = 0; i < n; i++) {
+    const from = spots[i];
+    const outX = from.x + (from.x > 0.5 ? 1 : -1) * rng.range(0.1, 0.16);
+    const outY = from.y + (i === 2 ? rng.range(0.08, 0.13) : rng.range(-0.12, -0.06));
+    pen.line(from, { x: outX, y: outY }, 0.5);
+    pen.circle(outX, outY, rng.range(0.022, 0.03));
+    pen.setWidth(1.8);
+    pen.line({ x: outX, y: outY - 0.012 }, { x: outX, y: outY + 0.012 }, 0.4);
+    pen.setWidth(2.2);
+  }
+  accents(pen, rng, ctx, box);
+  return box;
+};
+
+/** A heap of the same thing. The joke of "too many of these" carries prompts
+ *  about socks, dishes, boxes and laundry better than one tidy object does. */
+const pileUp: Layout = (pen, rng, ctx) => {
+  // Some subjects are already a plural arrangement — a queue is several people,
+  // a washing line is several clothes. Heaping those reads as noise and costs a
+  // fortune in strokes, so they get a crate pile instead.
+  const ALREADY_PLURAL: readonly PartFn[] = [parts.queue, parts.washingLine];
+  const candidate = ctx.subjects.length > 0 ? rng.pick(ctx.subjects) : parts.crate;
+  const draw: PartFn = ALREADY_PLURAL.includes(candidate) ? parts.crate : candidate;
+
+  const baseY = rng.range(0.62, 0.72);
+  const n = rng.int(4, 6);
+  let focus: Box = { x: 0.36, y: baseY - 0.18, w: 0.28, h: 0.2 };
+
+  // The idle canvas replays every stroke on a clock, so a pile of an expensive
+  // subject would run for a minute. Budget by what the first copy actually
+  // cost rather than guessing per-subject.
+  const STROKE_BUDGET = 44;
+  const startedAt = pen.strokes.length;
+
+  for (let i = 0; i < n; i++) {
+    if (i >= 2 && pen.strokes.length - startedAt > STROKE_BUDGET) break;
+    const row = i < 3 ? 0 : i < 5 ? 1 : 2;
+    const inRow = i < 3 ? i : i < 5 ? i - 3 : 0;
+    const perRow = row === 0 ? 3 : row === 1 ? 2 : 1;
+    const size = rng.range(0.15, 0.2) * (1 - row * 0.08);
+    const spread = 0.62;
+    const x = 0.5 - spread / 2 + (spread / perRow) * (inRow + 0.5) - size / 2 + rng.range(-0.03, 0.03);
+    const y = baseY - row * size * 0.82 - size;
+    const b: Box = { x, y, w: size, h: size * rng.range(0.8, 1.05) };
+    draw(pen, rng, b);
+    if (row === 0 && inRow === 1) focus = b;
+  }
+
+  // A ground line stops the pile floating.
+  pen.setWidth(3);
+  pen.line({ x: 0.14, y: baseY + 0.02 }, { x: 0.86, y: baseY + 0.02 }, 0.6);
+  accents(pen, rng, ctx, focus);
+  return focus;
+};
+
+/** The invention drawn absurdly large next to a normal-sized person. Scale is
+ *  a joke you can read instantly, and it makes the page look nothing like the
+ *  medium-box-in-the-middle default. */
+const scaleGag: Layout = (pen, rng, ctx) => {
+  const w = rng.range(0.44, 0.56);
+  const h = rng.range(0.46, 0.58);
+  const box: Box = { x: rng.range(0.08, 0.16), y: rng.range(0.14, 0.22), w, h };
+  chassis(pen, rng, ctx, box);
+  details(pen, rng, box, rng.int(2, 4));
+  base(pen, rng, box);
+
+  const feetY = box.y + box.h + rng.range(0.02, 0.06);
+  parts.stickPerson(pen, rng, rng.range(0.8, 0.88), Math.min(feetY, 0.93), rng.range(0.16, 0.22));
+  accents(pen, rng, ctx, box);
+  return box;
+};
+
+/** Sitting on a surface, with a horizon behind it. A room rather than a void. */
+const tableTop: Layout = (pen, rng, ctx) => {
+  const w = rng.range(0.3, 0.4);
+  const h = rng.range(0.26, 0.34);
+  const tableY = rng.range(0.6, 0.68);
+  const box: Box = { x: 0.5 - w / 2 + rng.range(-0.08, 0.08), y: tableY - h, w, h };
+  chassis(pen, rng, ctx, box);
+  details(pen, rng, box, rng.int(1, 3));
+
+  // Three ways to stand it up. One fixed table silhouette under every drawing
+  // becomes its own kind of repetition, however varied the thing on top is.
+  pen.setWidth(rng.range(3.4, 4.2));
+  const surface = rng.int(0, 2);
+  if (surface === 0) {
+    pen.line({ x: 0.1, y: tableY }, { x: 0.9, y: tableY }, 0.7);
+    for (const fx of [0.2, 0.8]) {
+      pen.line({ x: fx, y: tableY }, { x: fx + rng.range(-0.02, 0.02), y: tableY + rng.range(0.14, 0.2) }, 0.7);
+    }
+  } else if (surface === 1) {
+    // A bare floor line running the full width — a room, not furniture.
+    pen.line({ x: 0.05, y: tableY }, { x: 0.95, y: tableY }, 0.8);
+  } else {
+    // A shelf, bracketed to the wall.
+    const x0 = box.x - rng.range(0.06, 0.12);
+    const x1 = box.x + box.w + rng.range(0.06, 0.12);
+    pen.line({ x: x0, y: tableY }, { x: x1, y: tableY }, 0.7);
+    pen.setWidth(2.6);
+    pen.polyline([{ x: x0 + 0.03, y: tableY }, { x: x0 + 0.03, y: tableY + 0.08 }, { x: x0 + 0.11, y: tableY }], false, 0.6);
+  }
+  // A small prop on the table beside it, so the surface reads as a surface.
+  if (rng.chance(0.55)) {
+    const p: Box = { x: box.x + box.w + 0.04, y: tableY - 0.1, w: 0.1, h: 0.1 };
+    if (p.x + p.w < 0.9) parts.mug(pen, rng, p);
+  }
+  accents(pen, rng, ctx, box);
+  return box;
+};
+
+/** Three panels in a row — a sequence, or three variations of the idea. */
+const triptych: Layout = (pen, rng, ctx) => {
+  const y = rng.range(0.32, 0.4);
+  const h = rng.range(0.24, 0.3);
+  const w = 0.26;
+  const gap = (1 - 0.12 - w * 3) / 2;
+  let focus: Box = { x: 0.06, y, w, h };
+
+  for (let i = 0; i < 3; i++) {
+    const panel: Box = { x: 0.06 + i * (w + gap), y, w, h };
+    parts.panelFrame(pen, rng, panel);
+    const inner: Box = {
+      x: panel.x + w * 0.16,
+      y: panel.y + h * 0.18,
+      w: w * 0.68,
+      h: h * (0.5 + i * 0.12),
+    };
+    // Each panel a bit more elaborate than the last, so it reads as a sequence.
+    chassis(pen, rng, ctx, inner);
+    details(pen, rng, inner, i);
+    if (i === 1) focus = inner;
+  }
+  accents(pen, rng, ctx, focus);
+  return focus;
+};
+
+/** The thing in the middle with the mess it deals with circling it. */
+const orbit: Layout = (pen, rng, ctx) => {
+  const w = rng.range(0.26, 0.34);
+  const h = rng.range(0.24, 0.3);
+  const box: Box = { x: 0.5 - w / 2, y: 0.5 - h / 2 + rng.range(-0.04, 0.04), w, h };
+  chassis(pen, rng, ctx, box);
+  details(pen, rng, box, rng.int(1, 2));
+
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const n = rng.int(3, 5);
+  const start = rng.range(0, Math.PI * 2);
+  pen.setColor(ctx.accent);
+  for (let i = 0; i < n; i++) {
+    const a = start + (i / n) * Math.PI * 2;
+    const rx = box.w * rng.range(1.05, 1.35);
+    const ry = box.h * rng.range(1.15, 1.5);
+    const px = cx + Math.cos(a) * rx;
+    const py = cy + Math.sin(a) * ry;
+    if (px < 0.08 || px > 0.92 || py < 0.08 || py > 0.92) continue;
+    pen.setWidth(2.4);
+    if (rng.chance(0.5)) parts.sparkles(pen, rng, { x: px - 0.03, y: py - 0.03, w: 0.06, h: 0.06 });
+    else pen.star(px, py, rng.range(0.018, 0.028), rng.int(4, 5));
+  }
+  pen.setColor(ctx.ink);
+  accents(pen, rng, ctx, box);
+  return box;
+};
+
 /** Layouts that actually put the subject on stage.
  *
  * Most of the general layouts build their body from `machineBody` directly,
@@ -679,14 +953,33 @@ const GENERAL_LAYOUTS: readonly Layout[] = [
   duo,
   beforeAfter,
   hanging,
+  patentDiagram,
+  pileUp,
+  scaleGag,
+  tableTop,
+  triptych,
+  orbit,
 ];
 
-/** Weighted so a named subject is nearly always the hero: mostly `showcase`
- *  (the object large, with the invention bolted on), sometimes a plain hero or
- *  a scene with the person it's for, occasionally hanging above its target. */
+/** Weighted so a named subject is nearly always the hero, but spread across
+ *  every layout that can actually stage one.
+ *
+ * This pool used to be `showcase`×5 plus three others, which looked balanced
+ * on paper and wasn't: most answers people type *do* hit WORD_SHAPES, so this
+ * is the pool nearly every drawing comes from, and `showcase` alone was over
+ * half of all output. Everything below stages its subject rather than burying
+ * it, so widening the pool costs no accuracy — it just stops the gallery
+ * looking like one picture. Keep it that way when adding more: a layout only
+ * belongs here if it calls `chassis` or draws `ctx.subjects` itself. */
 const NAMED_LAYOUTS: readonly Layout[] = [
-  showcase, showcase, showcase, showcase, showcase,
+  showcase, showcase, showcase,
   hero, hero,
+  tableTop, tableTop,
+  patentDiagram, patentDiagram,
+  scaleGag,
+  pileUp,
+  orbit,
+  triptych,
   duo,
   hanging,
 ];
@@ -698,7 +991,10 @@ const MIN_STROKES = 14;
 /** Marks added on top of whatever was drawn, sparingly. */
 function finishingMarks(pen: Pen, rng: Rng, ctx: Ctx): void {
   pen.setColor(rng.chance(0.6) ? ctx.accent : ctx.ink);
-  if (rng.chance(0.3)) parts.sparkles(pen, rng, { x: 0.2, y: 0.12, w: 0.6, h: 0.3 });
+  // Was 0.3, which put sparkles in a third of all drawings — enough that they
+  // stopped reading as a flourish and started reading as house style. The
+  // `orbit` layout scatters its own, so this backed off further.
+  if (rng.chance(0.2)) parts.sparkles(pen, rng, { x: 0.2, y: 0.12, w: 0.6, h: 0.3 });
   if (rng.chance(0.16)) {
     pen.setColor(ctx.accent);
     parts.lightbulb(pen, rng, rng.range(0.13, 0.24), rng.range(0.15, 0.23), rng.range(0.035, 0.05));

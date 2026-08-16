@@ -2019,3 +2019,648 @@ export function tank(pen: Pen, rng: Rng, box: Box): void {
   pen.setWidth(3);
   pen.line({ x: side < 0 ? x + w : x, y: y + h * 0.4 }, { x: side < 0 ? box.x : box.x + box.w, y: y + h * 0.5 }, 0.7);
 }
+
+// --- more everyday objects -------------------------------------------------
+// Words people actually type ("the queue", "splitting the bill", "flatpack
+// furniture") had no shape of their own and fell through to a generic
+// contraption, which is most of why drawings started to look alike.
+//
+// Silhouette first, as with keys(): each of these has to read at thumbnail
+// size, side-on, before any detail goes on it.
+
+type XY = { x: number; y: number };
+
+export function receipt(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.5, 4.5));
+  const w = box.w * 0.44;
+  const x = box.x + (box.w - w) / 2;
+  const top = box.y + box.h * 0.04;
+  const bottom = box.y + box.h * 0.82;
+
+  // The torn bottom edge is the whole tell — a plain rectangle is just paper.
+  const teeth: XY[] = [{ x, y: top }, { x: x + w, y: top }, { x: x + w, y: bottom }];
+  const n = 5;
+  for (let i = n; i >= 0; i--) {
+    teeth.push({ x: x + (w * i) / n, y: bottom + (i % 2 === 0 ? 0.012 : 0) });
+  }
+  pen.polyline(teeth, true, 0.7);
+
+  pen.setWidth(2.2);
+  for (let i = 0; i < rng.int(3, 5); i++) {
+    const ly = top + box.h * (0.16 + i * 0.13);
+    pen.line({ x: x + w * 0.14, y: ly }, { x: x + w * rng.range(0.6, 0.86), y: ly }, 0.4);
+  }
+}
+
+export function piggyBank(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h * 0.5;
+  const r = Math.min(box.w, box.h) * 0.34;
+  pen.ellipse(cx, cy, r * 1.25, r, 0.9);
+  pen.setWidth(3.2);
+  // Snout, ear, slot on the back, and four stubby legs.
+  pen.ellipse(cx + r * 1.2, cy + r * 0.1, r * 0.22, r * 0.18, 0.7);
+  pen.polyline([{ x: cx + r * 0.3, y: cy - r * 0.85 }, { x: cx + r * 0.62, y: cy - r * 1.15 }, { x: cx + r * 0.7, y: cy - r * 0.7 }], true, 0.6);
+  pen.line({ x: cx - r * 0.25, y: cy - r * 0.92 }, { x: cx + r * 0.1, y: cy - r * 0.95 }, 0.5);
+  for (const f of [-0.7, -0.25, 0.3, 0.72]) {
+    pen.line({ x: cx + r * f, y: cy + r * 0.85 }, { x: cx + r * f, y: cy + r * 1.3 }, 0.6);
+  }
+  pen.circle(cx - r * 1.05, cy - r * 0.05, r * 0.09);
+}
+
+export function creditCard(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.6, 4.6));
+  const w = box.w * 0.7;
+  const h = w * 0.62;
+  const x = box.x + (box.w - w) / 2;
+  const y = box.y + (box.h - h) / 2;
+  pen.rect(x, y, w, h, 0.9);
+  pen.setWidth(2.6);
+  pen.rect(x + w * 0.08, y + h * 0.18, w * 0.16, h * 0.22, 0.6); // chip
+  for (let i = 0; i < 2; i++) {
+    pen.line({ x: x + w * 0.08, y: y + h * (0.62 + i * 0.16) }, { x: x + w * rng.range(0.6, 0.9), y: y + h * (0.62 + i * 0.16) }, 0.4);
+  }
+}
+
+export function trolley(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const x = box.x + box.w * 0.16;
+  const y = box.y + box.h * 0.28;
+  const w = box.w * 0.6;
+  const h = box.h * 0.36;
+  // Basket tapers outward toward the top.
+  pen.polyline(
+    [{ x, y }, { x: x + w, y }, { x: x + w * 0.86, y: y + h }, { x: x + w * 0.14, y: y + h }],
+    true,
+    0.8,
+  );
+  pen.setWidth(2.4);
+  for (const t of [0.3, 0.55, 0.8]) {
+    pen.line({ x: x + w * t, y: y }, { x: x + w * (0.14 + t * 0.72), y: y + h }, 0.4);
+  }
+  pen.setWidth(3.4);
+  pen.polyline([{ x, y }, { x: x - box.w * 0.12, y: y - box.h * 0.16 }], false, 0.6);
+  pen.line({ x: x + w * 0.14, y: y + h }, { x: x + w * 0.14, y: y + h * 1.4 }, 0.6);
+  pen.line({ x: x + w * 0.86, y: y + h }, { x: x + w * 0.86, y: y + h * 1.4 }, 0.6);
+  pen.setWidth(3);
+  pen.circle(x + w * 0.16, y + h * 1.5, box.h * 0.045);
+  pen.circle(x + w * 0.84, y + h * 1.5, box.h * 0.045);
+}
+
+export function printer(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const x = box.x + box.w * 0.18;
+  const y = box.y + box.h * 0.34;
+  const w = box.w * 0.64;
+  const h = box.h * 0.4;
+  pen.rect(x, y, w, h, 0.9);
+  // Jammed sheet crumpling out of the top is the joke.
+  pen.setWidth(3.2);
+  pen.polyline(
+    [
+      { x: x + w * 0.26, y },
+      { x: x + w * 0.3, y: y - box.h * 0.24 },
+      { x: x + w * 0.52, y: y - box.h * 0.3 },
+      { x: x + w * 0.7, y: y - box.h * 0.14 },
+      { x: x + w * 0.72, y },
+    ],
+    false,
+    1.2,
+  );
+  pen.setWidth(2.4);
+  pen.line({ x: x + w * 0.14, y: y + h * 0.72 }, { x: x + w * 0.86, y: y + h * 0.72 }, 0.4);
+  pen.circle(x + w * 0.84, y + h * 0.3, Math.min(w, h) * 0.06);
+}
+
+export function gameController(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h * 0.5;
+  const w = box.w * 0.62;
+  const h = box.h * 0.3;
+  pen.polyline(
+    [
+      { x: cx - w / 2, y: cy - h * 0.1 },
+      { x: cx - w * 0.28, y: cy - h * 0.62 },
+      { x: cx + w * 0.28, y: cy - h * 0.62 },
+      { x: cx + w / 2, y: cy - h * 0.1 },
+      { x: cx + w * 0.34, y: cy + h * 0.7 },
+      { x: cx + w * 0.1, y: cy + h * 0.2 },
+      { x: cx - w * 0.1, y: cy + h * 0.2 },
+      { x: cx - w * 0.34, y: cy + h * 0.7 },
+    ],
+    true,
+    0.9,
+  );
+  pen.setWidth(2.6);
+  pen.line({ x: cx - w * 0.3, y: cy - h * 0.1 }, { x: cx - w * 0.12, y: cy - h * 0.1 }, 0.4);
+  pen.line({ x: cx - w * 0.21, y: cy - h * 0.32 }, { x: cx - w * 0.21, y: cy + h * 0.12 }, 0.4);
+  pen.circle(cx + w * 0.2, cy - h * 0.22, Math.min(w, h) * 0.07);
+  pen.circle(cx + w * 0.32, cy + h * 0.02, Math.min(w, h) * 0.07);
+}
+
+export function wrench(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const len = Math.min(box.w, box.h) * 0.78;
+  const ang = rng.range(-0.9, -0.5);
+  const dx = Math.cos(ang);
+  const dy = Math.sin(ang);
+  const shaftW = len * 0.13;
+  const px = -dy * shaftW;
+  const py = dx * shaftW;
+  const ax = cx - (dx * len) / 2;
+  const ay = cy - (dy * len) / 2;
+  const bx = cx + (dx * len) / 2;
+  const by = cy + (dy * len) / 2;
+  pen.polyline(
+    [
+      { x: ax + px, y: ay + py },
+      { x: bx + px, y: by + py },
+      { x: bx - px, y: by - py },
+      { x: ax - px, y: ay - py },
+    ],
+    true,
+    0.7,
+  );
+  // Open C-jaws at both ends.
+  for (const [ex, ey, dir] of [[ax, ay, -1], [bx, by, 1]] as const) {
+    const jr = shaftW * 1.9;
+    pen.arc(ex + dx * dir * jr * 0.4, ey + dy * dir * jr * 0.4, jr, ang + dir * 0.8, ang + dir * 5.5, 0.7);
+  }
+}
+
+export function padlock(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const w = box.w * 0.4;
+  const h = box.h * 0.34;
+  const y = box.y + box.h * 0.44;
+  pen.rect(cx - w / 2, y, w, h, 0.9);
+  pen.setWidth(3.6);
+  pen.arc(cx, y, w * 0.32, Math.PI, Math.PI * 2, 0.8);
+  pen.setWidth(2.6);
+  pen.circle(cx, y + h * 0.42, Math.min(w, h) * 0.12);
+  pen.line({ x: cx, y: y + h * 0.5 }, { x: cx, y: y + h * 0.75 }, 0.5);
+}
+
+export function thermometer(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.6, 4.6));
+  const cx = box.x + box.w / 2;
+  const top = box.y + box.h * 0.14;
+  const bottom = box.y + box.h * 0.76;
+  const r = Math.min(box.w, box.h) * 0.1;
+  pen.line({ x: cx - r * 0.5, y: top }, { x: cx - r * 0.5, y: bottom }, 0.5);
+  pen.line({ x: cx + r * 0.5, y: top }, { x: cx + r * 0.5, y: bottom }, 0.5);
+  pen.arc(cx, top, r * 0.5, Math.PI, Math.PI * 2, 0.6);
+  pen.circle(cx, bottom + r, r);
+  pen.setWidth(2.2);
+  for (let i = 0; i < 4; i++) {
+    const ty = top + (bottom - top) * (0.2 + i * 0.18);
+    pen.line({ x: cx + r * 0.5, y: ty }, { x: cx + r * 1.3, y: ty }, 0.4);
+  }
+}
+
+export function wineGlass(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.6, 4.6));
+  const cx = box.x + box.w / 2;
+  const top = box.y + box.h * 0.2;
+  const bowl = box.h * 0.3;
+  const r = Math.min(box.w, box.h) * 0.22;
+  pen.polyline(
+    [{ x: cx - r, y: top }, { x: cx - r * 0.75, y: top + bowl * 0.8 }, { x: cx, y: top + bowl }, { x: cx + r * 0.75, y: top + bowl * 0.8 }, { x: cx + r, y: top }],
+    false,
+    0.8,
+  );
+  pen.line({ x: cx - r, y: top }, { x: cx + r, y: top }, 0.5);
+  pen.line({ x: cx, y: top + bowl }, { x: cx, y: top + bowl + box.h * 0.24 }, 0.5);
+  pen.line({ x: cx - r * 0.7, y: top + bowl + box.h * 0.24 }, { x: cx + r * 0.7, y: top + bowl + box.h * 0.24 }, 0.5);
+}
+
+export function cake(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const w = box.w * 0.56;
+  const h = box.h * 0.3;
+  const y = box.y + box.h * 0.46;
+  pen.rect(cx - w / 2, y, w, h, 0.9);
+  pen.setWidth(3);
+  // Icing drips along the top edge.
+  const drip: XY[] = [];
+  for (let i = 0; i <= 6; i++) {
+    drip.push({ x: cx - w / 2 + (w * i) / 6, y: y + (i % 2 === 0 ? 0 : h * 0.22) });
+  }
+  pen.polyline(drip, false, 0.7);
+  for (const f of [-0.28, 0, 0.28]) {
+    pen.line({ x: cx + w * f, y: y }, { x: cx + w * f, y: y - h * 0.5 }, 0.6);
+    pen.setWidth(2.4);
+    pen.polyline([{ x: cx + w * f - 0.008, y: y - h * 0.5 }, { x: cx + w * f, y: y - h * 0.72 }, { x: cx + w * f + 0.008, y: y - h * 0.5 }], false, 0.8);
+    pen.setWidth(3);
+  }
+}
+
+export function pram(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const x = box.x + box.w * 0.2;
+  const y = box.y + box.h * 0.3;
+  const w = box.w * 0.54;
+  const h = box.h * 0.32;
+  pen.arc(x + w * 0.5, y + h, w * 0.5, Math.PI, Math.PI * 2, 0.9);
+  pen.line({ x, y: y + h }, { x: x + w, y: y + h }, 0.6);
+  pen.setWidth(3.4);
+  pen.arc(x + w * 0.5, y + h, w * 0.5, Math.PI * 1.05, Math.PI * 1.55, 0.8);
+  pen.polyline([{ x: x + w, y: y + h * 0.2 }, { x: x + w * 1.35, y: y + h * 0.6 }], false, 0.6);
+  pen.setWidth(3);
+  pen.circle(x + w * 0.22, y + h * 1.42, box.h * 0.055);
+  pen.circle(x + w * 0.78, y + h * 1.42, box.h * 0.055);
+}
+
+export function guitar(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.42;
+  const cy = box.y + box.h * 0.62;
+  const r = Math.min(box.w, box.h) * 0.24;
+  pen.ellipse(cx, cy + r * 0.5, r * 0.95, r * 0.8, 0.9);
+  pen.ellipse(cx, cy - r * 0.55, r * 0.72, r * 0.62, 0.9);
+  pen.setWidth(3);
+  pen.circle(cx, cy - r * 0.15, r * 0.26);
+  pen.setWidth(3.4);
+  const nx = cx + r * 1.4;
+  const ny = cy - r * 1.9;
+  pen.line({ x: cx, y: cy - r * 1.1 }, { x: nx, y: ny }, 0.5);
+  pen.rect(nx - r * 0.12, ny - r * 0.42, r * 0.34, r * 0.44, 0.7);
+}
+
+export function washingLine(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.4, 4.2));
+  const y = box.y + box.h * 0.24;
+  const x0 = box.x + box.w * 0.05;
+  const x1 = box.x + box.w * 0.95;
+  // Sag in the middle, or it reads as a shelf.
+  pen.polyline([{ x: x0, y }, { x: (x0 + x1) / 2, y: y + box.h * 0.09 }, { x: x1, y }], false, 0.8);
+  const n = rng.int(3, 4);
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.7) / (n + 0.4);
+    const hx = x0 + (x1 - x0) * t;
+    const hy = y + Math.sin(t * Math.PI) * box.h * 0.09;
+    const w = box.w * rng.range(0.1, 0.15);
+    const h = box.h * rng.range(0.2, 0.32);
+    pen.setWidth(3);
+    pen.polyline(
+      [{ x: hx - w / 2, y: hy }, { x: hx - w / 2, y: hy + h }, { x: hx + w / 2, y: hy + h }, { x: hx + w / 2, y: hy }],
+      false,
+      0.8,
+    );
+  }
+}
+
+export function windowFrame(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const w = box.w * 0.62;
+  const h = box.h * 0.56;
+  const x = box.x + (box.w - w) / 2;
+  const y = box.y + box.h * 0.18;
+  pen.rect(x, y, w, h, 0.9);
+  pen.setWidth(3);
+  pen.line({ x: x + w / 2, y }, { x: x + w / 2, y: y + h }, 0.5);
+  pen.line({ x, y: y + h / 2 }, { x: x + w, y: y + h / 2 }, 0.5);
+  pen.setWidth(2.4);
+  // Rain streaks on the glass.
+  for (let i = 0; i < rng.int(2, 4); i++) {
+    const rx = x + w * rng.range(0.08, 0.92);
+    const ry = y + h * rng.range(0.1, 0.5);
+    pen.line({ x: rx, y: ry }, { x: rx - 0.006, y: ry + h * 0.24 }, 0.5);
+  }
+}
+
+export function teapot(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h * 0.56;
+  const r = Math.min(box.w, box.h) * 0.28;
+  pen.ellipse(cx, cy, r * 1.1, r * 0.85, 0.9);
+  pen.setWidth(3.2);
+  pen.polyline([{ x: cx - r * 1.05, y: cy - r * 0.2 }, { x: cx - r * 1.7, y: cy - r * 0.55 }, { x: cx - r * 1.75, y: cy + r * 0.1 }], false, 0.9);
+  pen.arc(cx + r * 1.15, cy, r * 0.45, -Math.PI * 0.5, Math.PI * 0.5, 0.8);
+  pen.line({ x: cx - r * 0.35, y: cy - r * 0.82 }, { x: cx + r * 0.35, y: cy - r * 0.82 }, 0.5);
+  pen.circle(cx, cy - r * 0.98, r * 0.14);
+}
+
+export function helmet(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h * 0.56;
+  const r = Math.min(box.w, box.h) * 0.3;
+  pen.arc(cx, cy, r, Math.PI, Math.PI * 2, 0.9);
+  pen.line({ x: cx - r, y: cy }, { x: cx + r, y: cy }, 0.6);
+  pen.setWidth(3);
+  pen.line({ x: cx - r * 1.25, y: cy }, { x: cx + r * 1.25, y: cy }, 0.6);
+  pen.arc(cx, cy - r * 0.1, r * 0.55, Math.PI * 1.15, Math.PI * 1.85, 0.6);
+}
+
+export function snowman(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const base = box.y + box.h * 0.86;
+  const r = Math.min(box.w, box.h) * 0.22;
+  pen.circle(cx, base - r, r);
+  pen.circle(cx, base - r * 2.6, r * 0.72);
+  pen.circle(cx, base - r * 3.9, r * 0.5);
+  pen.setWidth(2.6);
+  pen.line({ x: cx - r * 0.5, y: base - r * 4.35 }, { x: cx + r * 0.5, y: base - r * 4.35 }, 0.5);
+  pen.rect(cx - r * 0.34, base - r * 4.95, r * 0.68, r * 0.6, 0.7);
+  pen.line({ x: cx - r * 0.68, y: base - r * 2.7 }, { x: cx - r * 1.5, y: base - r * 3.2 }, 0.6);
+  pen.line({ x: cx + r * 0.68, y: base - r * 2.7 }, { x: cx + r * 1.5, y: base - r * 3.2 }, 0.6);
+  for (let i = 0; i < 3; i++) pen.circle(cx, base - r * (2.2 + i * 0.42), r * 0.07);
+}
+
+export function queue(pen: Pen, rng: Rng, box: Box): void {
+  // A line of people, receding. Reads as "waiting" far better than one figure.
+  const n = rng.int(3, 4);
+  const feetY = box.y + box.h * 0.92;
+  for (let i = 0; i < n; i++) {
+    const t = i / Math.max(1, n - 1);
+    const x = box.x + box.w * (0.15 + t * 0.7);
+    stickPerson(pen, rng, x, feetY - box.h * t * 0.08, box.h * (0.6 - t * 0.1));
+  }
+}
+
+export function toolbox(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const w = box.w * 0.6;
+  const h = box.h * 0.32;
+  const x = box.x + (box.w - w) / 2;
+  const y = box.y + box.h * 0.46;
+  pen.rect(x, y, w, h, 0.9);
+  pen.setWidth(3.4);
+  pen.arc(x + w / 2, y, w * 0.26, Math.PI, Math.PI * 2, 0.8);
+  pen.setWidth(2.6);
+  pen.line({ x, y: y + h * 0.4 }, { x: x + w, y: y + h * 0.4 }, 0.4);
+  pen.rect(x + w * 0.4, y + h * 0.55, w * 0.2, h * 0.22, 0.6);
+}
+
+export function clipboard(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.8, 4.8));
+  const w = box.w * 0.46;
+  const h = box.h * 0.6;
+  const x = box.x + (box.w - w) / 2;
+  const y = box.y + box.h * 0.2;
+  pen.rect(x, y, w, h, 0.9);
+  pen.setWidth(3);
+  pen.rect(x + w * 0.34, y - h * 0.08, w * 0.32, h * 0.11, 0.7);
+  pen.setWidth(2.2);
+  for (let i = 0; i < rng.int(3, 5); i++) {
+    const ly = y + h * (0.22 + i * 0.16);
+    pen.line({ x: x + w * 0.14, y: ly }, { x: x + w * rng.range(0.6, 0.88), y: ly }, 0.4);
+    if (rng.chance(0.4)) pen.rect(x + w * 0.06, ly - h * 0.035, w * 0.06, h * 0.07, 0.5);
+  }
+}
+
+export function sprayBottle(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.45;
+  const w = box.w * 0.26;
+  const h = box.h * 0.42;
+  const y = box.y + box.h * 0.42;
+  pen.rect(cx - w / 2, y, w, h, 0.9);
+  pen.setWidth(3.2);
+  pen.polyline(
+    [
+      { x: cx - w * 0.3, y },
+      { x: cx - w * 0.3, y: y - h * 0.3 },
+      { x: cx + w * 0.6, y: y - h * 0.3 },
+      { x: cx + w * 0.6, y: y - h * 0.12 },
+    ],
+    false,
+    0.8,
+  );
+  pen.setWidth(2.4);
+  // Mist puffing out of the nozzle.
+  for (let i = 0; i < 3; i++) {
+    const a = -0.5 + i * 0.35;
+    pen.line(
+      { x: cx + w * 0.7, y: y - h * 0.22 },
+      { x: cx + w * 0.7 + Math.cos(a) * box.w * 0.16, y: y - h * 0.22 + Math.sin(a) * box.h * 0.14 },
+      0.5,
+    );
+  }
+}
+
+export function fireExtinguisher(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const w = box.w * 0.24;
+  const h = box.h * 0.46;
+  const y = box.y + box.h * 0.36;
+  pen.polyline(
+    [{ x: cx - w / 2, y: y + h }, { x: cx - w / 2, y: y + h * 0.12 }, { x: cx - w * 0.2, y }, { x: cx + w * 0.2, y }, { x: cx + w / 2, y: y + h * 0.12 }, { x: cx + w / 2, y: y + h }],
+    true,
+    0.8,
+  );
+  pen.setWidth(3);
+  pen.line({ x: cx - w * 0.3, y: y - h * 0.12 }, { x: cx + w * 0.5, y: y - h * 0.12 }, 0.5);
+  pen.polyline([{ x: cx + w * 0.5, y: y - h * 0.1 }, { x: cx + w * 1.1, y: y + h * 0.14 }], false, 0.7);
+  pen.setWidth(2.4);
+  pen.rect(cx - w * 0.32, y + h * 0.4, w * 0.64, h * 0.26, 0.6);
+}
+
+export function mirror(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h * 0.48;
+  const rx = box.w * 0.24;
+  const ry = box.h * 0.32;
+  pen.ellipse(cx, cy, rx, ry, 0.9);
+  pen.setWidth(2.6);
+  pen.ellipse(cx, cy, rx * 0.82, ry * 0.82, 0.8);
+  // Two shine strokes across the glass.
+  pen.line({ x: cx - rx * 0.4, y: cy + ry * 0.2 }, { x: cx + rx * 0.1, y: cy - ry * 0.45 }, 0.5);
+  pen.line({ x: cx - rx * 0.05, y: cy + ry * 0.4 }, { x: cx + rx * 0.35, y: cy - ry * 0.1 }, 0.5);
+  pen.setWidth(3.4);
+  pen.line({ x: cx, y: cy + ry }, { x: cx, y: cy + ry * 1.5 }, 0.6);
+  pen.line({ x: cx - rx * 0.5, y: cy + ry * 1.5 }, { x: cx + rx * 0.5, y: cy + ry * 1.5 }, 0.6);
+}
+
+// --- more machine fittings -------------------------------------------------
+// These go in the `details` pool rather than being called from a layout, so
+// they don't stack on top of the pool's own odds — the mistake that made the
+// antenna show up in 56% of drawings.
+
+export function rivets(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2, 2.6));
+  const n = rng.int(3, 5);
+  const edge = rng.chance(0.5);
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    const x = edge ? box.x + box.w * 0.06 : box.x + box.w * t;
+    const y = edge ? box.y + box.h * t : box.y + box.h * 0.08;
+    pen.circle(x, y, Math.min(box.w, box.h) * 0.022);
+  }
+}
+
+export function gauge(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.8, 3.6));
+  const r = Math.min(box.w, box.h) * rng.range(0.13, 0.18);
+  const cx = box.x + box.w * rng.range(0.2, 0.8);
+  const cy = box.y + box.h * rng.range(0.25, 0.6);
+  pen.arc(cx, cy + r * 0.3, r, Math.PI, Math.PI * 2, 0.7);
+  pen.line({ x: cx - r, y: cy + r * 0.3 }, { x: cx + r, y: cy + r * 0.3 }, 0.5);
+  pen.setWidth(2.2);
+  const a = rng.range(Math.PI * 1.15, Math.PI * 1.85);
+  pen.line({ x: cx, y: cy + r * 0.3 }, { x: cx + Math.cos(a) * r * 0.8, y: cy + r * 0.3 + Math.sin(a) * r * 0.8 }, 0.4);
+  for (const ta of [1.2, 1.5, 1.8]) {
+    pen.line(
+      { x: cx + Math.cos(Math.PI * ta) * r * 0.82, y: cy + r * 0.3 + Math.sin(Math.PI * ta) * r * 0.82 },
+      { x: cx + Math.cos(Math.PI * ta) * r, y: cy + r * 0.3 + Math.sin(Math.PI * ta) * r },
+      0.3,
+    );
+  }
+}
+
+export function toggleSwitch(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.6, 3.4));
+  const w = box.w * 0.1;
+  const h = box.h * 0.12;
+  const x = box.x + box.w * rng.range(0.15, 0.8);
+  const y = box.y + box.h * rng.range(0.3, 0.7);
+  pen.rect(x, y, w, h, 0.7);
+  pen.setWidth(2.8);
+  const up = rng.chance(0.5);
+  pen.line({ x: x + w / 2, y: y + h / 2 }, { x: x + w / 2 + w * 0.3, y: up ? y - h * 0.5 : y + h * 1.4 }, 0.5);
+}
+
+export function chimney(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3, 3.8));
+  const w = box.w * rng.range(0.1, 0.16);
+  const x = box.x + box.w * rng.range(0.15, 0.7);
+  const h = box.h * rng.range(0.18, 0.3);
+  pen.rect(x, box.y - h, w, h, 0.8);
+  pen.line({ x: x - w * 0.16, y: box.y - h }, { x: x + w * 1.16, y: box.y - h }, 0.5);
+}
+
+export function clawGrabber(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3, 3.8));
+  const side = rng.chance(0.5) ? -1 : 1;
+  const x = side < 0 ? box.x : box.x + box.w;
+  const y = box.y + box.h * rng.range(0.25, 0.5);
+  const len = box.w * rng.range(0.22, 0.34);
+  const tipX = x + side * len;
+  pen.line({ x, y }, { x: tipX, y: y + box.h * 0.12 }, 0.7);
+  pen.setWidth(2.6);
+  for (const s of [-1, 1]) {
+    pen.polyline(
+      [
+        { x: tipX, y: y + box.h * 0.12 },
+        { x: tipX + side * box.w * 0.06, y: y + box.h * (0.12 + s * 0.09) },
+        { x: tipX + side * box.w * 0.02, y: y + box.h * (0.12 + s * 0.17) },
+      ],
+      false,
+      0.7,
+    );
+  }
+}
+
+export function sirenLight(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3, 3.8));
+  const cx = box.x + box.w * rng.range(0.25, 0.75);
+  const r = Math.min(box.w, box.h) * 0.08;
+  pen.arc(cx, box.y, r, Math.PI, Math.PI * 2, 0.7);
+  pen.line({ x: cx - r, y: box.y }, { x: cx + r, y: box.y }, 0.5);
+  pen.setWidth(2.2);
+  for (const s of [-1, 1]) {
+    for (let i = 1; i <= 2; i++) {
+      pen.line(
+        { x: cx + s * r * (1.4 + i * 0.5), y: box.y - r * (0.3 + i * 0.35) },
+        { x: cx + s * r * (1.9 + i * 0.5), y: box.y - r * (0.5 + i * 0.45) },
+        0.4,
+      );
+    }
+  }
+}
+
+export function keypad(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.4, 3));
+  const w = box.w * rng.range(0.22, 0.3);
+  const h = box.h * rng.range(0.24, 0.32);
+  const x = box.x + (box.w - w) * rng.range(0.15, 0.85);
+  const y = box.y + box.h * rng.range(0.35, 0.6);
+  pen.rect(x, y, w, h, 0.7);
+  pen.setWidth(1.9);
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      pen.circle(x + w * (0.22 + c * 0.28), y + h * (0.22 + r * 0.28), Math.min(w, h) * 0.06);
+    }
+  }
+}
+
+export function slot(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.8, 3.4));
+  const w = box.w * rng.range(0.3, 0.44);
+  const x = box.x + (box.w - w) * rng.range(0.2, 0.8);
+  const y = box.y + box.h * rng.range(0.4, 0.75);
+  pen.rect(x, y, w, box.h * 0.06, 0.6);
+  if (rng.chance(0.5)) {
+    // Something halfway out of it.
+    pen.setWidth(2.4);
+    pen.rect(x + w * 0.2, y - box.h * 0.12, w * 0.5, box.h * 0.14, 0.7);
+  }
+}
+
+export function beltDrive(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(2.6, 3.2));
+  const y = box.y + box.h * rng.range(0.45, 0.7);
+  const r = Math.min(box.w, box.h) * 0.09;
+  const x0 = box.x + box.w * 0.2;
+  const x1 = box.x + box.w * 0.72;
+  pen.circle(x0, y, r);
+  pen.circle(x1, y, r * 0.7);
+  pen.line({ x: x0, y: y - r }, { x: x1, y: y - r * 0.7 }, 0.4);
+  pen.line({ x: x0, y: y + r }, { x: x1, y: y + r * 0.7 }, 0.4);
+}
+
+// --- more things to stand on -----------------------------------------------
+
+export function stilts(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3, 3.8));
+  const y = box.y + box.h;
+  const drop = box.h * rng.range(0.3, 0.5);
+  for (const f of [0.2, 0.8]) {
+    const x = box.x + box.w * f;
+    pen.line({ x, y }, { x: x + rng.range(-0.02, 0.02), y: y + drop }, 0.8);
+    pen.line({ x: x - box.w * 0.05, y: y + drop }, { x: x + box.w * 0.05, y: y + drop }, 0.5);
+  }
+  pen.setWidth(2.4);
+  pen.line({ x: box.x + box.w * 0.2, y: y + drop * 0.55 }, { x: box.x + box.w * 0.8, y: y + drop * 0.45 }, 0.5);
+}
+
+export function railTrack(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3, 3.8));
+  const y = box.y + box.h + box.h * 0.1;
+  const x0 = box.x - box.w * 0.08;
+  const x1 = box.x + box.w * 1.08;
+  pen.line({ x: x0, y }, { x: x1, y }, 0.5);
+  pen.line({ x: x0, y: y + box.h * 0.07 }, { x: x1, y: y + box.h * 0.07 }, 0.5);
+  pen.setWidth(2.2);
+  for (let i = 0; i <= 5; i++) {
+    const x = x0 + ((x1 - x0) * i) / 5;
+    pen.line({ x, y: y - box.h * 0.02 }, { x, y: y + box.h * 0.09 }, 0.4);
+  }
+}
+
+export function pontoon(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(3.2, 4));
+  const y = box.y + box.h;
+  for (const f of [0.25, 0.75]) {
+    const cx = box.x + box.w * f;
+    pen.ellipse(cx, y + box.h * 0.12, box.w * 0.18, box.h * 0.07, 0.8);
+  }
+  pen.setWidth(2.4);
+  // Waterline.
+  const wave: XY[] = [];
+  for (let i = 0; i <= 10; i++) {
+    wave.push({ x: box.x - box.w * 0.1 + box.w * 1.2 * (i / 10), y: y + box.h * (0.22 + (i % 2 === 0 ? 0 : 0.035)) });
+  }
+  pen.polyline(wave, false, 0.5);
+}
