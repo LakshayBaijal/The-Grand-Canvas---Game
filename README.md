@@ -62,20 +62,56 @@ follows you across games, networks and app restarts. Deleting the app is the
 only thing that clears it. Renaming keeps the same account and the same
 trophies — the id is the identity, the name is just a label.
 
-Finishing a **ranked** game pays trophies by final placement:
+There are **three separate numbers**, each doing one job, because one number
+can't do all three without being bad at all of them:
 
-| 1st | 2nd | 3rd | 4th | 5th |
-| --- | --- | --- | --- | --- |
-| 30 | 18 | 10 | 5 | 2 |
+| | what it means | moves |
+| --- | --- | --- |
+| **Rating** | current skill — what the leaderboard sorts by | **up and down** |
+| **League** | the band your rating sits in, and your identity on the ladder | up freely, down only to the floor |
+| **Trophies** | career total, a record of everything you've played | **only up, ever** |
 
-**Scaled by how much of the lobby was real people.** Beating four bots isn't the
-same achievement as beating four humans, and without the scaling anyone could
-farm the ladder by queueing alone until the bot backfill fired. Everyone who
-finishes still takes at least 1, so a game is never wasted time.
+**Why not just trophies.** They only ever accumulated, and even last place paid
+out — which makes a fine career counter and a terrible leaderboard: it ranks
+*time played*, not skill. Someone winning 90% of 50 games sat below someone
+winning 10% of 500, and the top of the board just meant "played the most".
 
-Trophies only ever accumulate — losing never costs you any. The leaderboard is
-something you climb by playing, not a rating you can fall off. `TROPHIES_BY_PLACE`
-in `server/src/rooms.ts`.
+**Why not just Elo.** Placement here is decided by other people voting on
+drawings. It's genuinely high-variance, and a prompt that doesn't suit you is
+nobody's fault. A ladder where every loss bites hard would punish players for
+luck and make a party game stressful.
+
+So rating is Elo-style (`server/src/ranking.ts`) — free-for-all, every player
+scored against every other as a pairwise match, averaged. Coming exactly where
+your rating predicted barely moves you, which is what makes the number mean
+something. A normal game is worth about **±12**; an upset is worth **±23**.
+
+**Leagues, and the floor that makes this safe.** Scribbles → Doodler → Sketcher
+→ Illustrator → Curator → Old Master → Grand Canvas. Reach a league once in a
+season and you **cannot fall out of it** — within your league the rating moves
+freely, so the top of the board stays honest, but a promotion you already earned
+survives a bad night. This is the one rule that lets a real ladder sit inside a
+party game.
+
+**Bots are worth almost nothing.** They're included as opponents but weighted at
+15%, so beating a full bot backfill moves you **+2** against **+12** for four
+humans. Queueing alone to farm the ladder isn't a strategy.
+
+**Placements.** Your first 5 ranked games each season count triple and are held
+off the public board, so you land near your real level in an evening instead of
+grinding up from zero.
+
+**Seasons** run 28 days. At rollover everyone is pulled halfway back toward the
+Sketcher line — strong players still start ahead and re-climb fast, but the top
+is contestable again. Trophies are untouched by this; they're yours forever.
+
+> **On upgrading:** existing profiles keep every trophy, and everyone starts the
+> new ladder at the same rating. Seeding rating from banked trophies would import
+> exactly the play-time bias the rating exists to remove.
+
+Trophies themselves still pay out by placement, scaled by the human share of the
+lobby, minimum 1 — `TROPHIES_BY_PLACE` in `server/src/rooms.ts`. Ladder constants
+live in `server/src/ranking.ts`; `npm test` in `server/` covers the maths.
 
 Profiles live in SQLite (`server/src/store.ts`, via node's built-in
 `node:sqlite` — no dependency, no native build) at `data/leaderboard.db`, or
@@ -253,28 +289,41 @@ What they do:
   **How** is the layout: a centred hero, a tall stack, a wide production bench,
   a machine with eyes and limbs, a handheld gadget mid-use, someone wearing it,
   a machine facing the person it's for, a before/after pair of panels,
-  something mounted overhead, or the object itself with the invention bolted
-  on. When the subject is known, only layouts that actually stage it are
-  eligible — knowing the prompt says "alarm" and then burying a clock under a
-  generic contraption was the whole failure mode.
+  something mounted overhead, the object itself with the invention bolted on, a
+  patent sheet with callout bubbles, a heap of the same thing, an absurdly
+  oversized version beside a normal person, one sitting on a table or shelf,
+  three panels in sequence, or the thing ringed by the mess it deals with. When
+  the subject is known, only layouts that actually stage it are eligible —
+  knowing the prompt says "alarm" and then burying a clock under a generic
+  contraption was the whole failure mode.
 
   **Watch the frequencies.** The idle canvas means people see a lot of these
   back to back, so anything that shows up in a third of drawings stops reading
-  as detail and starts reading as "the same picture again". The antenna's
-  signal arcs were the worst offender — it sat in the details pool *and* was
-  called explicitly by four layouts *and* by the tech accent. There's a
-  measurement recipe in [Tests](#tests); current numbers:
+  as detail and starts reading as "the same picture again". There's a
+  measurement recipe in [Tests](#tests).
+
+  The subtler trap is the **layout** distribution, which cost far more than any
+  single part ever did. `NAMED_LAYOUTS` was `showcase`×5 plus three others,
+  which looks balanced until you notice most answers people type *do* hit
+  `WORD_SHAPES` — so that tiny pool is where nearly every drawing comes from,
+  and `showcase` alone was 52% of all output while `tower`, `bench`, `creature`
+  and `handheld` sat at ~1% each. Widening that pool to every layout that can
+  stage a subject is the single biggest variety win available:
 
   | | share of drawings |
   | --- | --- |
-  | contains an antenna | 20% (was 56%) |
-  | contains wheels | 3% (was 12%) |
-  | distinct parts in use | 68 (was 50) |
+  | most common layout | 18% (was 52%) |
+  | generic contraption body | 34% (was 57%) |
+  | distinct parts in a 600-drawing sample | 66 (was 51) |
 
   If you add parts, add a **layout** now and then too — arrangement varies the
-  look far more than detailing does. And when adding a fitting, put it in the
-  `details` pool rather than calling it directly from a layout, or it stacks on
-  top of the pool's own odds.
+  look far more than detailing does, and a layout only belongs in
+  `NAMED_LAYOUTS` if it calls `chassis` or draws `ctx.subjects` itself. When
+  adding a fitting, put it in the `details` pool rather than calling it directly
+  from a layout, or it stacks on top of the pool's own odds. And watch the
+  **stroke count**: a layout that repeats its subject (`pileUp`) can run to 140
+  strokes if the subject is itself a composite, so it budgets by what the first
+  copy actually cost.
 - **Look hand-drawn** — `pen.ts` simulates an unsteady hand: lines bow slightly
   off-target, high-frequency tremor, circles that don't quite close, corner
   overshoot, jittered endpoints. Nothing is geometrically perfect.
@@ -331,10 +380,11 @@ Game/
 The app is already installed on your phone as a normal app icon — you don't
 need this computer's Terminal, `adb`, or Claude to "launch" it each time.
 
-1. On your Mac, run:
-   ```bash
-   ./start-server.sh
-   ```
+1. Start the server:
+   - On a Mac: `./start-server.sh`
+   - On Windows: double-click `start-server.bat`, or run it from a terminal.
+
+   Both print the address to enter on your phone.
 2. On your phone, open **The Grand Canvas** and tap **RANKED** or
    **PLAY WITH FRIENDS**.
 
@@ -437,8 +487,15 @@ useful questions ("does this read as a key?", "is the same mark in every
 picture?") aren't assertable. Two throwaway techniques worth reusing:
 
 - *Contact sheet.* Render a grid of drawings to SVG (one `<path>` per stroke),
-  rasterise with `qlmanage -t`, and look at it. This is what caught a `keys()`
-  that was geometrically a keyring and visually a stick figure, every time.
+  rasterise, and look at it. This is what caught a `keys()` that was
+  geometrically a keyring and visually a stick figure, every time. On a Mac,
+  `qlmanage -t`; on Windows there's no equivalent, so write the grid to an HTML
+  file and screenshot it instead:
+
+  ```bash
+  chrome --headless --disable-gpu --screenshot=sheet.png \
+         --window-size=1500,1180 --hide-scrollbars sheet.html
+  ```
 - *Frequency count.* Copy `doodle/{compose,parts,pen}.ts` to a scratch
   directory, swap `import * as parts` for a counting `Proxy`, and run a few
   hundred drawings. Counting each part once per drawing gives "share of

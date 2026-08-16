@@ -110,33 +110,28 @@ class _DrawViewState extends State<DrawView> {
       appBar: AppBar(
         title: Text('ROUND ${widget.roundIndex + 1}/${widget.totalRounds}'),
         actions: [
-          // Both offers live in the corner, small and out of the way. Stacking
-          // them vertically would need a taller bar (which costs canvas
-          // height), and floating them over the paper would steal touches
-          // from whoever draws there — so they sit side by side instead.
+          // One offer, not two. Colours and styles are sold together anyway, so
+          // two separate chips asked the same question twice and neither read
+          // as "this unlocks everything". While anything is still locked this
+          // is a single labelled pill; once it's all owned it collapses back to
+          // a plain icon for *choosing* paper and pens, because there's nothing
+          // left to sell and it should stop asking.
           if (!_submitted && !_naming)
             ListenableBuilder(
               listenable: Entitlements.instance,
-              builder: (context, _) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!Entitlements.instance.hasFullPalette)
-                    _CornerAction(
-                      icon: Icons.palette_rounded,
-                      tooltip: 'Unlock all colours',
-                      color: GameColors.primary,
-                      onTap: () => showUnlockSheet(context),
-                    ),
-                  _CornerAction(
+              builder: (context, _) {
+                final owned = Entitlements.instance.hasFullPalette &&
+                    Entitlements.instance.hasStyles;
+                if (owned) {
+                  return _CornerAction(
                     icon: Icons.auto_awesome_rounded,
                     tooltip: 'Paper & pens',
-                    color: Entitlements.instance.hasStyles
-                        ? GameColors.cyan
-                        : GameColors.textMuted,
+                    color: GameColors.cyan,
                     onTap: () => showCustomizeSheet(context),
-                  ),
-                ],
-              ),
+                  );
+                }
+                return _UnlockAllButton(onTap: () => showUnlockSheet(context));
+              },
             ),
           if (!_submitted && !_naming)
             Padding(
@@ -488,6 +483,59 @@ class _DrawToolbar extends StatelessWidget {
 
 /// Made deliberately bold and placed first in the color row — the whole
 /// point is that players spot it immediately instead of hunting for it.
+/// The single "buy everything" entry point, in the top-right of the drawing
+/// screen. Labelled rather than a bare icon: a lone palette glyph reads as a
+/// colour picker, which is exactly the wrong expectation for a paid offer.
+class _UnlockAllButton extends StatelessWidget {
+  const _UnlockAllButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [GameColors.primaryBright, GameColors.primaryDeep],
+              ),
+              border: Border.all(color: GameColors.primaryBright, width: 1.2),
+              boxShadow: GameDecor.glow(GameColors.primary, strength: 0.7),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.palette_rounded, size: 17, color: Color(0xFF241800)),
+                SizedBox(width: 6),
+                Text(
+                  'UNLOCK ALL',
+                  style: TextStyle(
+                    color: Color(0xFF241800),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _EraserChip extends StatelessWidget {
   const _EraserChip({required this.controller});
 

@@ -14,3 +14,4 @@ app/**/GeneratedPluginRegistrant.*
 
 .DS_Store
 *.log
+*.apk
