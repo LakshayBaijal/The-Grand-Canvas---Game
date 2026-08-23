@@ -27,10 +27,10 @@ everyone draws a solution to the same problem, then backs their favourites.
 
 1. **Get into a game** — **Ranked** drops you in a queue; **Play with friends** opens a private room others join by code. Either way you watch the [idle canvas](#the-idle-canvas) while you wait.
 2. **Invent a problem** — one player each round gets a Mad-Libs-style sentence with a blank (e.g. *"Every office has an ongoing problem with ___."*) and fills it in. Only real players get writer turns — this is the creative half of the game.
-3. **Draw** — that completed sentence goes to **everyone** (including the writer), who all draw a solution, then name their invention in a popup. 75 seconds.
+3. **Draw** — that completed sentence goes to **everyone** (including the writer), who all draw a solution, then name their homework in a popup. 75 seconds.
 4. **Present** — every drawing is shown one at a time, image first, then its title.
 5. **Vote** — invest money (ranked) or pick a podium (friendly).
-6. **Reveal** — see what each invention pulled in, who backed it, and the score breakdown.
+6. **Reveal** — see what each piece of homework pulled in, who backed it, and the score breakdown.
 7. Repeat until every human player has had one turn writing the blank, then final scores.
 
 ### Scoring
@@ -119,13 +119,91 @@ wherever `DB_PATH` points. Unlike lobbies, which are deliberately in-memory and
 disposable, this survives restarts: a leaderboard that resets on deploy would
 be worthless.
 
-> **Two honest limits.** (1) Identity is *self-asserted* — the device sends its
-> own id, and nothing stops a modified client claiming another one or inflating
-> its results. Fine among friends; if the ladder ever becomes worth cheating
-> for, it needs real accounts. (2) "Global" means *global to one server*. Until
+> **Two honest limits.** (1) An *unlinked* identity is self-asserted — the
+> device sends its own id, and nothing stops a modified client claiming another
+> one. Linking a Google account fixes this for that player, because the server
+> verifies Google's signature instead of taking the client's word; unlinked
+> play is still on trust. (2) "Global" means *global to one server*. Until
 > `server/` is deployed somewhere public (see
 > [Before shipping](#before-shipping-to-the-play-store)), each machine running
 > it has its own separate leaderboard.
+
+### Linking a Google account
+
+Optional, and off unless configured. A device account is fine until the phone
+is lost or the app is reinstalled — at which point the trophies are gone, since
+the id lived only on that device. Linking makes the profile follow the player.
+
+What happens when someone signs in, in the order the cases actually come up:
+
+| situation | result |
+| --- | --- |
+| account not seen before | the current profile becomes that account. Nothing moves. |
+| same account, same profile | nothing. Signing in twice is harmless. |
+| account already owns a profile | **that** profile wins — it is the one that exists on their other devices. Career totals from this device (trophies, games, wins, best score) are folded in, and the throwaway device profile is deleted. |
+
+**Rating is deliberately not merged.** Trophies are a career total and adding
+them up is correct; rating measures current skill, so summing two of them would
+hand out free ladder position for reinstalling the app.
+
+Signing out unlinks the account and leaves every trophy where it is — it is not
+a punishment, just a disconnection.
+
+#### Turning it on
+
+It needs credentials from Google, and it stays hidden until it has them —
+neither the server nor the app will offer a button that could only fail.
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a
+   project and configure the OAuth consent screen.
+2. Create **two** OAuth client IDs:
+   - **Android**, with your package name and the SHA-1 of your signing key.
+     Debug and release builds have *different* keys, so add both or sign-in
+     will work in development and fail in the APK. Get them with
+     `keytool -list -v -keystore <path-to-keystore>`.
+   - **Web**. This one is the "server client id" — despite the name, it is what
+     an Android app passes and what the server verifies the token against.
+3. Give the **Web** client id to both sides:
+
+   ```bash
+   # server
+   GOOGLE_CLIENT_ID=<web-client-id> npm run dev
+
+   # app
+   flutter build apk --release --dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>
+   ```
+
+Leave either unset and the game runs exactly as before, on device accounts.
+That is the intended state for a LAN game: Google sign-in needs internet and
+Play Services, and this server is built to run on a laptop on someone's home
+Wi-Fi with neither.
+
+## Finding a friendly game
+
+Friendly games used to be reachable only by reading a four-letter code aloud,
+which works in a room together and nowhere else. There is now a **lobby
+browser**: open games on the server are listed with their host, how many people
+are in them, and how many of those are bots.
+
+- **New rooms are listed by default.** A room nobody can find is the problem
+  the browser exists to solve. The host can switch a room to **code only** when
+  creating it, or from inside the lobby.
+- **Hiding a room never revokes its code.** "Code only" removes it from the
+  list; anyone already given the code still walks straight in. This is worth
+  being precise about, because the opposite is what people assume.
+- **Rooms drop off the list when they are full or have started**, rather than
+  offering a join that would then be refused — and reappear if a seat opens up.
+- **Bots are counted separately.** "4 playing" reads very differently when
+  three of them are bots, so the row says both.
+- The list is **pushed, not polled**: the server keeps browsers up to date as
+  lobbies change, so a new room appears the moment it opens.
+
+Ranked lobbies are never listed. They are built complete by matchmaking, and a
+game that could be gate-crashed mid-round would not be ranked for long.
+
+There is also an **invite** button in the lobby, which hands the code to
+whatever the phone uses to message people. Copying a code still leaves someone
+to go and find their messaging app; this does not.
 
 ## Matchmaking
 
@@ -289,7 +367,7 @@ What they do:
   **How** is the layout: a centred hero, a tall stack, a wide production bench,
   a machine with eyes and limbs, a handheld gadget mid-use, someone wearing it,
   a machine facing the person it's for, a before/after pair of panels,
-  something mounted overhead, the object itself with the invention bolted on, a
+  something mounted overhead, the object itself with the homework bolted on, a
   patent sheet with callout bubbles, a heap of the same thing, an absurdly
   oversized version beside a normal person, one sitting on a table or shelf,
   three panels in sequence, or the thing ringed by the mess it deals with. When
@@ -327,7 +405,7 @@ What they do:
 - **Look hand-drawn** — `pen.ts` simulates an unsteady hand: lines bow slightly
   off-target, high-frequency tremor, circles that don't quite close, corner
   overshoot, jittered endpoints. Nothing is geometrically perfect.
-- **Name their invention** — titles are built from a keyword mined out of the
+- **Name their homework** — titles are built from a keyword mined out of the
   prompt, e.g. *"Trips-o-Matic 2.0"* for a road-trip prompt.
 - **Invest** — they always spend their entire budget (leaving money unspent is
   strictly penalized), weighted randomly so they have favourites.

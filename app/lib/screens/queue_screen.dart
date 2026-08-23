@@ -7,6 +7,7 @@ import '../services/game_connection.dart';
 import '../theme.dart';
 import '../widgets/celebration.dart';
 import '../widgets/doodle_stage.dart';
+import '../services/audio_service.dart';
 
 /// Waiting for a ranked match.
 ///
@@ -74,6 +75,7 @@ class _QueueScreenState extends State<QueueScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AudioService.instance.play(Music.matchmaking);
     final seconds = _untilBots.inSeconds;
     return Scaffold(
       appBar: AppBar(

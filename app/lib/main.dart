@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
+import 'services/audio_service.dart';
 import 'services/entitlements.dart';
 import 'services/game_connection.dart';
 import 'theme.dart';
@@ -17,6 +18,9 @@ void main() {
   // Read from disk before the first frame so the palette is never briefly
   // locked for someone who already paid.
   Entitlements.instance.load();
+  // Read the saved music/sound preference before the first screen asks to
+  // play anything, so a muted player never gets a burst of audio first.
+  AudioService.instance.load();
   runApp(const BadMentalCanvasApp());
 }
 

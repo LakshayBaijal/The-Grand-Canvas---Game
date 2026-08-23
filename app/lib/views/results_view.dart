@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../models/round_models.dart';
 import '../theme.dart';
+import '../widgets/sketch_icons.dart';
 import '../widgets/celebration.dart';
+import '../services/audio_service.dart';
 
-class ResultsView extends StatelessWidget {
+class ResultsView extends StatefulWidget {
   const ResultsView({
     super.key,
     required this.mode,
@@ -29,7 +31,29 @@ class ResultsView extends StatelessWidget {
   final String? myId;
 
   @override
+  State<ResultsView> createState() => _ResultsViewState();
+}
+
+class _ResultsViewState extends State<ResultsView> {
+  @override
+  void initState() {
+    super.initState();
+    // Fired once from initState rather than from build: a rebuild during
+    // the count-up animations would otherwise retrigger the fanfare.
+    final w = widget.scores.isNotEmpty ? widget.scores.first : null;
+    final won = w != null && widget.myId != null && w.playerId == widget.myId;
+    AudioService.instance.sfx(won ? Sfx.win : Sfx.lose);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final mode = widget.mode;
+    final scores = widget.scores;
+    final trophies = widget.trophies;
+    final isHost = widget.isHost;
+    final onPlayAgain = widget.onPlayAgain;
+    final onLeave = widget.onLeave;
+    final myId = widget.myId;
     final winner = scores.isNotEmpty ? scores.first : null;
     final iWon = winner != null && myId != null && winner.playerId == myId;
 
@@ -124,9 +148,11 @@ class ResultsView extends StatelessWidget {
                               // What this game was actually worth on the ladder.
                               if (trophies[row.playerId] != null) ...[
                                 const SizedBox(width: 12),
+                                const SketchIcon(SketchGlyph.trophy, size: 13, color: GameColors.lime),
+                                const SizedBox(width: 2),
                                 CountUp(
                                   value: trophies[row.playerId]!,
-                                  prefix: '🏆+',
+                                  prefix: '+',
                                   duration: const Duration(milliseconds: 1200),
                                   style: const TextStyle(
                                     fontSize: 13,

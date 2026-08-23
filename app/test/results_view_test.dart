@@ -1,6 +1,7 @@
 import 'package:bad_mental_canvas/models/round_models.dart';
 import 'package:bad_mental_canvas/views/results_view.dart';
 import 'package:bad_mental_canvas/widgets/celebration.dart';
+import 'package:bad_mental_canvas/widgets/sketch_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -40,10 +41,20 @@ void main() {
     // The confetti is armed only for the player who actually won.
     expect(tester.widget<Confetti>(find.byType(Confetti)).play, isTrue);
 
-    // Trophies count up, so assert on the landed value.
+    // Trophies count up, so assert on the landed value. The trophy prefix is
+    // a hand-drawn SketchIcon now rather than baked into the text, so check
+    // the icon count and the numbers separately. size: 13 is the per-row
+    // badge — distinct from the size-56 TrophyDrop win celebration, which
+    // also renders a trophy glyph on this same screen.
     await tester.pump(const Duration(seconds: 2));
-    expect(find.text('🏆+12'), findsOneWidget);
-    expect(find.text('🏆+7'), findsOneWidget);
+    expect(find.text('+12'), findsOneWidget);
+    expect(find.text('+7'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is SketchIcon && w.glyph == SketchGlyph.trophy && w.size == 13,
+      ),
+      findsNWidgets(2),
+    );
 
     // Ranked has no rematch — you queue again instead.
     expect(find.text('PLAY AGAIN'), findsNothing);
@@ -88,7 +99,12 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
 
     expect(find.text('FRIENDLY'), findsOneWidget);
-    expect(find.textContaining('🏆+'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is SketchIcon && w.glyph == SketchGlyph.trophy && w.size == 13,
+      ),
+      findsNothing,
+    );
     expect(find.text('PLAY AGAIN'), findsOneWidget);
     expect(find.text('LEAVE GAME'), findsOneWidget);
     expect(find.textContaining('added to your profile'), findsNothing);

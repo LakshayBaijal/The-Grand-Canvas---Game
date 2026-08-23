@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import 'sketch_icons.dart';
 
 /// Ticks down to a server-supplied deadline and fires [onExpired] once.
 /// Driving this off an absolute timestamp (rather than a local duration) keeps
@@ -69,8 +70,8 @@ class _CountdownBarState extends State<CountdownBar> {
 
     return Row(
       children: [
-        Icon(
-          urgent ? Icons.timer : Icons.timer_outlined,
+        SketchIcon(
+          SketchGlyph.clock,
           size: 20,
           color: urgent ? GameColors.pink : GameColors.textMuted,
         ),

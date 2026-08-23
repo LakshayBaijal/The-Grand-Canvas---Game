@@ -85,6 +85,18 @@ class GameConnection {
         return WelcomeEvent(json['connectionId'] as String);
       case 'lobby_state':
         return LobbyStateEvent(LobbyState.fromJson(json));
+      case 'account':
+        return AccountEvent(
+          playerId: json['playerId'] as String,
+          linked: json['linked'] as bool? ?? false,
+          googleAvailable: json['googleAvailable'] as bool? ?? false,
+        );
+      case 'lobby_list':
+        return LobbyListEvent(
+          (json['lobbies'] as List)
+              .map((l) => OpenLobby.fromJson(l as Map<String, dynamic>))
+              .toList(),
+        );
       case 'profile':
         return ProfileEvent(Profile.fromJson(json['profile'] as Map<String, dynamic>));
       case 'leaderboard':
@@ -190,7 +202,26 @@ class GameConnection {
 
   void cancelMatch() => _send({'type': 'cancel_match'});
 
-  void createLobby() => _send({'type': 'create_lobby'});
+  void createLobby({bool isPublic = true}) =>
+      _send({'type': 'create_lobby', 'visibility': isPublic ? 'public' : 'private'});
+
+  /// Opens the lobby browser. The server keeps pushing `lobby_list` until
+  /// [stopBrowsing], so there is nothing to poll.
+  void listLobbies() => _send({'type': 'list_lobbies'});
+
+  void stopBrowsing() => _send({'type': 'stop_browsing'});
+
+  /// Hands Google's id token to the server, which verifies it. The server
+  /// replies with `account` — possibly carrying a different player id, if the
+  /// account already owned a profile.
+  void linkGoogle(String idToken) =>
+      _send({'type': 'link_google', 'idToken': idToken});
+
+  void unlinkGoogle() => _send({'type': 'unlink_google'});
+
+  /// Host-only, from inside the lobby.
+  void setVisibility({required bool isPublic}) =>
+      _send({'type': 'set_visibility', 'visibility': isPublic ? 'public' : 'private'});
 
   void joinLobby(String code) => _send({'type': 'join_lobby', 'code': code});
 

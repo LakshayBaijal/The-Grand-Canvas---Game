@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/game_event.dart';
 import '../models/lobby_state.dart';
 import '../models/round_models.dart';
 import '../theme.dart';
+import '../widgets/sketch_icons.dart';
 import '../widgets/doodle_stage.dart';
 
 // Kept in sync with MIN_PLAYERS_TO_START on the server (temporarily 1 for
@@ -23,6 +25,7 @@ class LobbyView extends StatelessWidget {
     required this.onRemoveBot,
     required this.doodle,
     required this.onNextDoodle,
+    required this.onSetVisibility,
   });
 
   final LobbyState lobby;
@@ -34,6 +37,9 @@ class LobbyView extends StatelessWidget {
   /// The drawing currently being replayed on the lobby's idle canvas.
   final DoodleEvent? doodle;
   final VoidCallback onNextDoodle;
+
+  /// Host-only: list this room in the browser, or hide it.
+  final void Function({required bool isPublic}) onSetVisibility;
 
   bool get _isFriendly => lobby.mode == GameMode.friendly;
   // Ranked lobbies fill themselves and start themselves; there's no host to
@@ -57,6 +63,15 @@ class LobbyView extends StatelessWidget {
               // Only friendly games are joinable by code; showing one for a
               // ranked match would just invite people to try it.
               if (_isFriendly) _RoomCodeBar(code: lobby.code),
+              // Only the host can change who can find the room, and only
+              // while it is still a lobby.
+              if (_isHost) ...[
+                const SizedBox(height: 8),
+                _VisibilityBar(
+                  isPublic: lobby.isPublic,
+                  onChanged: (v) => onSetVisibility(isPublic: v),
+                ),
+              ],
               const SizedBox(height: 12),
               // The idle canvas takes whatever room the lobby isn't using —
               // waiting for people to join is the dullest part of a party
@@ -199,15 +214,18 @@ class _PlayerChip extends StatelessWidget {
         Stack(
           clipBehavior: Clip.none,
           children: [
-            CircleAvatar(
+            SketchFrame(
               radius: 19,
-              backgroundColor: color,
-              child: Text(
-                player.nickname.characters.first.toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF16123A),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17,
+              child: CircleAvatar(
+                radius: 19,
+                backgroundColor: color,
+                child: Text(
+                  player.nickname.characters.first.toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF16123A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                  ),
                 ),
               ),
             ),
@@ -215,7 +233,7 @@ class _PlayerChip extends StatelessWidget {
               const Positioned(
                 top: -4,
                 right: -4,
-                child: Icon(Icons.star_rounded, size: 16, color: GameColors.primary),
+                child: SketchIcon(SketchGlyph.star, size: 16, color: GameColors.primary),
               ),
           ],
         ),
@@ -268,6 +286,70 @@ class _EmptySeat extends StatelessWidget {
   }
 }
 
+
+/// Host-only control over whether the room is listed in the browser.
+///
+/// Worded as what it does to other people rather than as "public/private",
+/// and it always says the code still works — hiding a room reads like it
+/// might lock out the friend you already sent the code to, and it doesn't.
+class _VisibilityBar extends StatelessWidget {
+  const _VisibilityBar({required this.isPublic, required this.onChanged});
+
+  final bool isPublic;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: GameColors.surfaceHigh.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: GameColors.border),
+      ),
+      child: Row(
+        children: [
+          SketchIcon(
+            isPublic ? SketchGlyph.lockOpen : SketchGlyph.lock,
+            size: 16,
+            color: isPublic ? GameColors.lime : GameColors.textMuted,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isPublic ? 'Anyone can find this room' : 'Code only',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  isPublic
+                      ? 'It is listed for other players on this server.'
+                      : 'Hidden from the list. The code still works.',
+                  style: const TextStyle(
+                    color: GameColors.textMuted,
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: isPublic,
+            onChanged: onChanged,
+            activeThumbColor: GameColors.lime,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The room code, kept to one line so the canvas gets the vertical space.
 class _RoomCodeBar extends StatelessWidget {
   const _RoomCodeBar({required this.code});
@@ -314,7 +396,21 @@ class _RoomCodeBar extends StatelessWidget {
             },
             icon: const Icon(Icons.copy_rounded, size: 18),
             color: GameColors.textMuted,
-            tooltip: 'Share with friends',
+            tooltip: 'Copy the code',
+          ),
+          // Hands the code to WhatsApp/Messages/anything else, which is how
+          // people actually invite each other — copying still leaves them to
+          // find the app and type a message themselves.
+          IconButton(
+            onPressed: () => SharePlus.instance.share(
+              ShareParams(
+                text: 'Join my Grand Canvas game! Room code: $code',
+                subject: 'Grand Canvas',
+              ),
+            ),
+            icon: const SketchIcon(SketchGlyph.sparkle, size: 18),
+            color: GameColors.primary,
+            tooltip: 'Invite friends',
           ),
         ],
       ),

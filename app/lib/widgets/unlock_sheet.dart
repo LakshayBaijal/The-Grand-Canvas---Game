@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/entitlements.dart';
 import '../services/store.dart';
 import '../theme.dart';
+import 'sketch_icons.dart';
 
 /// The one place the game asks for money or attention.
 ///
@@ -164,7 +165,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                           ? "That didn't go through — nothing was charged."
                           : 'Purchases are not switched on in this build yet.',
                     ),
-              icon: const Icon(Icons.lock_open_rounded, size: 18),
+              icon: const SketchIcon(SketchGlyph.lockOpen, size: 18, color: GameColors.textPrimary),
               label: Text('UNLOCK FOREVER — ${store.lifetimePrice}'),
             ),
             const SizedBox(height: 8),

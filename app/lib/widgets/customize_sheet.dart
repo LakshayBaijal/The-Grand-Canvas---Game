@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/styles.dart';
 import '../services/entitlements.dart';
 import '../theme.dart';
+import 'sketch_icons.dart';
 import 'drawing_canvas.dart';
 import 'unlock_sheet.dart';
 
@@ -239,7 +240,7 @@ class _StyleTile extends StatelessWidget {
                     if (locked)
                       Container(
                         color: Colors.black.withValues(alpha: 0.45),
-                        child: const Icon(Icons.lock_rounded, size: 18, color: Colors.white),
+                        child: const SketchIcon(SketchGlyph.lock, size: 18, color: Colors.white),
                       ),
                   ],
                 ),

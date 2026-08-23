@@ -1,4 +1,5 @@
 import 'package:bad_mental_canvas/main.dart';
+import 'package:bad_mental_canvas/widgets/sketch_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -56,8 +57,13 @@ void main() {
     await tester.pump();
 
     // No server, so no profile has arrived — it should still render a sane
-    // zero rather than blocking the menu.
-    expect(find.text('🏆 0'), findsOneWidget);
+    // zero rather than blocking the menu. The trophy count is now a hand-drawn
+    // SketchIcon rather than an emoji baked into the text, so check each half.
+    expect(find.text('0'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is SketchIcon && w.glyph == SketchGlyph.trophy && w.size == 15),
+      findsOneWidget,
+    );
     expect(find.textContaining('Connecting'), findsOneWidget);
   });
 }

@@ -16,6 +16,33 @@ class LobbyStateEvent extends GameEvent {
   final LobbyState lobby;
 }
 
+/// Who the server considers you, after the handshake and after any link or
+/// unlink.
+///
+/// [playerId] can differ from the id the app sent: linking a Google account
+/// that already owns a profile moves the player onto that profile. The app
+/// saves whatever arrives here.
+class AccountEvent extends GameEvent {
+  const AccountEvent({
+    required this.playerId,
+    required this.linked,
+    required this.googleAvailable,
+  });
+
+  final String playerId;
+  final bool linked;
+
+  /// False when the server has no Google client id configured.
+  final bool googleAvailable;
+}
+
+/// The open friendly games, pushed whenever the list changes while the lobby
+/// browser is open.
+class LobbyListEvent extends GameEvent {
+  const LobbyListEvent(this.lobbies);
+  final List<OpenLobby> lobbies;
+}
+
 /// The player's permanent record, sent after the identity handshake and again
 /// whenever trophies change.
 class ProfileEvent extends GameEvent {

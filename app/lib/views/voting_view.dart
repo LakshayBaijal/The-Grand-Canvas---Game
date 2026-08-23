@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/game_event.dart';
 import '../models/round_models.dart';
 import '../theme.dart';
+import '../widgets/sketch_icons.dart';
 import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/presentation_sequence.dart';
+import '../services/audio_service.dart';
 
 /// Keep in sync with INVEST_SECONDS on the server (the server adds extra
 /// time on top of this for the presentation sequence).
@@ -48,12 +50,14 @@ class _VotingViewState extends State<VotingView> {
     final event = widget.event;
 
     if (!_presented) {
+      AudioService.instance.play(Music.presentation);
       return PresentationSequence(
         entries: event.entries,
         onComplete: () => setState(() => _presented = true),
       );
     }
 
+    AudioService.instance.play(Music.voting);
     return event.scoring.isMoney
         ? _InvestPanel(
             event: event,
@@ -212,6 +216,7 @@ class _InvestPanelState extends State<_InvestPanel> {
 
   void _adjust(String artistId, int delta) {
     if (_submitted) return;
+    AudioService.instance.sfx(Sfx.correct);
     final current = _allocations[artistId] ?? 0;
     final next = (current + delta).clamp(0, current + _remaining);
     setState(() => _allocations[artistId] = next);
@@ -288,14 +293,14 @@ class _InvestPanelState extends State<_InvestPanel> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             _StepButton(
-                              icon: Icons.remove_rounded,
+                              icon: SketchGlyph.minus,
                               onTap: (_allocations[entry.artistId] ?? 0) > 0
                                   ? () => _adjust(entry.artistId, -event.step)
                                   : null,
                             ),
                             const SizedBox(width: 8),
                             _StepButton(
-                              icon: Icons.add_rounded,
+                              icon: SketchGlyph.plus,
                               onTap: _remaining >= event.step
                                   ? () => _adjust(entry.artistId, event.step)
                                   : null,
@@ -316,7 +321,7 @@ class _InvestPanelState extends State<_InvestPanel> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('💰', style: TextStyle(fontSize: 18)),
+                const SketchIcon(SketchGlyph.coin, size: 18, color: GameColors.primary),
                 const SizedBox(width: 8),
                 Text(
                   '\$$_remaining left to invest',
@@ -375,7 +380,11 @@ class _PodiumPanelState extends State<_PodiumPanel> {
   final List<String> _picks = [];
   bool _submitted = false;
 
-  static const _medals = ['🥇', '🥈', '🥉'];
+  static const _medals = [GameColors.primary, Color(0xFFC7CDD9), Color(0xFFD98756)];
+  // Kept separate from _medals (the SketchIcon colours) — this feeds a
+  // plain string via interpolation below, and a Color's toString() is a
+  // debug dump, not a glyph.
+  static const _medalHints = ['🥇', '🥈', '🥉'];
   static const _points = [3, 2, 1];
 
   List<DrawingEntry> get _others =>
@@ -387,6 +396,7 @@ class _PodiumPanelState extends State<_PodiumPanel> {
 
   void _toggle(String artistId) {
     if (_submitted) return;
+    AudioService.instance.sfx(Sfx.correct);
     setState(() {
       if (_picks.contains(artistId)) {
         _picks.remove(artistId);
@@ -400,8 +410,8 @@ class _PodiumPanelState extends State<_PodiumPanel> {
   Widget build(BuildContext context) {
     final event = widget.event;
     final complete = _picks.length == _maxPicks;
-    final nextPlace = _picks.length < _medals.length
-        ? _medals[_picks.length]
+    final nextPlace = _picks.length < _medalHints.length
+        ? _medalHints[_picks.length]
         : '';
 
     return _VotingScaffold(
@@ -439,10 +449,7 @@ class _PodiumPanelState extends State<_PodiumPanel> {
                           curve: Curves.easeOutBack,
                           builder: (context, v, child) =>
                               Transform.scale(scale: v, child: child),
-                          child: Text(
-                            _medals[place],
-                            style: const TextStyle(fontSize: 26),
-                          ),
+                          child: SketchIcon(SketchGlyph.medal, size: 26, color: _medals[place]),
                         ),
                         Text(
                           '+${_points[place]}',
@@ -599,7 +606,7 @@ class _YoursTag extends StatelessWidget {
 class _StepButton extends StatelessWidget {
   const _StepButton({required this.icon, required this.onTap});
 
-  final IconData icon;
+  final SketchGlyph icon;
   final VoidCallback? onTap;
 
   @override
@@ -641,7 +648,7 @@ class _StepButton extends StatelessWidget {
                   ]
                 : null,
           ),
-          child: Icon(
+          child: SketchIcon(
             icon,
             size: 22,
             color: enabled ? const Color(0xFF241800) : GameColors.textMuted,

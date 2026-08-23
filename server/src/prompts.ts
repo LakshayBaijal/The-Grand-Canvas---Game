@@ -1,4 +1,4 @@
-/** Mad-Libs-style "invention problem" templates. Each round one random
+/** Mad-Libs-style "homework problem" templates. Each round one random
  *  player fills in the blank (marked "___"); the completed sentence becomes
  *  the problem everyone else draws a solution to — the same structure as
  *  Jackbox's Patently Stupid.
@@ -125,7 +125,7 @@ export const PROMPT_TEMPLATES: string[] = [
   "Nobody has cracked the problem of ___ yet.",
   "There's a real market for anything that solves ___.",
   "Every household could use a gadget that finally deals with ___.",
-  "A good invention right now would put an end to ___.",
+  "A bit of decent homework would put an end to ___.",
 
   // shopping and errands
   "Every supermarket trip ends the same way: ___.",

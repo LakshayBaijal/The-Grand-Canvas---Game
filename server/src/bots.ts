@@ -32,7 +32,7 @@ export function createBot(takenNames: Set<string>): { id: string; nickname: stri
   return { id: `${BOT_ID_PREFIX}${randomUUID()}`, nickname };
 }
 
-// --- naming the invention --------------------------------------------------
+// --- naming the homework --------------------------------------------------
 
 const TITLE_ADJECTIVES = [
   "Mega", "Turbo", "Auto", "Ultra", "Super", "Insta", "Hyper", "Smart", "Pocket", "Jumbo",
@@ -46,7 +46,7 @@ const TITLE_SUFFIXES = ["3000", "9000", "Pro", "XL", "Max", "2.0", "Deluxe", "Mi
 const BORING_WORDS = new Set([
   "the", "a", "an", "and", "or", "of", "to", "for", "you", "your", "with", "that", "this",
   "it", "its", "in", "on", "at", "by", "from", "is", "was", "are", "were", "be", "been",
-  "invention", "device", "machine", "gadget", "thing", "something", "anyone", "people",
+  "homework", "device", "machine", "gadget", "thing", "something", "anyone", "people",
   "world", "worlds", "first", "new", "finally", "introducing", "scientists", "helps", "help",
   "lets", "let", "stop", "solves", "problem", "created", "invented", "years", "after",
   "coming", "soon", "store", "near", "next", "even", "without", "trying", "more", "efficiently",
@@ -80,7 +80,7 @@ function keywordFrom(prompt: string, rng: Rng): string | null {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-/** Names the invention, weaving in a word from the prompt when there's a
+/** Names the homework, weaving in a word from the prompt when there's a
  *  usable one so titles feel connected to what was asked. */
 export function botTitle(prompt: string): string {
   const rng = new Rng(Math.floor(Math.random() * 0xffffffff));

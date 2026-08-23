@@ -19,11 +19,13 @@ import {
  * that resets whenever the server restarts would be worthless, so unlike
  * lobbies — which are deliberately in-memory and disposable — this is on disk.
  *
- * Identity is a client-generated id the app stores on the device. That's the
- * right shape for "your name sticks until you delete the app", but note it is
- * **self-asserted**: nothing stops a modified client claiming another id or
- * inflating its own results. Fine for a party game among friends; if the
- * leaderboard ever becomes worth cheating for, this needs real accounts.
+ * Identity comes in two grades. The default is a client-generated id the app
+ * stores on the device: right for "your name sticks until you delete the app",
+ * but **self-asserted** — nothing stops a modified client claiming another id.
+ * Linking a Google account upgrades that, because the server verifies the
+ * token's signature rather than taking the client's word (see verifyGoogle in
+ * google.ts). A linked profile also survives losing the phone, which the
+ * device id never could.
  */
 
 export type Profile = {
@@ -42,6 +44,9 @@ export type Profile = {
   season: number;
   /** Ranked games finished this season, for placement weighting. */
   seasonGames: number;
+  /** Whether a Google account owns this profile. The `sub` itself never
+   *  leaves the server — the client only needs to know if it is linked. */
+  linked: boolean;
 };
 
 export type LeaderboardRow = Profile & { rank: number };
@@ -84,6 +89,17 @@ export function openStore(path: string): void {
   addColumn("players", "season", "INTEGER NOT NULL DEFAULT 0");
   addColumn("players", "season_games", "INTEGER NOT NULL DEFAULT 0");
 
+  // The Google account this profile belongs to, if it has been linked. Google
+  // calls it `sub`; it is stable for a given user and app, and is the only
+  // part of the token worth storing — we deliberately keep no email or name.
+  addColumn("players", "google_sub", "TEXT");
+  // Partial index: unlinked profiles all have NULL here, and NULLs would
+  // otherwise collide under a plain unique index on some engines.
+  db.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_players_google " +
+      "ON players(google_sub) WHERE google_sub IS NOT NULL",
+  );
+
   db.exec("DROP INDEX IF EXISTS idx_players_rank");
   db.exec("CREATE INDEX IF NOT EXISTS idx_players_rating ON players(rating DESC, created_ms ASC)");
 }
@@ -99,6 +115,7 @@ type Row = {
   best_league: string | null;
   season: number;
   season_games: number;
+  google_sub: string | null;
 };
 
 function toProfile(row: Row): Profile {
@@ -113,6 +130,7 @@ function toProfile(row: Row): Profile {
     bestLeague: row.best_league,
     season: row.season,
     seasonGames: row.season_games,
+    linked: row.google_sub !== null,
   };
 }
 
@@ -159,6 +177,66 @@ export function getProfile(id: string): Profile | null {
  *   - **rating** moves both ways, floored at the best league reached this
  *     season, so a promotion already earned survives a bad run.
  */
+/** The profile a Google account owns, if any. */
+export function getProfileByGoogle(sub: string): Profile | null {
+  const row = db.prepare("SELECT * FROM players WHERE google_sub = ?").get(sub) as
+    | Row
+    | undefined;
+  return row ? toProfile(rollSeason(row)) : null;
+}
+
+/**
+ * Attaches a Google account to a profile, absorbing a device-only profile into
+ * it when both exist.
+ *
+ * The three cases, and why each behaves as it does:
+ *
+ *  1. **Nothing linked yet.** The device profile becomes the account. Nothing
+ *     moves; the player just gained a way back in after losing the phone.
+ *  2. **Already linked to this same profile.** A no-op, so signing in twice is
+ *     harmless.
+ *  3. **The account already owns a different profile.** That one wins — it is
+ *     the record that exists on every other device, and silently preferring
+ *     whatever this phone happened to have would lose it. Career totals from
+ *     the device profile are folded in so a few games played before signing in
+ *     are not thrown away, but **rating is not**: rating is a measure of
+ *     current skill, not a pile to be added to, and summing two of them would
+ *     hand out free ladder position for reinstalling.
+ *
+ * Returns the profile the caller should use from now on. The device profile in
+ * case 3 is deleted, so it can never be resurrected by an unlinked client and
+ * merged a second time.
+ */
+export function linkGoogle(deviceId: string, sub: string): Profile {
+  const existing = getProfileByGoogle(sub);
+
+  if (!existing) {
+    db.prepare("UPDATE players SET google_sub = ? WHERE id = ?").run(sub, deviceId);
+    return getProfile(deviceId)!;
+  }
+  if (existing.id === deviceId) return existing;
+
+  const device = getProfile(deviceId);
+  if (device) {
+    db.prepare(
+      `UPDATE players
+         SET trophies   = trophies + ?,
+             games      = games + ?,
+             wins       = wins + ?,
+             best_score = MAX(best_score, ?)
+       WHERE id = ?`,
+    ).run(device.trophies, device.games, device.wins, device.bestScore, existing.id);
+    db.prepare("DELETE FROM players WHERE id = ?").run(deviceId);
+  }
+  return getProfile(existing.id)!;
+}
+
+/** Detaches the account, leaving the profile in place as a device-only one. */
+export function unlinkGoogle(id: string): Profile | null {
+  db.prepare("UPDATE players SET google_sub = NULL WHERE id = ?").run(id);
+  return getProfile(id);
+}
+
 export function recordRankedResult(
   id: string,
   result: { trophies: number; won: boolean; score: number; rating: number },

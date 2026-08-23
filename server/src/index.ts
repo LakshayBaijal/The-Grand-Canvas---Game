@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { advertiseOnLocalNetwork } from "./discovery.js";
+import { googleEnabled, verifyGoogle } from "./google.js";
 import type { ClientMessage, LeagueInfo, Profile, ServerMessage } from "./types.js";
 import { leagueFor, PLACEMENT_GAMES, seasonEndsAt } from "./ranking.js";
 import {
@@ -34,6 +35,8 @@ import {
   clearBotTimers,
   clearLobbyTimer,
   createFriendlyLobby,
+  openLobbies,
+  setVisibility,
   createRankedLobby,
   currentWriterId,
   drawingEntries,
@@ -89,7 +92,24 @@ function broadcastLobbyState(lobby: Lobby) {
     hostId: lobby.hostId,
     mode: lobby.mode,
     players: playerInfos(lobby),
+    visibility: lobby.visibility,
   });
+  // Anything that changes a lobby — someone joining, a bot being added, the
+  // game starting — changes what the browser should be showing.
+  notifyBrowsers();
+}
+
+// --- lobby browser ---------------------------------------------------------
+// Sockets sitting on the menu with the browser open. Pushing to them beats
+// polling: a lobby shows up the moment it is opened, and an empty menu costs
+// nothing. The set is the only state involved, and a closed socket drops out
+// of it in the disconnect handler.
+const browsers = new Set<WebSocket>();
+
+function notifyBrowsers() {
+  if (browsers.size === 0) return;
+  const lobbies = openLobbies();
+  for (const ws of browsers) send(ws, { type: "lobby_list", lobbies });
 }
 
 function broadcastWaiting(lobby: Lobby, submitted: number, total: number) {
@@ -117,6 +137,15 @@ function profileFor(playerId: string): Profile | null {
     placementsLeft: Math.max(0, PLACEMENT_GAMES - p.seasonGames),
     seasonEndsMs: seasonEndsAt(),
   };
+}
+
+function sendAccount(ws: WebSocket, playerId: string) {
+  send(ws, {
+    type: "account",
+    playerId,
+    linked: store.getProfile(playerId)?.linked ?? false,
+    googleAvailable: googleEnabled,
+  });
 }
 
 function sendProfile(ws: WebSocket, playerId: string) {
@@ -407,6 +436,7 @@ wss.on("connection", (ws) => {
       if (!nickname) return sendError(ws, "Enter a nickname first");
       identities.set(ws, { playerId, nickname });
       store.upsertPlayer(playerId, nickname);
+      sendAccount(ws, playerId);
       sendProfile(ws, playerId);
       console.log(`[hello] ${nickname} (${playerId.slice(0, 8)})`);
       return;
@@ -494,8 +524,13 @@ wss.on("connection", (ws) => {
       case "create_lobby": {
         if (getLobbyByPlayer(playerId)) return sendError(ws, "You're already in a lobby");
         queue.dequeue(playerId);
-        const lobby = createFriendlyLobby({ playerId, ws, nickname: identity.nickname });
-        console.log(`[create_lobby] ${identity.nickname} -> ${lobby.code}`);
+        // Opening a lobby means you have stopped shopping for one.
+        browsers.delete(ws);
+        const lobby = createFriendlyLobby(
+          { playerId, ws, nickname: identity.nickname },
+          message.visibility ?? "public",
+        );
+        console.log(`[create_lobby] ${identity.nickname} -> ${lobby.code} (${lobby.visibility})`);
         broadcastLobbyState(lobby);
         break;
       }
@@ -506,11 +541,77 @@ wss.on("connection", (ws) => {
         try {
           const member: Member = { playerId, ws, nickname: identity.nickname };
           const lobby = joinLobby(message.code, member);
+          browsers.delete(ws);
           console.log(`[join_lobby] ${identity.nickname} -> ${lobby.code}`);
           broadcastLobbyState(lobby);
         } catch (err) {
           sendError(ws, (err as Error).message);
         }
+        break;
+      }
+
+      case "link_google": {
+        if (!googleEnabled) {
+          return sendError(ws, "This server has no Google sign-in configured");
+        }
+        // Switching profiles underneath a running game would leave the lobby
+        // holding an id that no longer exists.
+        if (getLobbyByPlayer(playerId)) {
+          return sendError(ws, "Finish your game before signing in");
+        }
+        const token = typeof message.idToken === "string" ? message.idToken : "";
+        if (!token) return sendError(ws, "Missing sign-in token");
+
+        void verifyGoogle(token).then((user) => {
+          if (ws.readyState !== ws.OPEN) return;
+          if (!user) return sendError(ws, "Could not verify that Google account");
+          // Re-read the identity: the socket may have been reused, or the
+          // player renamed, while the token was being checked.
+          const current = identities.get(ws);
+          if (!current) return;
+
+          const profile = store.linkGoogle(current.playerId, user.sub);
+          // linkGoogle can move the player onto an account that already
+          // existed, which changes their id for the rest of this connection.
+          identities.set(ws, { playerId: profile.id, nickname: current.nickname });
+          if (profile.id !== current.playerId) {
+            console.log(`[link_google] ${current.nickname} -> existing account ${profile.id.slice(0, 8)}`);
+          } else {
+            console.log(`[link_google] ${current.nickname} linked`);
+          }
+          sendAccount(ws, profile.id);
+          sendProfile(ws, profile.id);
+        });
+        break;
+      }
+
+      case "unlink_google": {
+        store.unlinkGoogle(playerId);
+        console.log(`[unlink_google] ${identity.nickname}`);
+        sendAccount(ws, playerId);
+        sendProfile(ws, playerId);
+        break;
+      }
+
+      case "list_lobbies": {
+        browsers.add(ws);
+        send(ws, { type: "lobby_list", lobbies: openLobbies() });
+        break;
+      }
+
+      case "stop_browsing": {
+        browsers.delete(ws);
+        break;
+      }
+
+      case "set_visibility": {
+        const lobby = getLobbyByPlayer(playerId);
+        if (!lobby) return sendError(ws, "You're not in a lobby");
+        if (lobby.hostId !== playerId) return sendError(ws, "Only the host can do that");
+        if (!setVisibility(lobby, message.visibility)) {
+          return sendError(ws, "The game already started");
+        }
+        broadcastLobbyState(lobby);
         break;
       }
 
@@ -604,6 +705,10 @@ wss.on("connection", (ws) => {
           if (lobby.phase === "lobby") broadcastLobbyState(lobby);
           else recheckPhaseProgress(lobby);
         }
+        // Also when `lobby` is undefined: that means the last player left and
+        // it was deleted, which is exactly when the browser is showing a game
+        // that no longer exists.
+        notifyBrowsers();
         break;
       }
     }
@@ -611,13 +716,17 @@ wss.on("connection", (ws) => {
 
   ws.on("close", () => {
     console.log(`[disconnect] ${connectionId}`);
+    browsers.delete(ws);
     const identity = identities.get(ws);
     identities.delete(ws);
     if (!identity) return;
 
     queue.dequeue(identity.playerId);
     const lobby = leaveLobby(identity.playerId);
-    if (!lobby) return;
+    if (!lobby) {
+      notifyBrowsers();
+      return;
+    }
     if (lobby.phase === "lobby") {
       broadcastLobbyState(lobby);
     } else {

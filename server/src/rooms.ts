@@ -3,6 +3,8 @@ import type {
   Backer,
   DrawingEntry,
   GameMode,
+  LobbyVisibility,
+  OpenLobby,
   PlayerInfo,
   RoundResult,
   ScoreRow,
@@ -69,6 +71,10 @@ export type Lobby = {
   players: Map<string, Player>;
   phase: Phase;
   mode: GameMode;
+  /** Whether this shows up in the browser. Ranked lobbies are always private:
+   *  they are built complete by matchmaking and must never be joinable. */
+  visibility: LobbyVisibility;
+  createdAtMs: number;
 
   // --- round rotation: one round per player, taking turns writing the blank ---
   writerOrder: string[];
@@ -128,7 +134,7 @@ function shuffle<T>(items: T[]): T[] {
 
 export type Member = { playerId: string; ws: WebSocket; nickname: string };
 
-function emptyLobby(hostId: string, mode: GameMode): Lobby {
+function emptyLobby(hostId: string, mode: GameMode, visibility: LobbyVisibility): Lobby {
   const code = generateCode();
   const lobby: Lobby = {
     code,
@@ -136,6 +142,8 @@ function emptyLobby(hostId: string, mode: GameMode): Lobby {
     players: new Map(),
     phase: "lobby",
     mode,
+    visibility,
+    createdAtMs: Date.now(),
     writerOrder: [],
     roundIndex: 0,
     usedTemplateIndices: new Set(),
@@ -168,18 +176,55 @@ function seat(lobby: Lobby, member: Member): void {
   lobby.scores.set(member.playerId, 0);
 }
 
-/** A private, code-joined game. Scores nothing on the leaderboard. */
-export function createFriendlyLobby(host: Member): Lobby {
-  const lobby = emptyLobby(host.playerId, "friendly");
+/** A friendly game. Scores nothing on the leaderboard.
+ *
+ *  Listed in the browser unless the host asks otherwise; the code works
+ *  regardless, so making it private only hides it, it never locks anyone out
+ *  who was given the code. */
+export function createFriendlyLobby(host: Member, visibility: LobbyVisibility = "public"): Lobby {
+  const lobby = emptyLobby(host.playerId, "friendly", visibility);
   seat(lobby, host);
   return lobby;
+}
+
+/** Host-only. Returns false if the lobby has already started, since listing a
+ *  game in progress would only offer joins that are then refused. */
+export function setVisibility(lobby: Lobby, visibility: LobbyVisibility): boolean {
+  if (lobby.mode !== "friendly" || lobby.phase !== "lobby") return false;
+  lobby.visibility = visibility;
+  return true;
+}
+
+/** Everything the browser should show: friendly, public, still in the lobby
+ *  phase, and with a seat free. Freshest first — a lobby that has been sitting
+ *  open for ten minutes is usually someone who wandered off. */
+export function openLobbies(): OpenLobby[] {
+  const open: OpenLobby[] = [];
+  for (const lobby of lobbies.values()) {
+    if (lobby.mode !== "friendly") continue;
+    if (lobby.visibility !== "public") continue;
+    if (lobby.phase !== "lobby") continue;
+    if (lobby.players.size >= MAX_PLAYERS) continue;
+    const host = lobby.players.get(lobby.hostId);
+    let bots = 0;
+    for (const p of lobby.players.values()) if (p.isBot) bots++;
+    open.push({
+      code: lobby.code,
+      hostName: host?.nickname ?? "Someone",
+      players: lobby.players.size,
+      maxPlayers: MAX_PLAYERS,
+      bots,
+      createdAtMs: lobby.createdAtMs,
+    });
+  }
+  return open.sort((a, b) => b.createdAtMs - a.createdAtMs);
 }
 
 /** A matchmade game, built in one shot from everyone the queue matched
  *  together — ranked lobbies are never joinable after the fact, so a game in
  *  progress can't be gate-crashed. */
 export function createRankedLobby(members: Member[]): Lobby {
-  const lobby = emptyLobby(members[0].playerId, "ranked");
+  const lobby = emptyLobby(members[0].playerId, "ranked", "private");
   for (const member of members) seat(lobby, member);
   return lobby;
 }
@@ -188,6 +233,8 @@ export function joinLobby(rawCode: string, member: Member): Lobby {
   const lobby = lobbies.get(rawCode.trim().toUpperCase());
   if (!lobby) throw new Error("No lobby with that code");
   if (lobby.mode !== "friendly") throw new Error("That code isn't joinable");
+  // Note: no visibility check. "Private" hides a lobby from the browser; it
+  // does not revoke codes already shared with friends.
   if (lobby.phase !== "lobby") throw new Error("That game already started");
   if (lobby.players.size >= MAX_PLAYERS) throw new Error("That lobby is full");
   seat(lobby, member);

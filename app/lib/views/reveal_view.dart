@@ -3,16 +3,21 @@ import 'package:flutter/material.dart';
 import '../models/game_event.dart';
 import '../models/round_models.dart';
 import '../theme.dart';
+import '../widgets/sketch_icons.dart';
 import '../widgets/celebration.dart';
 import '../widgets/drawing_canvas.dart';
+import '../widgets/backer_tally.dart';
 
 /// Shows every drawing from the round, best first, who backed it, and the
 /// running scores. Reads as money in ranked games and as vote points in
 /// friendly ones — the layout is the same, only the units differ.
 class RevealView extends StatelessWidget {
-  const RevealView({super.key, required this.event});
+  const RevealView({super.key, required this.event, this.myId});
 
   final RoundRevealEvent event;
+
+  /// Used only to decide whose tally makes a sound.
+  final String? myId;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +49,10 @@ class RevealView extends StatelessWidget {
                     rank: i + 1,
                     entry: event.entries[i],
                     scoring: event.scoring,
+                    // Start each card's tally once its own entrance has
+                    // played, so money never lands before the card does.
+                    startDelay: Duration(milliseconds: 320 + i * 90),
+                    isMine: event.entries[i].artistId == myId,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -70,11 +79,19 @@ class RevealView extends StatelessWidget {
 }
 
 class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.rank, required this.entry, required this.scoring});
+  const _EntryCard({
+    required this.rank,
+    required this.entry,
+    required this.scoring,
+    required this.startDelay,
+    required this.isMine,
+  });
 
   final int rank;
   final RoundResult entry;
   final Scoring scoring;
+  final Duration startDelay;
+  final bool isMine;
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +126,7 @@ class _EntryCard extends StatelessWidget {
                       children: [
                         if (isTop) const Padding(
                           padding: EdgeInsets.only(right: 6),
-                          child: Text('🏆', style: TextStyle(fontSize: 16)),
+                          child: SketchIcon(SketchGlyph.trophy, size: 16, color: GameColors.primary),
                         ),
                         Expanded(
                           child: Text(
@@ -125,48 +142,21 @@ class _EntryCard extends StatelessWidget {
                       style: const TextStyle(color: GameColors.textMuted, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
-                    CountUp(
-                      value: entry.total,
-                      prefix: scoring.isMoney ? '\$' : '',
-                      suffix: scoring.isMoney
-                          ? ' raised'
-                          : entry.total == 1
-                              ? ' point'
-                              : ' points',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 17,
-                        color: GameColors.primary,
-                      ),
+                    // Each backer's stack lands one at a time and the total
+                    // climbs with them — see BackerTally.
+                    BackerTally(
+                      backers: entry.backers,
+                      total: entry.total,
+                      isMoney: scoring.isMoney,
+                      startDelay: startDelay,
+                      sound: isMine,
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          if (entry.backers.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final backer in entry.backers)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: GameColors.surfaceHigh,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      scoring.isMoney
-                          ? '${backer.name} \$${backer.amount}'
-                          : '${backer.name} +${backer.amount}',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-              ],
-            ),
-          ],
+
         ],
       ),
     );

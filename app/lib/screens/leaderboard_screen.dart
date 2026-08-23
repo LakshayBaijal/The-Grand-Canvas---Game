@@ -6,7 +6,9 @@ import '../models/game_event.dart';
 import '../models/round_models.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
+import '../widgets/sketch_icons.dart';
 import '../widgets/celebration.dart';
+import '../services/audio_service.dart';
 
 /// The global standings: everyone who has finished a ranked game, ordered by
 /// the trophies they've collected.
@@ -47,6 +49,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AudioService.instance.play(Music.leaderboard);
     final entries = _entries;
     return Scaffold(
       appBar: AppBar(title: const Text('LEADERBOARD')),
@@ -181,8 +184,12 @@ class _Row extends StatelessWidget {
   final LeaderboardEntry entry;
   final bool isMe;
 
-  /// Medals for the podium, plain numbers below it.
-  static const _medals = {1: '🥇', 2: '🥈', 3: '🥉'};
+  /// Medal colours for the podium, plain numbers below it.
+  static const _medals = {
+    1: GameColors.primary,
+    2: Color(0xFFC7CDD9),
+    3: Color(0xFFD98756),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +205,7 @@ class _Row extends StatelessWidget {
           SizedBox(
             width: 34,
             child: medal != null
-                ? Text(medal, style: const TextStyle(fontSize: 20))
+                ? SketchIcon(SketchGlyph.medal, size: 22, color: medal)
                 : Text(
                     '${entry.rank}',
                     style: const TextStyle(
@@ -251,7 +258,7 @@ class _EmptyBoard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('🏆', style: TextStyle(fontSize: 48)),
+            SketchIcon(SketchGlyph.trophy, size: 48, color: GameColors.primary),
             SizedBox(height: 16),
             Text(
               'Nobody has finished a ranked game yet',

@@ -15,3 +15,19 @@ app/**/GeneratedPluginRegistrant.*
 .DS_Store
 *.log
 *.apk
+
+# Music: keep the generation pipeline (music/generate/) and the current
+# finished masters (music/v5_mp3/) in git -- both are small and are what let
+# someone continue this work on another machine. Everything else here is a
+# large, disposable intermediate: raw WAV renders on the way to those MP3s,
+# older exploratory passes (v2-v4), and a downloaded third-party reference
+# track that isn't ours to redistribute.
+music/Sample Music/
+music/wav/
+music/mp3/
+music/v2_wav/
+music/v3_wav/
+music/v3_mp3/
+music/v4_wav/
+music/v4_mp3/
+music/v5_wav/

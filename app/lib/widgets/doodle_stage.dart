@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/game_event.dart';
 import '../theme.dart';
+import 'sketch_icons.dart';
 import 'drawing_canvas.dart';
 import 'live_doodle.dart';
 import 'paper_frame.dart';
@@ -124,11 +125,9 @@ class _Header extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(
-              showTitle ? Icons.check_circle_rounded : Icons.edit_rounded,
-              size: 14,
-              color: showTitle ? GameColors.lime : GameColors.primary,
-            ),
+            showTitle
+                ? const Icon(Icons.check_circle_rounded, size: 14, color: GameColors.lime)
+                : const SketchIcon(SketchGlyph.pencil, size: 14, color: GameColors.primary),
             const SizedBox(width: 6),
             Expanded(
               child: Text(

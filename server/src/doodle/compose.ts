@@ -620,7 +620,7 @@ const handheld: Layout = (pen, rng, ctx) => {
   return box;
 };
 
-/** Somebody wearing the invention on their head. */
+/** Somebody wearing the homework on their head. */
 const wearable: Layout = (pen, rng, ctx) => {
   const height = rng.range(0.4, 0.5);
   const feetY = rng.range(0.78, 0.86);
@@ -714,14 +714,14 @@ const hanging: Layout = (pen, rng, ctx) => {
   return box;
 };
 
-/** The everyday object itself, large, with the invention bolted onto it. */
+/** The everyday object itself, large, with the homework bolted onto it. */
 const showcase: Layout = (pen, rng, ctx) => {
   const w = rng.range(0.42, 0.54);
   const h = rng.range(0.34, 0.44);
   const box: Box = { x: 0.5 - w / 2 + rng.range(-0.04, 0.04), y: rng.range(0.24, 0.34), w, h };
   rng.pick(ctx.subjects)(pen, rng, box);
 
-  // The bolted-on invention is the joke, but not every time — a clean object
+  // The bolted-on homework is the joke, but not every time — a clean object
   // is often the clearer read.
   if (rng.chance(0.7)) {
     const gw = rng.range(0.12, 0.17);
@@ -736,7 +736,7 @@ const showcase: Layout = (pen, rng, ctx) => {
 
 /** A patent sheet: the thing boxed off, with callout bubbles pointing at its
  *  parts. Fits the game better than anything else here — the whole premise is
- *  presenting a stupid invention as if it were a real filing. */
+ *  presenting a stupid bit of homework as if it were a real filing. */
 const patentDiagram: Layout = (pen, rng, ctx) => {
   const frame: Box = { x: 0.08, y: 0.14, w: 0.84, h: 0.7 };
   if (rng.chance(0.55)) {
@@ -827,7 +827,7 @@ const pileUp: Layout = (pen, rng, ctx) => {
   return focus;
 };
 
-/** The invention drawn absurdly large next to a normal-sized person. Scale is
+/** The homework drawn absurdly large next to a normal-sized person. Scale is
  *  a joke you can read instantly, and it makes the page look nothing like the
  *  medium-box-in-the-middle default. */
 const scaleGag: Layout = (pen, rng, ctx) => {

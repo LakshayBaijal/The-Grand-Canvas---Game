@@ -13,6 +13,12 @@ rem Preferred install location for a modern Node on this machine. If it's not
 rem here, the script falls back to whatever "node" already resolves to on PATH.
 set "NODE24=D:\dev\node24"
 
+rem Google sign-in is optional. Paste your Web OAuth client id here (from
+rem Google Cloud Console -> APIs & Services -> Credentials) to turn it on for
+rem this server. Leave blank and the game runs exactly as before, on device
+rem accounts only -- nothing else needs to change.
+set "GOOGLE_CLIENT_ID="
+
 if exist "%NODE24%\node.exe" set "PATH=%NODE24%;%PATH%"
 
 where node >nul 2>nul
@@ -46,6 +52,12 @@ echo      %LOCALIP%:8090
 echo.
 echo  It's remembered after the first successful connect
 echo  -- you only need to retype it when your Wi-Fi changes.
+if "%GOOGLE_CLIENT_ID%"=="" (
+    echo  Google sign-in: OFF ^(set GOOGLE_CLIENT_ID near the top of this
+    echo  file to turn it on^)
+) else (
+    echo  Google sign-in: ON
+)
 echo ==================================================
 echo.
 

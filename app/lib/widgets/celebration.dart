@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import '../services/audio_service.dart';
+import 'sketch_icons.dart';
 
 /// Motion used to make results feel like a payoff rather than a table of
 /// numbers.
@@ -287,6 +289,7 @@ class _TrophyDropState extends State<TrophyDrop> with SingleTickerProviderStateM
       vsync: this,
       duration: const Duration(milliseconds: 700),
     )..forward();
+    AudioService.instance.sfx(Sfx.trophy);
   }
 
   @override
@@ -299,7 +302,7 @@ class _TrophyDropState extends State<TrophyDrop> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return ScaleTransition(
       scale: CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
-      child: Text('🏆', style: TextStyle(fontSize: widget.size), textAlign: TextAlign.center),
+      child: SketchIcon(SketchGlyph.trophy, size: widget.size, color: GameColors.primary),
     );
   }
 }

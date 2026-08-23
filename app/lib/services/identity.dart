@@ -36,6 +36,17 @@ Future<Identity> loadIdentity() async {
   return Identity(playerId: id, nickname: prefs.getString(_nicknameKey) ?? '');
 }
 
+/// Adopts the id the server says this account really is.
+///
+/// Linking a Google account that already has a profile moves the player onto
+/// it, so the locally generated id stops being the right one. Saving it here
+/// is what makes trophies follow someone onto a new phone instead of the app
+/// signing in as a stranger every launch.
+Future<void> savePlayerId(String playerId) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_idKey, playerId);
+}
+
 Future<void> saveNickname(String nickname) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString(_nicknameKey, nickname.trim());

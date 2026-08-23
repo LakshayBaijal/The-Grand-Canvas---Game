@@ -3,13 +3,13 @@ import { Pen, Rng } from "./pen.js";
 export type Box = { x: number; y: number; w: number; h: number };
 
 // --- machine parts ---------------------------------------------------------
-// Every drawing in this game is an "invention", so a contraption body plus a
+// Every drawing in this game is a piece of "homework", so a contraption body plus a
 // handful of these details always reads as plausible, whatever the prompt.
 
 export function machineBody(pen: Pen, rng: Rng, box: Box): void {
   pen.setWidth(rng.range(5, 7));
 
-  // Vary the silhouette so not every invention is the same rectangle. The
+  // Vary the silhouette so not every drawing is the same rectangle. The
   // outline is what a viewer registers first, so this matters more for
   // "that's a different drawing" than any amount of extra detailing does.
   const shape = rng.int(0, 6);

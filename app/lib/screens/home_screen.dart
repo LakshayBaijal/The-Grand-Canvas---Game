@@ -7,11 +7,14 @@ import '../models/game_event.dart';
 import '../models/lobby_state.dart';
 import '../models/round_models.dart';
 import '../services/game_connection.dart';
+import '../services/google_account.dart';
 import '../services/identity.dart';
 import '../services/server_discovery.dart';
 import '../theme.dart';
+import '../widgets/sketch_icons.dart';
 import '../widgets/doodle_stage.dart';
 import '../widgets/logo.dart';
+import '../services/audio_service.dart';
 import 'game_screen.dart';
 import 'leaderboard_screen.dart';
 import 'queue_screen.dart';
@@ -56,6 +59,23 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _discovered = false;
   bool _inGame = false;
 
+  /// The friendly-lobby request in flight, kept so it can be retried once if
+  /// the server thinks we're still seated somewhere. Null when idle; the
+  /// string is the join code, or empty for "create".
+  String? _pendingFriendly;
+  bool _retriedFriendly = false;
+
+  /// Visibility chosen for the room being created, so a retry recreates the
+  /// room the player actually asked for rather than a listed one.
+  bool _pendingPublic = true;
+
+  /// Whether this profile is backed by a Google account, and whether the
+  /// server can do that at all. Both come from the server, because only the
+  /// server knows — the app never decides who it is.
+  bool _linked = false;
+  bool _googleAvailable = false;
+  bool _linking = false;
+
   /// The title screen is up until boot finishes *and* it has been on screen
   /// long enough to read. Without the floor it flashes past on a fast start.
   static const _minTitleTime = Duration(milliseconds: 2200);
@@ -76,6 +96,11 @@ class _HomeScreenState extends State<HomeScreen> {
   /// title screen is showing throughout, which is the point — this is real
   /// work, not a splash timer.
   Future<void> _boot() async {
+    // The signature, over the logo drawing itself. Fired here rather than from
+    // build so it happens exactly once per launch, and before the title loop
+    // is asked for, so the two don't collide on the first frame.
+    AudioService.instance.sfx(Sfx.launch);
+
     Future.delayed(_minTitleTime, () {
       if (mounted) setState(() => _titleTimeUp = true);
     });
@@ -179,6 +204,19 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleEvent(GameEvent event) {
     if (!mounted) return;
     switch (event) {
+      case AccountEvent(:final playerId, :final linked, :final googleAvailable):
+        // The id can change: linking an account that already had a profile
+        // moves us onto it. Persist it, or the next launch signs in as the
+        // old device account and the trophies appear to vanish.
+        if (_identity != null && playerId != _identity!.playerId) {
+          savePlayerId(playerId);
+          _identity = Identity(playerId: playerId, nickname: _identity!.nickname);
+        }
+        setState(() {
+          _linked = linked;
+          _googleAvailable = googleAvailable;
+          _linking = false;
+        });
       case ProfileEvent(:final profile):
         setState(() => _profile = profile);
       case DoodleEvent():
@@ -190,9 +228,28 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_inGame) return;
         _openGame(lobby);
       case ErrorEvent(:final message):
+        // We are demonstrably not in a game — this screen is on top — so a
+        // "you're already in one" reply means the server's idea of us is
+        // stale. Stand up from the ghost seat and try the request again once.
+        // Older builds could strand a player this way permanently, since the
+        // back gesture never sent leave_lobby.
+        final stale = message.toLowerCase().contains('already in a');
+        if (stale && _pendingFriendly != null && !_retriedFriendly) {
+          final code = _pendingFriendly!;
+          _retriedFriendly = true;
+          widget.connection.leaveLobby();
+          if (code.isEmpty) {
+            widget.connection.createLobby(isPublic: _pendingPublic);
+          } else {
+            widget.connection.joinLobby(code);
+          }
+          return;
+        }
+        _pendingFriendly = null;
         setState(() {
           _busy = false;
           _queued = false;
+          _linking = false;
           _error = message;
         });
       case DisconnectedEvent():
@@ -208,6 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openGame(LobbyState lobby) {
+    _pendingFriendly = null;
     setState(() {
       _busy = false;
       _queued = false;
@@ -273,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _friendly({String? code}) async {
+  Future<void> _friendly({String? code, bool isPublic = true}) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -282,11 +340,61 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _busy = false);
       return;
     }
+    _pendingFriendly = code ?? '';
+    _pendingPublic = isPublic;
+    _retriedFriendly = false;
     if (code == null) {
-      widget.connection.createLobby();
+      widget.connection.createLobby(isPublic: isPublic);
     } else {
       widget.connection.joinLobby(code);
     }
+  }
+
+  /// Signs in with Google and hands the token to the server to verify.
+  ///
+  /// Everything that can go wrong here — no Play Services, no internet, the
+  /// player changing their mind at the account picker — ends quietly back
+  /// where we started, still signed in as a device account.
+  Future<void> _linkGoogle() async {
+    if (!await _ensureConnected()) return;
+    setState(() {
+      _linking = true;
+      _error = null;
+    });
+    final token = await GoogleAccount.instance.signIn();
+    if (!mounted) return;
+    if (token == null) {
+      setState(() => _linking = false);
+      return;
+    }
+    // The server replies with `account`, which clears _linking.
+    widget.connection.linkGoogle(token);
+  }
+
+  Future<void> _unlinkGoogle() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign out of Google?'),
+        content: const Text(
+          'Your trophies stay on this device, but they will no longer follow '
+          'you to another phone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('SIGN OUT'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await GoogleAccount.instance.signOut();
+    widget.connection.unlinkGoogle();
   }
 
   /// Create-or-join, kept off the menu so the front page stays two buttons.
@@ -297,10 +405,11 @@ class _HomeScreenState extends State<HomeScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _FriendsSheet(
+        connection: widget.connection,
         codeController: _codeController,
-        onCreate: () {
+        onCreate: ({required bool isPublic}) {
           Navigator.of(sheetContext).pop();
-          _friendly();
+          _friendly(isPublic: isPublic);
         },
         onJoin: (code) {
           Navigator.of(sheetContext).pop();
@@ -326,6 +435,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Title music while booting, then the main theme on the menu. `play`
+    // ignores a request for whatever is already playing, so calling it
+    // from build costs nothing on a rebuild.
+    if (!_inGame && !_queued) {
+      AudioService.instance.play(_booting ? Music.title : Music.menu);
+    }
     final identity = _identity;
     if (identity == null || _booting) {
       return TitleScreen(status: _bootStatus);
@@ -450,7 +565,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _ModeCard(
                         title: 'QUICK\nMATCH',
                         subtitle: 'Play strangers.\nClimb the board.',
-                        badge: '🏆',
+                        badge: const SketchIcon(SketchGlyph.trophy, size: 22, color: GameColors.onPrimary),
                         accent: GameColors.primary,
                         filled: true,
                         onPressed: _busy ? null : _playRanked,
@@ -461,7 +576,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _ModeCard(
                         title: 'PLAY WITH\nFRIENDS',
                         subtitle: 'Private room.\nJust for fun.',
-                        badge: '👥',
+                        badge: const Text('👥', style: TextStyle(fontSize: 20)),
                         accent: GameColors.lime,
                         filled: false,
                         onPressed: _busy ? null : _openFriendsSheet,
@@ -498,6 +613,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   _connected = false;
                 }),
                 onSearch: _autoDiscover,
+                linked: _linked,
+                googleAvailable: _googleAvailable,
+                linking: _linking,
+                onLink: _linkGoogle,
+                onUnlink: _unlinkGoogle,
               ),
               const SizedBox(height: 16),
             ],
@@ -573,15 +693,18 @@ class _ProfileBar extends StatelessWidget {
       decoration: GameDecor.panel(radius: 18),
       child: Row(
         children: [
-          CircleAvatar(
+          SketchFrame(
             radius: 20,
-            backgroundColor: GameColors.primary,
-            child: Text(
-              identity.nickname.characters.first.toUpperCase(),
-              style: const TextStyle(
-                color: Color(0xFF16123A),
-                fontWeight: FontWeight.w900,
-                fontSize: 18,
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: GameColors.primary,
+              child: Text(
+                identity.nickname.characters.first.toUpperCase(),
+                style: const TextStyle(
+                  color: Color(0xFF16123A),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
               ),
             ),
           ),
@@ -607,8 +730,8 @@ class _ProfileBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Icon(
-                        Icons.edit_rounded,
+                      const SketchIcon(
+                        SketchGlyph.pencil,
                         size: 13,
                         color: GameColors.textMuted,
                       ),
@@ -639,12 +762,19 @@ class _ProfileBar extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             child: Padding(
               padding: const EdgeInsets.only(left: 8),
-              child: Text(
-                '🏆 ${profile?.trophies ?? 0}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SketchIcon(SketchGlyph.trophy, size: 15, color: GameColors.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${profile?.trophies ?? 0}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -666,7 +796,7 @@ class _ModeCard extends StatefulWidget {
 
   final String title;
   final String subtitle;
-  final String badge;
+  final Widget badge;
   final Color accent;
   final bool filled;
   final VoidCallback? onPressed;
@@ -752,7 +882,7 @@ class _ModeCardState extends State<_ModeCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(badge, style: const TextStyle(fontSize: 20)),
+                        badge,
                         const SizedBox(height: 8),
                         Text(
                           title,
@@ -826,6 +956,11 @@ class _ServerSettings extends StatelessWidget {
     required this.onToggle,
     required this.onChanged,
     required this.onSearch,
+    required this.linked,
+    required this.googleAvailable,
+    required this.linking,
+    required this.onLink,
+    required this.onUnlink,
   });
 
   final TextEditingController controller;
@@ -836,10 +971,55 @@ class _ServerSettings extends StatelessWidget {
   final VoidCallback onChanged;
   final VoidCallback onSearch;
 
+  /// Account state, all decided by the server.
+  final bool linked;
+  final bool googleAvailable;
+  final bool linking;
+  final VoidCallback onLink;
+  final VoidCallback onUnlink;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Only shown when it could actually work: the server needs a client
+        // id configured, and the build needs one compiled in. On a LAN server
+        // with no internet neither is true, and an account button that always
+        // fails is worse than no button.
+        if (googleAvailable && GoogleAccount.configured) ...[
+          _AccountRow(
+            linked: linked,
+            busy: linking,
+            onLink: onLink,
+            onUnlink: onUnlink,
+          ),
+          const SizedBox(height: 4),
+        ],
+        // Sound sits next to the server settings rather than behind a menu:
+        // a music toggle nobody can find is the same as no toggle at all.
+        ListenableBuilder(
+          listenable: AudioService.instance,
+          builder: (context, _) {
+            final audio = AudioService.instance;
+            if (audio.unavailable) return const SizedBox.shrink();
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _AudioToggle(
+                  label: audio.musicOn ? 'Music on' : 'Music off',
+                  on: audio.musicOn,
+                  onTap: () => audio.setMusicOn(!audio.musicOn),
+                ),
+                const SizedBox(width: 6),
+                _AudioToggle(
+                  label: audio.sfxOn ? 'Sounds on' : 'Sounds off',
+                  on: audio.sfxOn,
+                  onTap: () => audio.setSfxOn(!audio.sfxOn),
+                ),
+              ],
+            );
+          },
+        ),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -916,13 +1096,15 @@ class _ServerSettings extends StatelessWidget {
 /// itself stays down to two buttons.
 class _FriendsSheet extends StatefulWidget {
   const _FriendsSheet({
+    required this.connection,
     required this.codeController,
     required this.onCreate,
     required this.onJoin,
   });
 
+  final GameConnection connection;
   final TextEditingController codeController;
-  final VoidCallback onCreate;
+  final void Function({required bool isPublic}) onCreate;
   final void Function(String code) onJoin;
 
   @override
@@ -931,6 +1113,36 @@ class _FriendsSheet extends StatefulWidget {
 
 class _FriendsSheetState extends State<_FriendsSheet> {
   String? _error;
+
+  /// Open games on this server, pushed by the server as they change.
+  ///
+  /// Null while the first list is still in flight, which is what separates
+  /// "nobody has a game open" from "we haven't heard back yet" — showing
+  /// "no games" during the round trip makes an empty server look broken.
+  List<OpenLobby>? _open;
+  StreamSubscription<GameEvent>? _sub;
+
+  /// Whether a room created from here is listed for strangers. On by default:
+  /// an unlisted room is the thing the browser exists to fix.
+  bool _createPublic = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = widget.connection.events.listen((event) {
+      if (!mounted) return;
+      if (event is LobbyListEvent) setState(() => _open = event.lobbies);
+    });
+    widget.connection.listLobbies();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    // Stop the server pushing updates to a sheet that has closed.
+    widget.connection.stopBrowsing();
+    super.dispose();
+  }
 
   void _join() {
     final code = widget.codeController.text.trim();
@@ -994,11 +1206,34 @@ class _FriendsSheetState extends State<_FriendsSheet> {
               textAlign: TextAlign.center,
               style: TextStyle(color: GameColors.textMuted, fontSize: 12.5),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
+
+            // --- open games on this server -------------------------------
+            _SheetDivider(
+              label: _open == null || _open!.isEmpty
+                  ? 'OPEN GAMES'
+                  : 'OPEN GAMES  ·  ${_open!.length}',
+            ),
+            const SizedBox(height: 10),
+            _LobbyBrowser(
+              lobbies: _open,
+              onJoin: widget.onJoin,
+            ),
+            const SizedBox(height: 18),
+
+            _SheetDivider(label: 'OR START YOUR OWN'),
+            const SizedBox(height: 12),
             FilledButton.icon(
-              onPressed: widget.onCreate,
-              icon: const Icon(Icons.add_rounded, size: 20),
+              onPressed: () => widget.onCreate(isPublic: _createPublic),
+              icon: const SketchIcon(SketchGlyph.plus, size: 18),
               label: const Text('CREATE A ROOM'),
+            ),
+            const SizedBox(height: 10),
+            // A room is listed by default; this is how you opt out of that
+            // without losing the code-sharing route.
+            _VisibilityChoice(
+              isPublic: _createPublic,
+              onChanged: (v) => setState(() => _createPublic = v),
             ),
             const SizedBox(height: 18),
             Row(
@@ -1007,7 +1242,7 @@ class _FriendsSheetState extends State<_FriendsSheet> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
-                    'OR JOIN ONE',
+                    'OR JOIN BY CODE',
                     style: TextStyle(
                       color: GameColors.textMuted,
                       fontSize: 10,
@@ -1063,6 +1298,356 @@ class _FriendsSheetState extends State<_FriendsSheet> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+
+/// A labelled rule, used to break the friends sheet into its three routes in:
+/// pick a game, start one, or type a code.
+class _SheetDivider extends StatelessWidget {
+  const _SheetDivider({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: Divider(color: GameColors.border)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: GameColors.textMuted,
+              fontSize: 10,
+              letterSpacing: 2,
+            ),
+          ),
+        ),
+        const Expanded(child: Divider(color: GameColors.border)),
+      ],
+    );
+  }
+}
+
+/// The list of games you can walk into without being given a code.
+///
+/// Height is capped rather than left to grow: this sits in a bottom sheet
+/// above a keyboard, and a long list would otherwise push the code field off
+/// the screen entirely.
+class _LobbyBrowser extends StatelessWidget {
+  const _LobbyBrowser({required this.lobbies, required this.onJoin});
+
+  /// Null means the first list has not arrived yet.
+  final List<OpenLobby>? lobbies;
+  final void Function(String code) onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    final list = lobbies;
+    if (list == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 18),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (list.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+        decoration: BoxDecoration(
+          color: GameColors.surfaceHigh.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: GameColors.border),
+        ),
+        child: const Column(
+          children: [
+            Text(
+              'No open games right now',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Start one below and it will show up here for everyone else.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: GameColors.textMuted, fontSize: 11.5),
+            ),
+          ],
+        ),
+      );
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 208),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: list.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, i) => _LobbyRow(
+          lobby: list[i],
+          onJoin: () => onJoin(list[i].code),
+        ),
+      ),
+    );
+  }
+}
+
+class _LobbyRow extends StatelessWidget {
+  const _LobbyRow({required this.lobby, required this.onJoin});
+
+  final OpenLobby lobby;
+  final VoidCallback onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onJoin,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: GameColors.surfaceHigh.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: GameColors.lime.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${lobby.hostName}\u2019s room',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      // Bots are called out, because "4/5 players" reads very
+                      // differently when three of them are bots.
+                      lobby.bots > 0
+                          ? '${lobby.humans} playing \u00b7 ${lobby.bots} bots \u00b7 ${lobby.freeSeats} free'
+                          : '${lobby.humans} playing \u00b7 ${lobby.freeSeats} free',
+                      style: const TextStyle(
+                        color: GameColors.textMuted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                decoration: BoxDecoration(
+                  color: GameColors.lime.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: GameColors.lime.withValues(alpha: 0.5)),
+                ),
+                child: const Text(
+                  'JOIN',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    color: GameColors.lime,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Listed-or-not for a room you are about to create. Written as two labelled
+/// options rather than a switch, because "public" alone does not tell anyone
+/// what it actually does.
+class _VisibilityChoice extends StatelessWidget {
+  const _VisibilityChoice({required this.isPublic, required this.onChanged});
+
+  final bool isPublic;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _VisibilityOption(
+            label: 'ANYONE CAN FIND IT',
+            selected: isPublic,
+            onTap: () => onChanged(true),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _VisibilityOption(
+            label: 'CODE ONLY',
+            selected: !isPublic,
+            onTap: () => onChanged(false),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VisibilityOption extends StatelessWidget {
+  const _VisibilityOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: selected
+                ? GameColors.primary.withValues(alpha: 0.14)
+                : Colors.transparent,
+            border: Border.all(
+              color: selected
+                  ? GameColors.primary.withValues(alpha: 0.55)
+                  : GameColors.border,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 10,
+              letterSpacing: 0.6,
+              fontWeight: FontWeight.w800,
+              color: selected ? GameColors.primary : GameColors.textMuted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+/// Sign in with Google, or sign out again.
+///
+/// Framed as what it buys the player — trophies that survive losing the phone
+/// — rather than as "account management", because on a party game nobody signs
+/// in for its own sake.
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({
+    required this.linked,
+    required this.busy,
+    required this.onLink,
+    required this.onUnlink,
+  });
+
+  final bool linked;
+  final bool busy;
+  final VoidCallback onLink;
+  final VoidCallback onUnlink;
+
+  @override
+  Widget build(BuildContext context) {
+    if (busy) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10),
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    if (linked) {
+      return TextButton.icon(
+        onPressed: onUnlink,
+        icon: const SketchIcon(SketchGlyph.lockOpen, size: 14, color: GameColors.lime),
+        label: const Text(
+          'Trophies saved to your Google account',
+          style: TextStyle(color: GameColors.lime, fontSize: 12.5),
+        ),
+      );
+    }
+    return TextButton.icon(
+      onPressed: onLink,
+      icon: const SketchIcon(SketchGlyph.lock, size: 14, color: GameColors.textMuted),
+      label: const Text(
+        'Save trophies to a Google account',
+        style: TextStyle(color: GameColors.textMuted, fontSize: 12.5),
+      ),
+    );
+  }
+}
+
+/// A small pill that reads as on or off at a glance — colour and label both,
+/// so it doesn't rely on noticing a subtle tint.
+class _AudioToggle extends StatelessWidget {
+  const _AudioToggle({required this.label, required this.on, required this.onTap});
+
+  final String label;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: on ? GameColors.primary.withValues(alpha: 0.12) : Colors.transparent,
+            border: Border.all(
+              color: on ? GameColors.primary.withValues(alpha: 0.5) : GameColors.border,
+              width: 1.1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: on ? GameColors.primary : GameColors.textMuted,
+            ),
+          ),
         ),
       ),
     );

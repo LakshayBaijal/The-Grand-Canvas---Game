@@ -8,7 +8,7 @@ import '../widgets/countdown.dart';
 const _promptSeconds = 40;
 
 /// One random player each round fills in the blank of a Mad-Libs-style
-/// "invention problem"; everyone else just watches and waits, same as
+/// "homework problem"; everyone else just watches and waits, same as
 /// Jackbox's Patently Stupid.
 class PromptWritingView extends StatefulWidget {
   const PromptWritingView({super.key, required this.event, required this.onSubmit});

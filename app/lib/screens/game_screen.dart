@@ -12,6 +12,7 @@ import '../views/prompt_writing_view.dart';
 import '../views/results_view.dart';
 import '../views/reveal_view.dart';
 import '../views/voting_view.dart';
+import '../services/audio_service.dart';
 
 enum GamePhase { lobby, promptWriting, drawing, voting, reveal, results }
 
@@ -61,6 +62,11 @@ class _GameScreenState extends State<GameScreen> {
     // whatever we missed rather than sitting on the lobby forever.
     final missed = widget.connection.lastPhaseEvent;
     if (missed != null) _applyPhase(missed);
+    // Only phase *changes* sync the music, so without this the menu loop just
+    // keeps playing until the first one happens — which is silence-shaped for
+    // anyone who sits in a lobby, and wrong for a ranked match that drops
+    // straight into a later phase.
+    _syncMusic();
     widget.connection.requestDoodle();
   }
 
@@ -75,6 +81,21 @@ class _GameScreenState extends State<GameScreen> {
     _sub?.cancel();
     super.dispose();
   }
+
+  /// The cue for each phase. All of these are variations on the same
+  /// four-note motif, so moving between them reads as one score following
+  /// the player rather than six unrelated loops.
+  Music get _musicForPhase => switch (_phase) {
+        GamePhase.lobby => Music.lobby,
+        GamePhase.promptWriting => Music.prompt,
+        GamePhase.drawing => Music.drawing,
+        GamePhase.voting => Music.voting,
+        GamePhase.reveal => Music.reveal,
+        GamePhase.results => Music.results,
+      };
+
+  /// Idempotent, so calling it after every phase change is free.
+  void _syncMusic() => AudioService.instance.play(_musicForPhase);
 
   void _handleEvent(GameEvent event) {
     if (!mounted) return;
@@ -98,7 +119,14 @@ class _GameScreenState extends State<GameScreen> {
 
   bool _applyPhaseWithSetState(GameEvent event) {
     var handled = false;
+    final was = _phase;
     setState(() => handled = _applyPhase(event));
+    if (handled && _phase != was) {
+      _syncMusic();
+      // A short flourish over the top of the new loop, so a phase change
+      // is felt as well as seen.
+      if (_phase == GamePhase.drawing) AudioService.instance.sfx(Sfx.roundStart);
+    }
     return handled;
   }
 
@@ -140,8 +168,17 @@ class _GameScreenState extends State<GameScreen> {
     return true;
   }
 
+  /// Leaves the game properly, however the player got out.
+  ///
+  /// The system back gesture pops this route on its own, so without the
+  /// [PopScope] in [build] the server never hears `leave_lobby` and goes on
+  /// believing the player is still seated. Every later create-or-join is then
+  /// rejected with "You're already in a lobby" and the only way out is to
+  /// restart the app. Both the button and the gesture come through here.
   void _leave() {
-    widget.connection.leaveLobby();
+    // A dead socket has already been cleaned up server-side by the close
+    // handler; sending into it would just throw.
+    if (!_disconnected) widget.connection.leaveLobby();
     Navigator.of(context).pop();
   }
 
@@ -155,6 +192,18 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      // Intercepted rather than allowed, so leaving always tells the server.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _leave();
+      },
+      child: _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     if (_disconnected) {
       return Scaffold(
         appBar: AppBar(title: const Text('Disconnected')),
@@ -201,6 +250,8 @@ class _GameScreenState extends State<GameScreen> {
           onRemoveBot: widget.connection.removeBot,
           doodle: _doodle,
           onNextDoodle: _requestDoodle,
+          onSetVisibility: ({required bool isPublic}) =>
+              widget.connection.setVisibility(isPublic: isPublic),
         ),
       GamePhase.promptWriting => PromptWritingView(
           key: ValueKey('prompt-${_promptWriting!.roundIndex}'),
@@ -226,7 +277,7 @@ class _GameScreenState extends State<GameScreen> {
           onInvest: widget.connection.submitInvestment,
           onRank: widget.connection.submitRanking,
         ),
-      GamePhase.reveal => RevealView(event: _reveal!),
+      GamePhase.reveal => RevealView(event: _reveal!, myId: widget.myId),
       GamePhase.results => ResultsView(
           mode: _results!.mode,
           scores: _results!.scores,

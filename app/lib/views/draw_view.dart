@@ -4,6 +4,7 @@ import '../models/stroke.dart';
 import '../models/styles.dart';
 import '../services/entitlements.dart';
 import '../theme.dart';
+import '../widgets/sketch_icons.dart';
 import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/paper_frame.dart';
@@ -124,7 +125,7 @@ class _DrawViewState extends State<DrawView> {
                     Entitlements.instance.hasStyles;
                 if (owned) {
                   return _CornerAction(
-                    icon: Icons.auto_awesome_rounded,
+                    icon: SketchGlyph.sparkle,
                     tooltip: 'Paper & pens',
                     color: GameColors.cyan,
                     onTap: () => showCustomizeSheet(context),
@@ -226,7 +227,7 @@ class _DrawViewState extends State<DrawView> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 22),
                       child: WaitingIndicator(
-                        label: 'Nice invention! Waiting for the others…',
+                        label: 'Homework done! Waiting for the others…',
                         submitted: widget.submitted,
                         total: widget.total,
                       ),
@@ -254,7 +255,7 @@ class _DrawViewState extends State<DrawView> {
   }
 }
 
-/// A compact "name your invention" card over a dimmed scrim, showing a small
+/// A compact "name your homework" card over a dimmed scrim, showing a small
 /// preview of the finished drawing instead of the full-size canvas.
 class _TitlePopup extends StatefulWidget {
   const _TitlePopup({
@@ -297,7 +298,7 @@ class _TitlePopupState extends State<_TitlePopup> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'NAME YOUR INVENTION',
+                  'NAME YOUR HOMEWORK',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: GameColors.textMuted,
@@ -423,8 +424,8 @@ class _DrawToolbar extends StatelessWidget {
                         ),
                       ),
                       child: locked
-                          ? const Icon(
-                              Icons.lock_rounded,
+                          ? const SketchIcon(
+                              SketchGlyph.lock,
                               size: 15,
                               color: Colors.white,
                             )
@@ -468,7 +469,7 @@ class _DrawToolbar extends StatelessWidget {
               ),
               IconButton(
                 onPressed: controller.canUndo ? controller.undo : null,
-                icon: const Icon(Icons.undo_rounded),
+                icon: const SketchIcon(SketchGlyph.undo, size: 20, color: GameColors.textPrimary),
                 color: GameColors.textPrimary,
                 tooltip: 'Undo',
                 visualDensity: VisualDensity.compact,
@@ -516,7 +517,7 @@ class _UnlockAllButton extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.palette_rounded, size: 17, color: Color(0xFF241800)),
+                SketchIcon(SketchGlyph.palette, size: 17, color: Color(0xFF241800)),
                 SizedBox(width: 6),
                 Text(
                   'UNLOCK ALL',
@@ -564,8 +565,8 @@ class _EraserChip extends StatelessWidget {
             ),
           ],
         ),
-        child: const Icon(
-          Icons.backspace_rounded,
+        child: const SketchIcon(
+          SketchGlyph.eraser,
           size: 20,
           color: Color(0xFF241800),
         ),
@@ -583,7 +584,7 @@ class _CornerAction extends StatelessWidget {
     required this.onTap,
   });
 
-  final IconData icon;
+  final SketchGlyph icon;
   final String tooltip;
   final Color color;
   final VoidCallback onTap;
@@ -606,7 +607,7 @@ class _CornerAction extends StatelessWidget {
               width: 1.2,
             ),
           ),
-          child: Icon(icon, size: 17, color: color),
+          child: SketchIcon(icon, size: 17, color: color),
         ),
       ),
     );

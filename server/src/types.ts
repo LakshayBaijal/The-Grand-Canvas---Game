@@ -104,6 +104,27 @@ export type LeaderboardEntry = {
   league: LeagueInfo;
 };
 
+/** Whether a friendly lobby shows up in the browser, or needs its code.
+ *
+ *  "public" is the default because a lobby nobody can find is the problem the
+ *  browser exists to solve; a host who actually wants a closed game can switch
+ *  it, and the code keeps working either way. */
+export type LobbyVisibility = "public" | "private";
+
+/** One row in the lobby browser. Deliberately not the full lobby state —
+ *  nothing here is worth hiding, but there is no reason to ship a player list
+ *  and scores to everyone idling on the menu. */
+export type OpenLobby = {
+  code: string;
+  hostName: string;
+  players: number;
+  maxPlayers: number;
+  /** Bots already seated. Shown so nobody joins expecting five humans. */
+  bots: number;
+  /** When it was opened, so the list can put the freshest games first. */
+  createdAtMs: number;
+};
+
 export type ClientMessage =
   | { type: "ping" }
   /** Identity handshake. The id is generated once on the device and kept
@@ -112,13 +133,27 @@ export type ClientMessage =
    *  sent before anything else. */
   | { type: "hello"; playerId: string; nickname: string }
   | { type: "set_nickname"; nickname: string }
+  /** Attaches a Google account to this profile, so trophies survive losing
+   *  the phone and follow the player onto other devices. The token is a
+   *  Google id token; the server verifies its signature rather than trusting
+   *  the claim. Sent after `hello`, never instead of it. */
+  | { type: "link_google"; idToken: string }
+  | { type: "unlink_google" }
   | { type: "get_leaderboard" }
   // --- ranked ---
   | { type: "find_match" }
   | { type: "cancel_match" }
   // --- friendly ---
-  | { type: "create_lobby" }
+  | { type: "create_lobby"; visibility?: LobbyVisibility }
   | { type: "join_lobby"; code: string }
+  /** Opens the lobby browser. The server replies with `lobby_list` and keeps
+   *  sending it whenever the list changes, until `stop_browsing` or the socket
+   *  closes — polling a LAN server every couple of seconds would work, but
+   *  pushing means a lobby appears the instant it is opened. */
+  | { type: "list_lobbies" }
+  | { type: "stop_browsing" }
+  /** Host-only, from inside the lobby. */
+  | { type: "set_visibility"; visibility: LobbyVisibility }
   | { type: "start_game" }
   | { type: "add_bot" }
   | { type: "remove_bot" }
@@ -139,6 +174,22 @@ export type ClientMessage =
 export type ServerMessage =
   | { type: "pong"; serverTimeMs: number }
   | { type: "welcome"; connectionId: string }
+  /**
+   * Who the server now considers you, sent after `hello` and after any
+   * link/unlink.
+   *
+   * `playerId` matters: linking a Google account that already owns a profile
+   * moves the player onto **that** profile, so the id the app has stored can
+   * change. The app is expected to save whatever comes back here.
+   */
+  | {
+      type: "account";
+      playerId: string;
+      linked: boolean;
+      /** False when this server has no GOOGLE_CLIENT_ID configured, so the
+       *  app can hide a button that could never work. */
+      googleAvailable: boolean;
+    }
   /** Sent after `hello`, and again whenever trophies change. */
   | { type: "profile"; profile: Profile }
   | { type: "leaderboard"; entries: LeaderboardEntry[]; you: Profile | null }
@@ -156,7 +207,10 @@ export type ServerMessage =
       hostId: string;
       mode: GameMode;
       players: PlayerInfo[];
+      /** Ranked lobbies are never listed, so this is always "private" there. */
+      visibility: LobbyVisibility;
     }
+  | { type: "lobby_list"; lobbies: OpenLobby[] }
   | {
       type: "prompt_writing";
       template: string;
