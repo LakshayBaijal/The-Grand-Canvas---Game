@@ -26,6 +26,8 @@ import {
   RANKED_START_DELAY_SECONDS,
   RANKING_POINTS,
   REVEAL_SECONDS,
+  SHOWCASE_SECONDS_PER_ENTRY,
+  FUNDING_GOAL,
   addBot,
   advanceRound,
   beginDrawingRound,
@@ -279,17 +281,22 @@ function finishVoting(lobby: Lobby) {
   if (lobby.phase !== "voting") return;
   clearBotTimers(lobby);
   const entries = scoreRoundAndBuildReveal(lobby);
+  const scoring = scoringFor(lobby);
   broadcast(lobby, {
     type: "round_reveal",
-    scoring: scoringFor(lobby),
+    scoring,
+    fundingGoal: scoring === "money" ? FUNDING_GOAL : null,
     prompt: lobby.completedPrompt,
     entries,
     scores: scoreRows(lobby),
     roundIndex: lobby.roundIndex,
     totalRounds: totalRounds(lobby),
   });
-  console.log(`[phase] ${lobby.code} reveal`);
-  setPhaseTimer(lobby, REVEAL_SECONDS, () => nextRound(lobby));
+  console.log(`[phase] ${lobby.code} reveal (${entries.length} entries)`);
+  // Every drawing gets its own moment on screen before the scoreboard, so the
+  // phase has to outlast the whole showcase rather than a fixed 14 seconds.
+  const showcaseSeconds = Math.ceil(entries.length * SHOWCASE_SECONDS_PER_ENTRY);
+  setPhaseTimer(lobby, REVEAL_SECONDS + showcaseSeconds, () => nextRound(lobby));
 }
 
 function nextRound(lobby: Lobby) {

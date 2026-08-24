@@ -85,6 +85,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool get _booting => !_bootDone || !_titleTimeUp;
 
+  /// How long the launch sting gets to play essentially alone before the
+  /// title loop starts fading in underneath it.
+  ///
+  /// Both state the same four-note motif, so starting them together at t=0
+  /// was two performances of the same phrase landing on top of each other —
+  /// audibly a mess, not a layering. The sting's plucked notes finish around
+  /// 850ms and its held landing chord starts there and rings on; bringing the
+  /// loop in as that chord is sounding turns it into a handoff instead of a
+  /// collision, since both are written in the same key.
+  static const _titleMusicDelay = Duration(milliseconds: 900);
+  bool _titleMusicReady = false;
+
   @override
   void initState() {
     super.initState();
@@ -96,10 +108,12 @@ class _HomeScreenState extends State<HomeScreen> {
   /// title screen is showing throughout, which is the point — this is real
   /// work, not a splash timer.
   Future<void> _boot() async {
-    // The signature, over the logo drawing itself. Fired here rather than from
-    // build so it happens exactly once per launch, and before the title loop
-    // is asked for, so the two don't collide on the first frame.
+    // The signature, over the logo drawing itself. Fired here rather than
+    // from build so it happens exactly once per launch.
     AudioService.instance.sfx(Sfx.launch);
+    Future.delayed(_titleMusicDelay, () {
+      if (mounted) setState(() => _titleMusicReady = true);
+    });
 
     Future.delayed(_minTitleTime, () {
       if (mounted) setState(() => _titleTimeUp = true);
@@ -437,9 +451,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     // Title music while booting, then the main theme on the menu. `play`
     // ignores a request for whatever is already playing, so calling it
-    // from build costs nothing on a rebuild.
+    // from build costs nothing on a rebuild. While booting, the title loop
+    // waits for _titleMusicReady rather than starting alongside the launch
+    // sting — see its doc comment.
     if (!_inGame && !_queued) {
-      AudioService.instance.play(_booting ? Music.title : Music.menu);
+      if (!_booting) {
+        AudioService.instance.play(Music.menu);
+      } else if (_titleMusicReady) {
+        AudioService.instance.play(Music.title);
+      }
     }
     final identity = _identity;
     if (identity == null || _booting) {

@@ -30,7 +30,10 @@ everyone draws a solution to the same problem, then backs their favourites.
 3. **Draw** — that completed sentence goes to **everyone** (including the writer), who all draw a solution, then name their homework in a popup. 75 seconds.
 4. **Present** — every drawing is shown one at a time, image first, then its title.
 5. **Vote** — invest money (ranked) or pick a podium (friendly).
-6. **Reveal** — see what each piece of homework pulled in, who backed it, and the score breakdown.
+6. **Reveal** — every drawing comes back full size, worst to best, with its
+   money thrown onto it a backer at a time (name and all), then a
+   FUNDED/NOT FUNDED stamp; once every drawing's had its turn, the running
+   scores.
 7. Repeat until every human player has had one turn writing the blank, then final scores.
 
 ### Scoring
@@ -232,6 +235,27 @@ up, score rows and reveal cards cascade in, and a win gets a confetti burst
 (only for the player who actually won). Phases cross-fade instead of cutting,
 the matchmaking seats light up as people arrive, and the "waiting for the
 others" screen has a progress bar so it reads as progress rather than a stall.
+
+### The money showcase
+
+The reveal phase's main event, in `app/lib/widgets/money_showcase.dart`. Each
+drawing gets the full screen in turn — worst first, so the round's winner is
+the last thing anyone sees — and its backers land on it one at a time as a
+hand-drawn banknote carrying their name and amount, the running total ticking
+up underneath. Once the money's in, a FUNDED or NOT FUNDED stamp slams down
+(friendly games, which have no funding threshold, get VOTES IN instead).
+
+A drawing needs `FUNDING_GOAL` (`server/src/rooms.ts`) to count as funded —
+deliberately reachable with a full table, since the moment is the point, not
+failing people. The per-entry timing (`SHOWCASE_SECONDS_PER_ENTRY`) has to
+match `app/lib/views/reveal_view.dart`'s `_perEntry` and the server extends the
+reveal phase timer to fit the whole showcase, or the last drawing gets cut off
+mid-throw.
+
+Notes land on a ring around the canvas's centre rather than a grid — a grid
+put a note (or, worse, the *only* note) directly where the stamp lands,
+hiding it completely. Worth knowing if you touch the layout: the centre has to
+stay clear regardless of backer count, including one.
 
 All of it is drawn procedurally in `app/lib/widgets/celebration.dart` — no GIF
 or image assets. A few KB of code instead of megabytes of frames, sharp at any

@@ -159,6 +159,7 @@ class GameConnection {
               .toList(),
           roundIndex: json['roundIndex'] as int,
           totalRounds: json['totalRounds'] as int,
+          fundingGoal: json['fundingGoal'] as int?,
         );
       case 'final_results':
         return FinalResultsEvent(

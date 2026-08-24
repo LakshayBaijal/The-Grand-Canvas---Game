@@ -150,12 +150,17 @@ class RoundRevealEvent extends GameEvent {
     required this.scores,
     required this.roundIndex,
     required this.totalRounds,
+    this.fundingGoal,
   });
 
   final Scoring scoring;
   final String prompt;
   final List<RoundResult> entries;
   final List<ScoreRow> scores;
+
+  /// What a drawing had to raise to count as funded. Null in friendly games,
+  /// which are scored by votes and have no threshold to clear.
+  final int? fundingGoal;
   final int roundIndex;
   final int totalRounds;
 }

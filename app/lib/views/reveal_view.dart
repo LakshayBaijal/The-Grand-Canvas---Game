@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/game_event.dart';
@@ -7,72 +9,173 @@ import '../widgets/sketch_icons.dart';
 import '../widgets/celebration.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/backer_tally.dart';
+import '../widgets/money_showcase.dart';
 
-/// Shows every drawing from the round, best first, who backed it, and the
-/// running scores. Reads as money in ranked games and as vote points in
-/// friendly ones — the layout is the same, only the units differ.
-class RevealView extends StatelessWidget {
+/// The round's results, in two acts.
+///
+/// **The showcase**: every drawing comes back full size, one at a time, and
+/// the money it raised is thrown onto it a backer at a time — the moment the
+/// round has been building towards. Worst first, so the drawing that won is
+/// the last thing anyone sees.
+///
+/// **The scoreboard**: once every drawing has had its turn, the running totals
+/// for the whole game.
+///
+/// A list of small cards showing everything at once, which is what this used
+/// to be, gets the same information on screen in a fifth of the time and none
+/// of it lands.
+class RevealView extends StatefulWidget {
   const RevealView({super.key, required this.event, this.myId});
 
   final RoundRevealEvent event;
 
-  /// Used only to decide whose tally makes a sound.
+  /// Used only to decide whose drawing makes a sound.
   final String? myId;
 
   @override
+  State<RevealView> createState() => _RevealViewState();
+}
+
+class _RevealViewState extends State<RevealView> {
+  /// Must match SHOWCASE_SECONDS_PER_ENTRY on the server. If the phase timer
+  /// runs out mid-showcase the last drawing never gets its turn, so the two
+  /// numbers are load-bearing together.
+  static const _perEntry = Duration(milliseconds: 4600);
+
+  /// Which drawing is on screen. Once it runs past the end, the scoreboard
+  /// takes over.
+  int _index = 0;
+  Timer? _timer;
+
+  /// Worst first, so the winner is last. [RoundRevealEvent.entries] arrives
+  /// best-first for the scoreboard, so this is its reverse.
+  late final List<RoundResult> _order = widget.event.entries.reversed.toList();
+
+  @override
+  void initState() {
+    super.initState();
+    _advance();
+  }
+
+  void _advance() {
+    _timer = Timer(_perEntry, () {
+      if (!mounted) return;
+      setState(() => _index++);
+      if (_index < _order.length) _advance();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  /// Lets an impatient table skip to the scores. The phase still ends on the
+  /// server's clock, so skipping only ever costs you the animation.
+  void _skip() {
+    _timer?.cancel();
+    setState(() => _index = _order.length);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final event = widget.event;
+    final showcasing = _index < _order.length;
+
     return Scaffold(
-      appBar: AppBar(title: Text('RESULTS — ROUND ${event.roundIndex + 1} OF ${event.totalRounds}')),
+      appBar: AppBar(
+        title: Text('RESULTS — ROUND ${event.roundIndex + 1} OF ${event.totalRounds}'),
+        actions: [
+          if (showcasing)
+            TextButton(
+              onPressed: _skip,
+              child: const Text('SKIP', style: TextStyle(fontSize: 12, letterSpacing: 1.5)),
+            ),
+        ],
+      ),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 8),
-              Text(
-                event.prompt,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: GameColors.textMuted,
-                  fontSize: 13,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Best first, arriving one after another so the winner lands
-              // before the also-rans rather than everything appearing at once.
-              for (var i = 0; i < event.entries.length; i++) ...[
-                PopIn(
-                  index: i,
-                  child: _EntryCard(
-                    rank: i + 1,
-                    entry: event.entries[i],
-                    scoring: event.scoring,
-                    // Start each card's tally once its own entrance has
-                    // played, so money never lands before the card does.
-                    startDelay: Duration(milliseconds: 320 + i * 90),
-                    isMine: event.entries[i].artistId == myId,
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              const SizedBox(height: 10),
-              const Text(
-                'SCORES',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: GameColors.textMuted, letterSpacing: 3, fontSize: 12),
-              ),
-              const SizedBox(height: 10),
-              for (var i = 0; i < event.scores.length; i++)
-                PopIn(
-                  index: event.entries.length + i,
-                  child: _ScoreLine(row: event.scores[i], scoring: event.scoring),
-                ),
-              const SizedBox(height: 28),
-            ],
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: showcasing
+                ? _buildShowcase(event)
+                : _buildScoreboard(event),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildShowcase(RoundRevealEvent event) {
+    final entry = _order[_index];
+    return Padding(
+      // Keyed by artist so the switcher treats each drawing as a new screen
+      // and cross-fades between them.
+      key: ValueKey('showcase-${entry.artistId}'),
+      padding: const EdgeInsets.only(top: 8, bottom: 16),
+      child: MoneyShowcase(
+        entry: entry,
+        isMoney: event.scoring.isMoney,
+        fundingGoal: event.fundingGoal,
+        duration: _perEntry,
+        isMine: entry.artistId == widget.myId,
+        // Displayed worst-first, so the rank is counted back from the end.
+        rank: _order.length - _index,
+        totalEntries: _order.length,
+      ),
+    );
+  }
+
+  Widget _buildScoreboard(RoundRevealEvent event) {
+    return SingleChildScrollView(
+      key: const ValueKey('scoreboard'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 8),
+          Text(
+            event.prompt,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: GameColors.textMuted,
+              fontSize: 13,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Best first here, arriving one after another so the winner lands
+          // before the also-rans.
+          for (var i = 0; i < event.entries.length; i++) ...[
+            PopIn(
+              index: i,
+              child: _EntryCard(
+                rank: i + 1,
+                entry: event.entries[i],
+                scoring: event.scoring,
+                // The money already landed during the showcase, so these are
+                // a summary rather than a second animation of the same thing.
+                startDelay: Duration(milliseconds: 320 + i * 90),
+                isMine: event.entries[i].artistId == widget.myId,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          const SizedBox(height: 10),
+          const Text(
+            'SCORES',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: GameColors.textMuted, letterSpacing: 3, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < event.scores.length; i++)
+            PopIn(
+              index: event.entries.length + i,
+              child: _ScoreLine(row: event.scores[i], scoring: event.scoring),
+            ),
+          const SizedBox(height: 28),
+        ],
       ),
     );
   }

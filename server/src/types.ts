@@ -246,6 +246,9 @@ export type ServerMessage =
     }
   | {
       type: "round_reveal";
+      /** What each drawing needed to raise to be funded. Null in friendly
+       *  games, which are scored by votes and have no threshold. */
+      fundingGoal: number | null;
       scoring: Scoring;
       prompt: string;
       entries: RoundResult[];

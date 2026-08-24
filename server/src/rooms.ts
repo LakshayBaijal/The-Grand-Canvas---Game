@@ -37,7 +37,25 @@ export const RANKED_START_DELAY_SECONDS = 3;
 export const PROMPT_SECONDS = 40;
 export const DRAW_SECONDS = 75;
 export const INVEST_SECONDS = 35;
+/** The scoreboard tail at the end of the reveal, after every drawing has had
+ *  its moment. The showcase before it is timed separately — see
+ *  SHOWCASE_SECONDS_PER_ENTRY. */
 export const REVEAL_SECONDS = 14;
+
+/** How long each drawing holds the screen during the reveal, while its money
+ *  lands on it one backer at a time. Must match the per-entry duration the
+ *  app animates in views/reveal_view.dart, or the phase will move on
+ *  mid-showcase. */
+export const SHOWCASE_SECONDS_PER_ENTRY = 4.6;
+
+/** What a drawing has to raise to count as funded.
+ *
+ *  Money-scored games only; friendly games are ranked by votes and have no
+ *  threshold. Each player gets INVESTMENT_BUDGET to spread across everyone
+ *  else's drawings, so with a full table the average drawing pulls in well
+ *  over this — the goal is deliberately reachable. It exists for the moment
+ *  of finding out, not to fail people. */
+export const FUNDING_GOAL = 1000;
 
 /** Every round each player gets $2000, minus a $200 "entry fee" that funds
  *  the placement bonuses below — see PLACEMENT_BONUSES. */
