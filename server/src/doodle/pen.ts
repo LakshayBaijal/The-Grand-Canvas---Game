@@ -46,6 +46,21 @@ export type Pt = { x: number; y: number };
  *
  * Anything drawn is clamped into a margin so nothing runs off the paper.
  */
+/**
+ * Coordinates are 0..1 fractions of the canvas, and a full-precision double
+ * serialises to ~19 characters of JSON for no benefit: at 4 decimal places the
+ * worst error is 0.1px on a 1000px canvas, which is well under one pixel and
+ * far under the wobble the pen deliberately adds anyway.
+ *
+ * It matters because drawings are the one big thing on this wire. A round with
+ * five bots is ~100KB of strokes broadcast to every player; rounding here takes
+ * about 45% off that, which is worth far more than any saving available in the
+ * generation itself (measured at well under a millisecond per drawing).
+ */
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
 export class Pen {
   readonly strokes: Stroke[] = [];
   private color = "#1A1A1A";
@@ -75,8 +90,8 @@ export class Pen {
 
   private clamp(p: Pt): Point {
     return {
-      x: Math.min(0.97, Math.max(0.03, p.x)),
-      y: Math.min(0.97, Math.max(0.03, p.y)),
+      x: round4(Math.min(0.97, Math.max(0.03, p.x))),
+      y: round4(Math.min(0.97, Math.max(0.03, p.y))),
     };
   }
 

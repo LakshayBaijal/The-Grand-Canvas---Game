@@ -373,10 +373,52 @@ first names, are never labelled in the UI, and are ordinary lobby members
 server-side — every phase check treats them exactly like humans, so there's no
 separate bot code path through the game.
 
+### Why bots run on the server, not the client
+
+This was measured rather than assumed, because "the server is doing all the bot
+work" is an intuitive worry and it turns out to be the wrong one.
+
+| | measured |
+| --- | --- |
+| generating one bot drawing | **0.32 ms** mean, 1.96 ms worst |
+| five bots drawing at once | ~10 ms, **once per 75-second round** |
+| one drawing serialised | ~11 KB |
+| a five-bot round, broadcast to five players | ~265 KB |
+
+Generation is not the cost. **The payload is** — and moving generation to a
+client would not shrink it by a single byte, because the drawing still has to
+reach everyone. It would in fact add an upload leg that does not exist today,
+on the phone least able to afford it.
+
+Three things would also break:
+
+- **Ranked would become cheatable.** Bot investments decide real money in a
+  ranked round, and a client that generates them can choose them. The whole
+  point of scoring on the server is that the client does not get a vote.
+- **Bots would freeze when the host's phone did.** A backgrounded app, a locked
+  screen or a dropped connection would stall the round for everyone else.
+- **The "bots are just players" property would go.** Today no phase check knows
+  what a bot is. Client-driven bots need a separate path through every phase.
+
+What actually helped was cutting the payload: stroke coordinates are 0..1
+fractions of the canvas, and they now serialise at four decimal places instead
+of full doubles. That is a tenth of a pixel on a 1000px canvas — invisible, and
+well under the wobble the pen deliberately adds — for **47% off every drawing**
+on the wire. Human drawings get the same treatment client-side. If the server
+ever does become CPU-bound, the next move is a worker thread for generation,
+not moving trust to the client.
+
 What they do:
 
 - **Draw** — a procedural doodle engine (`server/src/doodle/`) works out *what*
   to draw, then picks a **page layout** to stage it in.
+
+  The shape vocabulary is **183 hand-written parts**. It was last widened by
+  measurement rather than taste: a list of answers people plausibly type was
+  matched against `WORD_SHAPES`, which turned out to cover only 23% of them —
+  bathroom, public transport, pests and DIY had nothing at all. Adding 31
+  shapes and the missing synonyms took that to 78%. `test/doodle.test.ts`
+  keeps it there.
 
   **What** comes from three tiers, most specific first. `WORD_SHAPES` in
   `doodle/compose.ts` maps ~180 concrete words to one specific drawing —

@@ -2664,3 +2664,1089 @@ export function pontoon(pen: Pen, rng: Rng, box: Box): void {
   }
   pen.polyline(wave, false, 0.5);
 }
+
+// --- second wave of everyday objects ---------------------------------------
+// Measured against a list of answers people plausibly type, the map covered
+// under a quarter of them; everything below closes the biggest of those gaps.
+// Bathroom, commuting by anything other than a car, pests, and DIY were the
+// four categories with nothing in them at all.
+
+export function shower(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5));
+  const cx = box.x + box.w * 0.5;
+  const headY = box.y + box.h * 0.16;
+  // Pipe down from the top, then a bend across to the head.
+  pen.polyline(
+    [
+      { x: cx + box.w * 0.3, y: box.y },
+      { x: cx + box.w * 0.3, y: headY - box.h * 0.08 },
+      { x: cx, y: headY - box.h * 0.08 },
+    ],
+    false,
+    0.7,
+  );
+  pen.setWidth(rng.range(4.5, 6));
+  // The head itself — a shallow fan.
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.22, y: headY },
+      { x: cx - box.w * 0.14, y: headY - box.h * 0.07 },
+      { x: cx + box.w * 0.14, y: headY - box.h * 0.07 },
+      { x: cx + box.w * 0.22, y: headY },
+    ],
+    true,
+    0.8,
+  );
+  // Water. Dashes rather than solid lines, so it reads as falling.
+  pen.setWidth(rng.range(2.4, 3.2));
+  for (let i = 0; i < 6; i++) {
+    const x = cx - box.w * 0.19 + (i / 5) * box.w * 0.38;
+    let y = headY + box.h * rng.range(0.06, 0.12);
+    const dashes = rng.int(2, 4);
+    for (let d = 0; d < dashes; d++) {
+      const len = box.h * rng.range(0.08, 0.14);
+      pen.line({ x, y }, { x: x + box.w * 0.01, y: y + len }, 0.5);
+      y += len + box.h * rng.range(0.04, 0.07);
+    }
+  }
+}
+
+export function toilet(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  // Cistern.
+  pen.rect(cx - box.w * 0.26, box.y + box.h * 0.02, box.w * 0.52, box.h * 0.28);
+  pen.setWidth(3);
+  pen.circle(cx + box.w * 0.17, box.y + box.h * 0.1, box.w * 0.04, 0.6);
+  // Bowl — narrower at the bottom, with a seat line.
+  pen.setWidth(rng.range(4.5, 6));
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.3, y: box.y + box.h * 0.36 },
+      { x: cx + box.w * 0.3, y: box.y + box.h * 0.36 },
+      { x: cx + box.w * 0.17, y: box.y + box.h * 0.74 },
+      { x: cx - box.w * 0.17, y: box.y + box.h * 0.74 },
+    ],
+    true,
+    0.85,
+  );
+  pen.setWidth(3.2);
+  pen.ellipse(cx, box.y + box.h * 0.38, box.w * 0.24, box.h * 0.05, 0.7);
+  // Pedestal.
+  pen.setWidth(rng.range(4, 5));
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.13, y: box.y + box.h * 0.74 },
+      { x: cx - box.w * 0.17, y: box.y + box.h },
+      { x: cx + box.w * 0.17, y: box.y + box.h },
+      { x: cx + box.w * 0.13, y: box.y + box.h * 0.74 },
+    ],
+    false,
+    0.8,
+  );
+}
+
+export function toiletRoll(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.44;
+  const top = box.y + box.h * 0.24;
+  const bottom = box.y + box.h * 0.86;
+  const rx = box.w * 0.24;
+  // Cylinder: top ellipse, two sides, and the hole in the middle.
+  pen.ellipse(cx, top, rx, box.h * 0.09, 0.75);
+  pen.line({ x: cx - rx, y: top }, { x: cx - rx, y: bottom }, 0.7);
+  pen.line({ x: cx + rx, y: top }, { x: cx + rx, y: bottom }, 0.7);
+  pen.arc(cx, bottom, rx, 0, Math.PI, 0.8);
+  pen.setWidth(3.2);
+  pen.ellipse(cx, top, rx * 0.34, box.h * 0.033, 0.6);
+  // The sheet coming off it — the bit that makes it unmistakable.
+  pen.setWidth(rng.range(3.6, 4.6));
+  const sx = cx + rx;
+  pen.polyline(
+    [
+      { x: sx, y: top + box.h * 0.06 },
+      { x: sx + box.w * 0.2, y: top + box.h * 0.1 },
+      { x: sx + box.w * 0.24, y: bottom + box.h * 0.02 },
+      { x: sx + box.w * 0.02, y: bottom - box.h * 0.04 },
+    ],
+    false,
+    0.8,
+  );
+  // Perforation.
+  pen.setWidth(2.2);
+  for (let i = 0; i < 4; i++) {
+    const t = (i + 0.5) / 4;
+    const x = sx + box.w * (0.03 + t * 0.19);
+    const y = top + box.h * (0.08 + t * 0.03) + box.h * 0.24;
+    pen.line({ x, y }, { x: x + box.w * 0.02, y }, 0.4);
+  }
+}
+
+export function sponge(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(5, 6.5));
+  const w = box.w * 0.6;
+  const h = box.h * 0.36;
+  const x = box.x + (box.w - w) / 2;
+  const y = box.y + box.h * 0.46;
+  // Barrelled, because a sponge is never a clean rectangle.
+  pen.polyline(
+    [
+      { x, y: y + h * 0.1 },
+      { x: x + w * 0.5, y },
+      { x: x + w, y: y + h * 0.1 },
+      { x: x + w, y: y + h * 0.9 },
+      { x: x + w * 0.5, y: y + h },
+      { x, y: y + h * 0.9 },
+    ],
+    true,
+    1.2,
+  );
+  // The scouring layer, as a band across the top third.
+  pen.setWidth(3.4);
+  pen.polyline(
+    [
+      { x: x + w * 0.02, y: y + h * 0.36 },
+      { x: x + w * 0.5, y: y + h * 0.3 },
+      { x: x + w * 0.98, y: y + h * 0.36 },
+    ],
+    false,
+    0.9,
+  );
+  // Holes, only in the lower half so they don't fight the band.
+  pen.setWidth(2.6);
+  for (let i = 0; i < 5; i++) {
+    pen.circle(
+      x + w * rng.range(0.14, 0.86),
+      y + h * rng.range(0.52, 0.86),
+      box.w * rng.range(0.014, 0.024),
+      0.8,
+    );
+  }
+  // Bubbles lifting off it — the detail that says sponge and not brick.
+  pen.setWidth(rng.range(2.8, 3.6));
+  for (let i = 0; i < 4; i++) {
+    pen.circle(
+      x + w * rng.range(0.1, 0.9),
+      y - box.h * rng.range(0.06, 0.26),
+      box.w * rng.range(0.022, 0.045),
+      0.85,
+    );
+  }
+}
+export function bug(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5.5));
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.52;
+  const rx = box.w * 0.19;
+  const ry = box.h * 0.26;
+  pen.ellipse(cx, cy, rx, ry, 0.85);
+  // Head.
+  pen.circle(cx, cy - ry - box.h * 0.08, box.w * 0.1, 0.8);
+  // Antennae.
+  pen.setWidth(2.6);
+  for (const dir of [-1, 1]) {
+    pen.polyline(
+      [
+        { x: cx + dir * box.w * 0.04, y: cy - ry - box.h * 0.14 },
+        { x: cx + dir * box.w * 0.12, y: cy - ry - box.h * 0.24 },
+      ],
+      false,
+      0.6,
+    );
+  }
+  // Six legs, kinked so they read as legs rather than whiskers.
+  pen.setWidth(rng.range(2.8, 3.6));
+  for (let i = 0; i < 3; i++) {
+    const y = cy - ry * 0.5 + (i / 2) * ry;
+    for (const dir of [-1, 1]) {
+      pen.polyline(
+        [
+          { x: cx + dir * rx * 0.8, y },
+          { x: cx + dir * (rx + box.w * 0.1), y: y - box.h * 0.04 },
+          { x: cx + dir * (rx + box.w * 0.17), y: y + box.h * 0.05 },
+        ],
+        false,
+        0.6,
+      );
+    }
+  }
+  // A line down the back, or wings.
+  pen.setWidth(2.6);
+  if (rng.chance(0.5)) {
+    pen.line({ x: cx, y: cy - ry * 0.8 }, { x: cx, y: cy + ry * 0.8 }, 0.5);
+  } else {
+    for (const dir of [-1, 1]) {
+      pen.ellipse(cx + dir * rx * 0.55, cy - ry * 0.1, rx * 0.5, ry * 0.6, 0.8);
+    }
+  }
+}
+
+export function train(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const x = box.x + box.w * 0.06;
+  const w = box.w * 0.88;
+  const top = box.y + box.h * 0.24;
+  const bodyH = box.h * 0.44;
+  // Body with a sloped nose, so it reads as a train and not a bus.
+  pen.polyline(
+    [
+      { x, y: top + bodyH },
+      { x, y: top + bodyH * 0.3 },
+      { x: x + w * 0.16, y: top },
+      { x: x + w, y: top },
+      { x: x + w, y: top + bodyH },
+    ],
+    true,
+    0.85,
+  );
+  // Windows.
+  pen.setWidth(3.2);
+  pen.rect(x + w * 0.05, top + bodyH * 0.16, w * 0.16, bodyH * 0.4);
+  for (let i = 0; i < 3; i++) {
+    pen.rect(x + w * (0.3 + i * 0.21), top + bodyH * 0.18, w * 0.14, bodyH * 0.36);
+  }
+  // Wheels and rail.
+  pen.setWidth(rng.range(3.6, 4.6));
+  const wheelY = top + bodyH + box.h * 0.07;
+  for (const fx of [0.16, 0.36, 0.66, 0.86]) {
+    pen.circle(x + w * fx, wheelY, box.h * 0.07, 0.8);
+  }
+  pen.setWidth(3);
+  pen.line(
+    { x: box.x, y: wheelY + box.h * 0.09 },
+    { x: box.x + box.w, y: wheelY + box.h * 0.09 },
+    0.6,
+  );
+}
+
+export function plane(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.5;
+  // Fuselage, nose to the right.
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.34, y: cy - box.h * 0.06 },
+      { x: cx + box.w * 0.26, y: cy - box.h * 0.08 },
+      { x: cx + box.w * 0.38, y: cy },
+      { x: cx + box.w * 0.26, y: cy + box.h * 0.08 },
+      { x: cx - box.w * 0.34, y: cy + box.h * 0.06 },
+    ],
+    true,
+    0.85,
+  );
+  // Swept wing and tailplane.
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.04, y: cy },
+      { x: cx - box.w * 0.16, y: cy + box.h * 0.28 },
+      { x: cx + box.w * 0.06, y: cy + box.h * 0.05 },
+    ],
+    true,
+    0.8,
+  );
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.3, y: cy - box.h * 0.05 },
+      { x: cx - box.w * 0.38, y: cy - box.h * 0.24 },
+      { x: cx - box.w * 0.2, y: cy - box.h * 0.06 },
+    ],
+    true,
+    0.8,
+  );
+  pen.setWidth(3);
+  for (let i = 0; i < 5; i++) {
+    pen.circle(cx - box.w * (0.24 - i * 0.09), cy - box.h * 0.01, box.w * 0.017, 0.6);
+  }
+}
+
+export function plugSocket(pen: Pen, rng: Rng, box: Box): void {
+  const cx = box.x + box.w * 0.5;
+  const w = box.w * 0.46;
+  const top = box.y + box.h * 0.32;
+  const h = box.h * 0.3;
+  // Prongs first, short and thick, sitting on top of the body.
+  pen.setWidth(rng.range(6, 7.5));
+  for (const dir of [-1, 1]) {
+    pen.line(
+      { x: cx + dir * w * 0.26, y: top },
+      { x: cx + dir * w * 0.26, y: top - box.h * 0.11 },
+      0.4,
+    );
+  }
+  // Body, with the corners taken off so it reads as moulded plastic.
+  pen.setWidth(rng.range(4.5, 6));
+  const c = w * 0.16;
+  pen.polyline(
+    [
+      { x: cx - w / 2 + c, y: top },
+      { x: cx + w / 2 - c, y: top },
+      { x: cx + w / 2, y: top + c },
+      { x: cx + w / 2, y: top + h - c },
+      { x: cx + w / 2 - c, y: top + h },
+      { x: cx - w / 2 + c, y: top + h },
+      { x: cx - w / 2, y: top + h - c },
+      { x: cx - w / 2, y: top + c },
+    ],
+    true,
+    0.8,
+  );
+  // Cable, thick and hanging rather than a thin scribble.
+  pen.setWidth(rng.range(5, 6.5));
+  pen.polyline(
+    [
+      { x: cx, y: top + h },
+      { x: cx + box.w * 0.03, y: top + h + box.h * 0.13 },
+      { x: cx - box.w * 0.07, y: top + h + box.h * 0.24 },
+      { x: cx + box.w * 0.02, y: box.y + box.h * 0.98 },
+    ],
+    false,
+    1.0,
+  );
+}
+export function radiator(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5.5));
+  const x = box.x + box.w * 0.14;
+  const w = box.w * 0.72;
+  const y = box.y + box.h * 0.26;
+  const h = box.h * 0.5;
+  pen.rect(x, y, w, h);
+  // Fins.
+  pen.setWidth(rng.range(3, 4));
+  const fins = rng.int(5, 7);
+  for (let i = 1; i < fins; i++) {
+    const fx = x + (i / fins) * w;
+    pen.line({ x: fx, y: y + h * 0.08 }, { x: fx, y: y + h * 0.92 }, 0.6);
+  }
+  // Valve and feet.
+  pen.setWidth(3.2);
+  pen.circle(x - box.w * 0.04, y + h * 0.8, box.w * 0.035, 0.7);
+  pen.line({ x: x + w * 0.2, y: y + h }, { x: x + w * 0.2, y: y + h + box.h * 0.08 }, 0.6);
+  pen.line({ x: x + w * 0.8, y: y + h }, { x: x + w * 0.8, y: y + h + box.h * 0.08 }, 0.6);
+}
+
+export function candle(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const top = box.y + box.h * 0.42;
+  const w = box.w * 0.24;
+  pen.rect(cx - w / 2, top, w, box.h * 0.48);
+  pen.setWidth(3.2);
+  pen.ellipse(cx, top, w * 0.5, box.h * 0.035, 0.7);
+  // Wick and flame.
+  pen.line({ x: cx, y: top }, { x: cx, y: top - box.h * 0.05 }, 0.5);
+  pen.setWidth(rng.range(3.4, 4.4));
+  pen.polyline(
+    [
+      { x: cx, y: top - box.h * 0.05 },
+      { x: cx - box.w * 0.06, y: top - box.h * 0.14 },
+      { x: cx, y: top - box.h * 0.28 },
+      { x: cx + box.w * 0.06, y: top - box.h * 0.14 },
+    ],
+    true,
+    1.1,
+  );
+  // A drip down the side.
+  pen.setWidth(2.6);
+  pen.polyline(
+    [
+      { x: cx - w * 0.4, y: top + box.h * 0.04 },
+      { x: cx - w * 0.46, y: top + box.h * 0.16 },
+      { x: cx - w * 0.34, y: top + box.h * 0.2 },
+    ],
+    false,
+    0.8,
+  );
+}
+
+export function oven(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const x = box.x + box.w * 0.16;
+  const w = box.w * 0.68;
+  const y = box.y + box.h * 0.14;
+  const h = box.h * 0.76;
+  pen.rect(x, y, w, h);
+  // Control strip along the top with dials.
+  pen.setWidth(3.2);
+  pen.line({ x, y: y + h * 0.2 }, { x: x + w, y: y + h * 0.2 }, 0.7);
+  for (let i = 0; i < 3; i++) {
+    pen.circle(x + w * (0.2 + i * 0.3), y + h * 0.1, box.w * 0.03, 0.7);
+  }
+  // Door with a window and a handle.
+  pen.rect(x + w * 0.1, y + h * 0.32, w * 0.8, h * 0.54);
+  pen.setWidth(rng.range(3.6, 4.6));
+  pen.line({ x: x + w * 0.12, y: y + h * 0.28 }, { x: x + w * 0.88, y: y + h * 0.28 }, 0.6);
+}
+
+export function iron(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(5, 6.5));
+  const x = box.x + box.w * 0.1;
+  const w = box.w * 0.8;
+  const soleY = box.y + box.h * 0.7;
+  // Sole plate: long, thin, pointed right. This has to dominate the
+  // silhouette -- earlier versions gave the body too much height and the
+  // whole thing read as a boat.
+  pen.polyline(
+    [
+      { x, y: soleY },
+      { x: x + w, y: soleY + box.h * 0.035 },
+      { x: x + w * 0.88, y: soleY + box.h * 0.105 },
+      { x: x + w * 0.03, y: soleY + box.h * 0.105 },
+    ],
+    true,
+    0.8,
+  );
+  // Body: deliberately shallow.
+  const bodyTop = soleY - box.h * 0.09;
+  pen.polyline(
+    [
+      { x: x + w * 0.04, y: soleY },
+      { x: x + w * 0.09, y: bodyTop },
+      { x: x + w * 0.7, y: bodyTop },
+      { x: x + w * 0.9, y: soleY + box.h * 0.005 },
+    ],
+    false,
+    0.85,
+  );
+  // Handle as a strap with a hole through it: two arcs, one inside the other,
+  // closed at the ends. The hole is the whole point -- a solid arch sitting on
+  // the body just reads as a cabin.
+  pen.setWidth(rng.range(4, 5));
+  const hl = x + w * 0.15;
+  const hr = x + w * 0.63;
+  const mid = (hl + hr) / 2;
+  const span = (hr - hl) / 2;
+  const outerTop = bodyTop - box.h * 0.26;
+  const innerTop = bodyTop - box.h * 0.15;
+  pen.polyline(
+    [
+      { x: hl, y: bodyTop },
+      { x: hl - span * 0.08, y: outerTop + box.h * 0.06 },
+      { x: mid, y: outerTop },
+      { x: hr + span * 0.08, y: outerTop + box.h * 0.06 },
+      { x: hr, y: bodyTop },
+      { x: hr - span * 0.22, y: bodyTop },
+      { x: hr - span * 0.3, y: innerTop + box.h * 0.03 },
+      { x: mid, y: innerTop },
+      { x: hl + span * 0.3, y: innerTop + box.h * 0.03 },
+      { x: hl + span * 0.22, y: bodyTop },
+    ],
+    true,
+    0.85,
+  );
+  // Temperature dial.
+  pen.setWidth(3);
+  pen.circle(x + w * 0.78, soleY - box.h * 0.035, box.w * 0.03, 0.7);
+  // Steam off the pointed end. A flat hull with a prow reads as a boat more
+  // readily than as an iron, and this is the cheapest cue that breaks the tie.
+  pen.setWidth(2.6);
+  for (let i = 0; i < 3; i++) {
+    const sx = x + w * (1.02 + i * 0.06);
+    const sy = soleY - box.h * (0.02 + i * 0.05);
+    pen.arc(sx, sy, box.w * rng.range(0.022, 0.034), Math.PI * 0.9, Math.PI * 2.1, 0.9);
+  }
+}
+export function balloon(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5.5));
+  const count = rng.int(1, 3);
+  for (let i = 0; i < count; i++) {
+    const cx = box.x + box.w * (count === 1 ? 0.5 : 0.28 + (i / (count - 1 || 1)) * 0.44);
+    const cy = box.y + box.h * rng.range(0.24, 0.34);
+    const r = box.w * rng.range(0.13, 0.17);
+    pen.ellipse(cx, cy, r, r * 1.2, 0.9);
+    // The knot.
+    pen.setWidth(2.6);
+    pen.polyline(
+      [
+        { x: cx - r * 0.14, y: cy + r * 1.2 },
+        { x: cx, y: cy + r * 1.34 },
+        { x: cx + r * 0.14, y: cy + r * 1.2 },
+      ],
+      true,
+      0.7,
+    );
+    // String, curling.
+    const endX = box.x + box.w * 0.5 + (cx - box.x - box.w * 0.5) * 0.3;
+    pen.polyline(
+      [
+        { x: cx, y: cy + r * 1.34 },
+        { x: cx + box.w * 0.04, y: cy + box.h * 0.24 },
+        { x: endX, y: box.y + box.h * 0.92 },
+      ],
+      false,
+      1.2,
+    );
+    pen.setWidth(rng.range(4, 5.5));
+  }
+}
+
+export function gift(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const w = box.w * 0.56;
+  const h = box.h * 0.44;
+  const x = box.x + (box.w - w) / 2;
+  const y = box.y + box.h * 0.4;
+  pen.rect(x, y, w, h);
+  // Ribbon, both ways.
+  pen.setWidth(rng.range(3.4, 4.4));
+  pen.line({ x: x + w * 0.5, y }, { x: x + w * 0.5, y: y + h }, 0.6);
+  pen.line({ x, y: y + h * 0.34 }, { x: x + w, y: y + h * 0.34 }, 0.6);
+  // Bow.
+  for (const dir of [-1, 1]) {
+    pen.polyline(
+      [
+        { x: x + w * 0.5, y },
+        { x: x + w * (0.5 + dir * 0.28), y: y - box.h * 0.12 },
+        { x: x + w * (0.5 + dir * 0.1), y: y - box.h * 0.02 },
+      ],
+      true,
+      0.9,
+    );
+  }
+}
+
+export function fish(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.5;
+  const rx = box.w * 0.26;
+  const ry = box.h * 0.2;
+  pen.ellipse(cx, cy, rx, ry, 0.9);
+  // Tail.
+  pen.polyline(
+    [
+      { x: cx - rx, y: cy },
+      { x: cx - rx - box.w * 0.16, y: cy - box.h * 0.14 },
+      { x: cx - rx - box.w * 0.16, y: cy + box.h * 0.14 },
+    ],
+    true,
+    0.85,
+  );
+  // Top fin and eye.
+  pen.setWidth(rng.range(3.2, 4.2));
+  pen.polyline(
+    [
+      { x: cx - rx * 0.3, y: cy - ry * 0.9 },
+      { x: cx, y: cy - ry - box.h * 0.12 },
+      { x: cx + rx * 0.4, y: cy - ry * 0.7 },
+    ],
+    false,
+    0.8,
+  );
+  pen.circle(cx + rx * 0.5, cy - ry * 0.28, box.w * 0.022, 0.6);
+  // Bubbles.
+  pen.setWidth(2.4);
+  for (let i = 0; i < 3; i++) {
+    pen.circle(
+      cx + rx + box.w * rng.range(0.06, 0.14),
+      cy - ry - box.h * (0.06 + i * 0.09),
+      box.w * rng.range(0.014, 0.024),
+      0.7,
+    );
+  }
+}
+
+export function screwdriver(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const top = box.y + box.h * 0.12;
+  // Handle.
+  pen.rect(cx - box.w * 0.09, top, box.w * 0.18, box.h * 0.3);
+  pen.setWidth(2.8);
+  for (let i = 1; i < 3; i++) {
+    const y = top + (i / 3) * box.h * 0.3;
+    pen.line({ x: cx - box.w * 0.09, y }, { x: cx + box.w * 0.09, y }, 0.5);
+  }
+  // Shaft and flat tip.
+  pen.setWidth(rng.range(3.6, 4.6));
+  pen.line({ x: cx, y: top + box.h * 0.3 }, { x: cx, y: top + box.h * 0.72 }, 0.5);
+  pen.setWidth(rng.range(4.5, 6));
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.05, y: top + box.h * 0.72 },
+      { x: cx + box.w * 0.05, y: top + box.h * 0.72 },
+      { x: cx + box.w * 0.03, y: top + box.h * 0.82 },
+      { x: cx - box.w * 0.03, y: top + box.h * 0.82 },
+    ],
+    true,
+    0.7,
+  );
+}
+
+export function drill(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const x = box.x + box.w * 0.2;
+  const y = box.y + box.h * 0.26;
+  const w = box.w * 0.42;
+  const h = box.h * 0.26;
+  // Body.
+  pen.rect(x, y, w, h);
+  // Grip, angled back.
+  pen.polyline(
+    [
+      { x: x + w * 0.16, y: y + h },
+      { x: x + w * 0.06, y: y + h + box.h * 0.3 },
+      { x: x + w * 0.42, y: y + h + box.h * 0.3 },
+      { x: x + w * 0.52, y: y + h },
+    ],
+    false,
+    0.85,
+  );
+  // Chuck and bit.
+  pen.setWidth(rng.range(3.6, 4.6));
+  pen.rect(x + w, y + h * 0.24, box.w * 0.07, h * 0.52);
+  pen.line(
+    { x: x + w + box.w * 0.07, y: y + h * 0.5 },
+    { x: x + w + box.w * 0.24, y: y + h * 0.5 },
+    0.5,
+  );
+  // Trigger.
+  pen.setWidth(2.8);
+  pen.line(
+    { x: x + w * 0.5, y: y + h + box.h * 0.05 },
+    { x: x + w * 0.62, y: y + h + box.h * 0.05 },
+    0.5,
+  );
+}
+
+export function lightningBolt(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  // Cloud above it.
+  const cloudY = box.y + box.h * 0.26;
+  pen.arc(cx - box.w * 0.14, cloudY, box.w * 0.13, Math.PI, Math.PI * 2, 0.9);
+  pen.arc(cx + box.w * 0.1, cloudY, box.w * 0.16, Math.PI, Math.PI * 2, 0.9);
+  pen.line(
+    { x: cx - box.w * 0.27, y: cloudY },
+    { x: cx + box.w * 0.26, y: cloudY },
+    0.8,
+  );
+  // The bolt.
+  pen.setWidth(rng.range(4.5, 6));
+  pen.polyline(
+    [
+      { x: cx + box.w * 0.04, y: cloudY + box.h * 0.03 },
+      { x: cx - box.w * 0.1, y: cloudY + box.h * 0.3 },
+      { x: cx + box.w * 0.01, y: cloudY + box.h * 0.3 },
+      { x: cx - box.w * 0.08, y: box.y + box.h * 0.96 },
+      { x: cx + box.w * 0.16, y: cloudY + box.h * 0.36 },
+      { x: cx + box.w * 0.04, y: cloudY + box.h * 0.36 },
+      { x: cx + box.w * 0.16, y: cloudY + box.h * 0.03 },
+    ],
+    true,
+    0.8,
+  );
+}
+
+export function towel(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5.5));
+  const x = box.x + box.w * 0.24;
+  const w = box.w * 0.52;
+  const top = box.y + box.h * 0.24;
+  // The rail it hangs from.
+  pen.setWidth(rng.range(3.4, 4.4));
+  pen.line({ x: box.x + box.w * 0.12, y: top }, { x: box.x + box.w * 0.88, y: top }, 0.6);
+  // Cloth, with a soft fold at the bottom.
+  pen.setWidth(rng.range(4, 5.5));
+  pen.polyline(
+    [
+      { x, y: top },
+      { x, y: top + box.h * 0.5 },
+      { x: x + w * 0.5, y: top + box.h * 0.56 },
+      { x: x + w, y: top + box.h * 0.5 },
+      { x: x + w, y: top },
+    ],
+    false,
+    1.0,
+  );
+  // Stripes.
+  pen.setWidth(2.8);
+  for (const fy of [0.34, 0.4]) {
+    pen.line({ x, y: top + box.h * fy }, { x: x + w, y: top + box.h * fy }, 0.7);
+  }
+}
+
+export function razor(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const headY = box.y + box.h * 0.22;
+  // Head.
+  pen.rect(cx - box.w * 0.16, headY, box.w * 0.32, box.h * 0.12);
+  pen.setWidth(2.6);
+  for (let i = 0; i < 3; i++) {
+    const y = headY + box.h * (0.03 + i * 0.03);
+    pen.line({ x: cx - box.w * 0.13, y }, { x: cx + box.w * 0.13, y }, 0.4);
+  }
+  // Handle.
+  pen.setWidth(rng.range(4, 5.5));
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.055, y: headY + box.h * 0.12 },
+      { x: cx - box.w * 0.045, y: box.y + box.h * 0.9 },
+      { x: cx + box.w * 0.045, y: box.y + box.h * 0.9 },
+      { x: cx + box.w * 0.055, y: headY + box.h * 0.12 },
+    ],
+    true,
+    0.8,
+  );
+}
+
+export function stapler(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(5, 6.5));
+  const x = box.x + box.w * 0.14;
+  const w = box.w * 0.72;
+  const baseY = box.y + box.h * 0.66;
+  // Base, with a foot at each end.
+  pen.polyline(
+    [
+      { x, y: baseY },
+      { x: x + w, y: baseY - box.h * 0.02 },
+      { x: x + w, y: baseY + box.h * 0.08 },
+      { x, y: baseY + box.h * 0.1 },
+    ],
+    true,
+    0.8,
+  );
+  // Top arm, hinged at the left, lifted clear at the right.
+  const armL = x + w * 0.04;
+  const armR = x + w * 0.98;
+  pen.polyline(
+    [
+      { x: armL, y: baseY - box.h * 0.06 },
+      { x: armL + w * 0.06, y: baseY - box.h * 0.22 },
+      { x: armR, y: baseY - box.h * 0.28 },
+      { x: armR, y: baseY - box.h * 0.16 },
+      { x: armL + w * 0.08, y: baseY - box.h * 0.1 },
+    ],
+    true,
+    0.85,
+  );
+  // The hinge, which is what makes the two parts read as one object.
+  pen.setWidth(3.4);
+  pen.circle(armL + w * 0.03, baseY - box.h * 0.05, box.w * 0.032, 0.7);
+  // A staple about to come out.
+  pen.setWidth(2.8);
+  pen.polyline(
+    [
+      { x: x + w * 0.82, y: baseY - box.h * 0.13 },
+      { x: x + w * 0.82, y: baseY - box.h * 0.06 },
+      { x: x + w * 0.9, y: baseY - box.h * 0.06 },
+      { x: x + w * 0.9, y: baseY - box.h * 0.13 },
+    ],
+    false,
+    0.6,
+  );
+}
+export function calculator(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const w = box.w * 0.48;
+  const h = box.h * 0.62;
+  const x = box.x + (box.w - w) / 2;
+  const y = box.y + box.h * 0.2;
+  pen.rect(x, y, w, h);
+  // Screen.
+  pen.setWidth(3.2);
+  pen.rect(x + w * 0.12, y + h * 0.08, w * 0.76, h * 0.18);
+  // Button grid.
+  pen.setWidth(2.6);
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 3; c++) {
+      pen.rect(
+        x + w * (0.14 + c * 0.26),
+        y + h * (0.34 + r * 0.15),
+        w * 0.18,
+        h * 0.1,
+      );
+    }
+  }
+}
+
+export function mailbox(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const top = box.y + box.h * 0.22;
+  const w = box.w * 0.44;
+  // Domed box.
+  pen.arc(cx, top + box.h * 0.1, w * 0.5, Math.PI, Math.PI * 2, 0.85);
+  pen.polyline(
+    [
+      { x: cx - w * 0.5, y: top + box.h * 0.1 },
+      { x: cx - w * 0.5, y: top + box.h * 0.3 },
+      { x: cx + w * 0.5, y: top + box.h * 0.3 },
+      { x: cx + w * 0.5, y: top + box.h * 0.1 },
+    ],
+    false,
+    0.8,
+  );
+  // Slot and post.
+  pen.setWidth(3.2);
+  pen.line({ x: cx - w * 0.26, y: top + box.h * 0.06 }, { x: cx + w * 0.26, y: top + box.h * 0.06 }, 0.5);
+  pen.setWidth(rng.range(4, 5.5));
+  pen.line({ x: cx, y: top + box.h * 0.3 }, { x: cx, y: box.y + box.h * 0.94 }, 0.6);
+  pen.line(
+    { x: cx - box.w * 0.12, y: box.y + box.h * 0.94 },
+    { x: cx + box.w * 0.12, y: box.y + box.h * 0.94 },
+    0.6,
+  );
+  // The little flag.
+  pen.setWidth(3);
+  pen.polyline(
+    [
+      { x: cx + w * 0.5, y: top + box.h * 0.18 },
+      { x: cx + w * 0.72, y: top + box.h * 0.18 },
+      { x: cx + w * 0.72, y: top + box.h * 0.06 },
+    ],
+    false,
+    0.7,
+  );
+}
+
+export function fence(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4, 5.5));
+  const y = box.y + box.h * 0.34;
+  const h = box.h * 0.52;
+  const count = rng.int(4, 6);
+  for (let i = 0; i < count; i++) {
+    const x = box.x + box.w * (0.1 + (i / (count - 1)) * 0.8);
+    // Pointed pickets.
+    pen.polyline(
+      [
+        { x: x - box.w * 0.035, y: y + box.h * 0.06 },
+        { x, y },
+        { x: x + box.w * 0.035, y: y + box.h * 0.06 },
+        { x: x + box.w * 0.035, y: y + h },
+        { x: x - box.w * 0.035, y: y + h },
+      ],
+      true,
+      0.8,
+    );
+  }
+  // Two rails across.
+  pen.setWidth(rng.range(3.4, 4.4));
+  for (const fy of [0.26, 0.7]) {
+    pen.line(
+      { x: box.x + box.w * 0.06, y: y + h * fy },
+      { x: box.x + box.w * 0.94, y: y + h * fy },
+      0.7,
+    );
+  }
+}
+
+export function drinkCan(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const top = box.y + box.h * 0.28;
+  const bottom = box.y + box.h * 0.86;
+  const rx = box.w * 0.16;
+  pen.ellipse(cx, top, rx, box.h * 0.05, 0.7);
+  pen.line({ x: cx - rx, y: top }, { x: cx - rx, y: bottom }, 0.6);
+  pen.line({ x: cx + rx, y: top }, { x: cx + rx, y: bottom }, 0.6);
+  pen.arc(cx, bottom, rx, 0, Math.PI, 0.8);
+  // Ring pull.
+  pen.setWidth(2.6);
+  pen.ellipse(cx, top - box.h * 0.005, rx * 0.34, box.h * 0.016, 0.6);
+  // A band round the middle, so it isn't a blank cylinder.
+  pen.setWidth(3);
+  pen.line({ x: cx - rx, y: top + box.h * 0.2 }, { x: cx + rx, y: top + box.h * 0.2 }, 0.6);
+  pen.line({ x: cx - rx, y: top + box.h * 0.3 }, { x: cx + rx, y: top + box.h * 0.3 }, 0.6);
+}
+
+export function hourglass(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const top = box.y + box.h * 0.22;
+  const bottom = box.y + box.h * 0.84;
+  const w = box.w * 0.3;
+  // Frame.
+  pen.line({ x: cx - w, y: top }, { x: cx + w, y: top }, 0.6);
+  pen.line({ x: cx - w, y: bottom }, { x: cx + w, y: bottom }, 0.6);
+  // The two bulbs, meeting in the middle.
+  pen.polyline(
+    [
+      { x: cx - w * 0.82, y: top },
+      { x: cx - box.w * 0.03, y: (top + bottom) / 2 },
+      { x: cx - w * 0.82, y: bottom },
+    ],
+    false,
+    0.85,
+  );
+  pen.polyline(
+    [
+      { x: cx + w * 0.82, y: top },
+      { x: cx + box.w * 0.03, y: (top + bottom) / 2 },
+      { x: cx + w * 0.82, y: bottom },
+    ],
+    false,
+    0.85,
+  );
+  // Sand: a heap in the bottom and a trickle through the neck.
+  pen.setWidth(2.8);
+  pen.polyline(
+    [
+      { x: cx - w * 0.5, y: bottom },
+      { x: cx, y: bottom - box.h * 0.1 },
+      { x: cx + w * 0.5, y: bottom },
+    ],
+    false,
+    0.9,
+  );
+  pen.line(
+    { x: cx, y: (top + bottom) / 2 },
+    { x: cx, y: bottom - box.h * 0.12 },
+    0.5,
+  );
+}
+
+export function shoppingBasket(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const top = box.y + box.h * 0.4;
+  const h = box.h * 0.36;
+  const topW = box.w * 0.62;
+  const botW = box.w * 0.46;
+  pen.polyline(
+    [
+      { x: cx - topW / 2, y: top },
+      { x: cx + topW / 2, y: top },
+      { x: cx + botW / 2, y: top + h },
+      { x: cx - botW / 2, y: top + h },
+    ],
+    true,
+    0.85,
+  );
+  // Weave.
+  pen.setWidth(2.8);
+  for (let i = 1; i < 4; i++) {
+    const t = i / 4;
+    pen.line(
+      { x: cx - topW / 2 + (topW - botW) / 2 * t, y: top + h * t },
+      { x: cx + topW / 2 - (topW - botW) / 2 * t, y: top + h * t },
+      0.6,
+    );
+  }
+  // Handle.
+  pen.setWidth(rng.range(3.4, 4.4));
+  pen.arc(cx, top, box.w * 0.18, Math.PI, Math.PI * 2, 0.8);
+}
+
+export function microphone(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const headY = box.y + box.h * 0.3;
+  const r = box.w * 0.14;
+  pen.circle(cx, headY, r, 0.85);
+  // Grille.
+  pen.setWidth(2.4);
+  for (let i = -1; i <= 1; i++) {
+    pen.line(
+      { x: cx - r * 0.7, y: headY + i * r * 0.4 },
+      { x: cx + r * 0.7, y: headY + i * r * 0.4 },
+      0.4,
+    );
+  }
+  // Body.
+  pen.setWidth(rng.range(4, 5.5));
+  pen.polyline(
+    [
+      { x: cx - box.w * 0.05, y: headY + r * 0.9 },
+      { x: cx - box.w * 0.04, y: box.y + box.h * 0.86 },
+      { x: cx + box.w * 0.04, y: box.y + box.h * 0.86 },
+      { x: cx + box.w * 0.05, y: headY + r * 0.9 },
+    ],
+    true,
+    0.8,
+  );
+  // Cable.
+  pen.setWidth(2.8);
+  pen.coil(cx, box.y + box.h * 0.86, box.y + box.h * 0.98, box.w * 0.03, 2);
+}
+
+export function mapSheet(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const x = box.x + box.w * 0.14;
+  const w = box.w * 0.72;
+  const y = box.y + box.h * 0.28;
+  const h = box.h * 0.44;
+  // A folded sheet: the top edge zigzags where the folds are.
+  pen.polyline(
+    [
+      { x, y: y + h * 0.06 },
+      { x: x + w * 0.33, y },
+      { x: x + w * 0.66, y: y + h * 0.08 },
+      { x: x + w, y },
+      { x: x + w, y: y + h * 0.94 },
+      { x: x + w * 0.66, y: y + h },
+      { x: x + w * 0.33, y: y + h * 0.92 },
+      { x, y: y + h },
+    ],
+    true,
+    0.85,
+  );
+  // Fold creases.
+  pen.setWidth(2.6);
+  for (const fx of [0.33, 0.66]) {
+    pen.line({ x: x + w * fx, y: y + h * 0.02 }, { x: x + w * fx, y: y + h * 0.96 }, 0.6);
+  }
+  // A dashed route and an X.
+  pen.setWidth(rng.range(3, 3.8));
+  let px = x + w * 0.12;
+  let py = y + h * 0.72;
+  for (let i = 0; i < 5; i++) {
+    const nx = px + w * 0.13;
+    const ny = py - h * rng.range(0.02, 0.12);
+    pen.line({ x: px, y: py }, { x: nx, y: ny }, 0.7);
+    px = nx + w * 0.03;
+    py = ny;
+  }
+  pen.line({ x: px - w * 0.04, y: py - h * 0.06 }, { x: px + w * 0.04, y: py + h * 0.02 }, 0.6);
+  pen.line({ x: px + w * 0.04, y: py - h * 0.06 }, { x: px - w * 0.04, y: py + h * 0.02 }, 0.6);
+}
+
+export function newspaper(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const x = box.x + box.w * 0.16;
+  const w = box.w * 0.68;
+  const y = box.y + box.h * 0.24;
+  const h = box.h * 0.54;
+  pen.rect(x, y, w, h);
+  // Spine, so it reads as folded.
+  pen.setWidth(3.2);
+  pen.line({ x: x + w * 0.5, y }, { x: x + w * 0.5, y: y + h }, 0.7);
+  // Masthead.
+  pen.setWidth(rng.range(3.4, 4.4));
+  pen.rect(x + w * 0.06, y + h * 0.07, w * 0.38, h * 0.13);
+  // Columns of text.
+  pen.setWidth(2.2);
+  for (let col = 0; col < 2; col++) {
+    for (let i = 0; i < 6; i++) {
+      const ly = y + h * (0.28 + i * 0.1);
+      const lx = x + w * (0.06 + col * 0.5);
+      pen.line({ x: lx, y: ly }, { x: lx + w * rng.range(0.28, 0.38), y: ly }, 0.4);
+    }
+  }
+}
+
+export function teddy(pen: Pen, rng: Rng, box: Box): void {
+  pen.setWidth(rng.range(4.5, 6));
+  const cx = box.x + box.w * 0.5;
+  const headY = box.y + box.h * 0.3;
+  const headR = box.w * 0.16;
+  pen.circle(cx, headY, headR, 0.9);
+  // Ears.
+  for (const dir of [-1, 1]) {
+    pen.circle(cx + dir * headR * 0.85, headY - headR * 0.8, headR * 0.42, 0.85);
+  }
+  // Face.
+  pen.setWidth(3);
+  pen.circle(cx - headR * 0.34, headY - headR * 0.1, box.w * 0.018, 0.6);
+  pen.circle(cx + headR * 0.34, headY - headR * 0.1, box.w * 0.018, 0.6);
+  pen.ellipse(cx, headY + headR * 0.36, headR * 0.3, headR * 0.22, 0.8);
+  // Body and limbs.
+  pen.setWidth(rng.range(4, 5.5));
+  const bodyY = headY + headR + box.h * 0.14;
+  pen.ellipse(cx, bodyY, box.w * 0.17, box.h * 0.16, 0.9);
+  for (const dir of [-1, 1]) {
+    pen.ellipse(cx + dir * box.w * 0.2, bodyY - box.h * 0.02, box.w * 0.06, box.h * 0.05, 0.85);
+    pen.ellipse(cx + dir * box.w * 0.09, bodyY + box.h * 0.17, box.w * 0.06, box.h * 0.05, 0.85);
+  }
+}

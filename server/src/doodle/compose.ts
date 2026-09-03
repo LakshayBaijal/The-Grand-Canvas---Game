@@ -286,6 +286,117 @@ const WORD_SHAPES: Record<string, PartFn> = {
   mirror: parts.mirror, reflection: parts.mirror, makeup: parts.mirror,
   trafficlight: parts.trafficLight, junction: parts.trafficLight,
   crossing: parts.trafficLight, roundabout: parts.trafficLight,
+
+  // --- second wave --------------------------------------------------------
+  // Chosen by measurement rather than taste: a list of answers people
+  // plausibly type was matched against this map, and these were the misses.
+  // Bathroom, public transport, pests and DIY had no coverage at all.
+
+  // bathroom
+  shower: parts.shower, showers: parts.shower, showering: parts.shower,
+  bath: parts.shower, bathroom: parts.shower, plughole: parts.shower,
+  toilet: parts.toilet, loo: parts.toilet, flush: parts.toilet,
+  toiletpaper: parts.toiletRoll, looroll: parts.toiletRoll, tp: parts.toiletRoll,
+  sponge: parts.sponge, scrubbing: parts.sponge, washingup: parts.sponge,
+  soap: parts.sponge, suds: parts.sponge, lather: parts.sponge,
+  towel: parts.towel, towels: parts.towel, bathmat: parts.towel,
+  razor: parts.razor, shaving: parts.razor, stubble: parts.razor,
+  shave: parts.razor,
+
+  // pests
+  bug: parts.bug, bugs: parts.bug, insect: parts.bug, insects: parts.bug,
+  spider: parts.bug, spiders: parts.bug, fly: parts.bug, flies: parts.bug,
+  mosquito: parts.bug, mosquitoes: parts.bug, wasp: parts.bug, wasps: parts.bug,
+  ants: parts.bug, ant: parts.bug, cockroach: parts.bug, beetle: parts.bug,
+  moth: parts.bug, bites: parts.bug, buzzing: parts.bug,
+
+  // getting around, other than by car
+  train: parts.train, trains: parts.train, tube: parts.train, subway: parts.train,
+  metro: parts.train, platform: parts.train, railway: parts.train,
+  underground: parts.train, carriage: parts.train,
+  plane: parts.plane, planes: parts.plane, flight: parts.plane,
+  flights: parts.plane, airplane: parts.plane, aeroplane: parts.plane,
+  flying: parts.plane, boarding: parts.plane, delays: parts.plane,
+
+  // power and heat
+  plug: parts.plugSocket, socket: parts.plugSocket, sockets: parts.plugSocket,
+  adapter: parts.plugSocket, extension: parts.plugSocket, unplugged: parts.plugSocket,
+  radiator: parts.radiator, radiators: parts.radiator, heater: parts.radiator,
+  candle: parts.candle, candlelight: parts.candle, powercut: parts.candle,
+  blackout: parts.candle,
+
+  // kitchen and chores
+  oven: parts.oven, baking: parts.oven, roast: parts.oven, grill: parts.oven,
+  iron: parts.iron, ironing: parts.iron, creases: parts.iron, wrinkles: parts.iron,
+  can: parts.drinkCan, cans: parts.drinkCan, soda: parts.drinkCan,
+  fizzy: parts.drinkCan, beer: parts.drinkCan,
+  basket: parts.shoppingBasket, baskets: parts.shoppingBasket,
+
+  // celebrations
+  balloon: parts.balloon, balloons: parts.balloon,
+  gift: parts.gift, gifts: parts.gift, present: parts.gift, presents: parts.gift,
+
+  // pets and outdoors
+  fish: parts.fish, goldfish: parts.fish, aquarium: parts.fish,
+  fishtank: parts.fish, pond: parts.fish,
+  fence: parts.fence, fences: parts.fence, gate: parts.fence,
+  neighbours: parts.fence, neighbour: parts.fence, neighbors: parts.fence,
+  lightning: parts.lightningBolt, thunder: parts.lightningBolt,
+  storm: parts.lightningBolt, storms: parts.lightningBolt,
+  thunderstorm: parts.lightningBolt,
+
+  // diy
+  screwdriver: parts.screwdriver, screw: parts.screwdriver,
+  screws: parts.screwdriver, flatpacked: parts.screwdriver,
+  drill: parts.drill, drilling: parts.drill, dust: parts.drill,
+
+  // desk and admin
+  stapler: parts.stapler, stapling: parts.stapler, staples: parts.stapler,
+  calculator: parts.calculator, maths: parts.calculator, sums: parts.calculator,
+  accounting: parts.calculator, invoices: parts.calculator,
+  mailbox: parts.mailbox, postbox: parts.mailbox, postman: parts.mailbox,
+  map: parts.mapSheet, maps: parts.mapSheet, roadmap: parts.mapSheet,
+  navigation: parts.mapSheet, lost: parts.mapSheet,
+  newspaper: parts.newspaper, newspapers: parts.newspaper,
+  magazine: parts.newspaper, headlines: parts.newspaper, news: parts.newspaper,
+
+  // waiting, noise, kids
+  hourglass: parts.hourglass, sand: parts.hourglass, delay: parts.hourglass,
+  microphone: parts.microphone, karaoke: parts.microphone, mic: parts.microphone,
+  singing: parts.microphone, podcast: parts.microphone,
+  teddy: parts.teddy, teddybear: parts.teddy, toy: parts.teddy,
+  toys: parts.teddy, bear: parts.teddy, cuddly: parts.teddy,
+
+  // --- synonyms for shapes that already existed ----------------------------
+  // These were misses too, but the drawing was already there; only the word
+  // was missing.
+  tv: parts.television, monitor: parts.television,
+  screen: parts.television,
+  envelope: parts.envelope, stamp: parts.envelope, postage: parts.envelope,
+  coins: coinShape, change: coinShape, coin: coinShape, wages: coinShape,
+  salary: coinShape, fare: coinShape,
+  table: parts.chair, tables: parts.chair, stool: parts.chair,
+  keyboard: parts.laptop, typing: parts.laptop, workfromhome: parts.laptop,
+  purse: parts.keys, handbag: parts.shoppingBag,
+  blanket: parts.bed, duvets: parts.bed, sheets: parts.bed,
+  curtain: parts.windowFrame,
+  milk: parts.bottle, carton: parts.bottle, fizz: parts.bottle,
+  egg: parts.foodStack, eggs: parts.foodStack, cereal: parts.foodStack,
+  noodles: parts.foodStack, rice: parts.foodStack, soup: parts.foodStack,
+  salad: parts.foodStack, fries: parts.foodStack, chips: parts.foodStack,
+  torch: parts.lamp, flashlight: parts.lamp,
+  ticket: parts.receipt, tickets: parts.receipt, passport: parts.receipt,
+  bandage: parts.pill, plaster: parts.pill, injury: parts.pill,
+  mask: parts.helmet,
+  rope: parts.cables, string: parts.cables, chain: parts.cables,
+  tape: parts.cables, glue: parts.cables, wire: parts.cables,
+  scooter: parts.bicycle, motorbike: parts.bicycle, skateboard: parts.bicycle,
+  moped: parts.bicycle,
+  boat: parts.pontoon, ferry: parts.pontoon, ship: parts.pontoon,
+  lawn: parts.plant, lawnmower: parts.plant, hedge: parts.plant,
+  weeding: parts.plant, cactus: parts.plant,
+  piano: parts.guitar, drums: parts.guitar, violin: parts.guitar,
+  radio: parts.speaker, podcasts: parts.speaker,
 };
 
 /** Crude stemmer: enough to make "cables"/"cable" and "running"/"run" land on

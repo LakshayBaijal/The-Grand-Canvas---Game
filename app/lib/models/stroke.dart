@@ -10,7 +10,15 @@ class Point {
   final double x;
   final double y;
 
-  Map<String, dynamic> toJson() => {'x': x, 'y': y};
+  /// Rounded on the way out. Points are 0..1 fractions of the canvas, so four
+  /// decimal places is a tenth of a pixel on a 1000px canvas — invisible, and
+  /// it roughly halves the size of a drawing on the wire. A finished drawing
+  /// is several hundred points and gets sent to everyone in the game, so this
+  /// is the single biggest payload in the protocol.
+  Map<String, dynamic> toJson() => {
+        'x': double.parse(x.toStringAsFixed(4)),
+        'y': double.parse(y.toStringAsFixed(4)),
+      };
 
   factory Point.fromJson(Map<String, dynamic> json) =>
       Point((json['x'] as num).toDouble(), (json['y'] as num).toDouble());
