@@ -196,19 +196,34 @@ async function main() {
     updated.profile.trophies === startingTrophies + ranked.trophies["e2e-device-aaa"],
     "trophies are banked to the profile",
   );
-  check(updated.profile.rank !== null, "the player now has a global rank");
+  // A rank only exists once placement games are done (PLACEMENT_GAMES on the
+  // server), so what has to hold is the relationship, whatever this device's
+  // history on the server happens to be: no rank while placing, a rank after.
+  check(updated.profile.seasonGames >= 1, "the game counted towards this season");
+  check(
+    (updated.profile.rank === null) === (updated.profile.placementsLeft > 0),
+    `a rank appears exactly when placement ends (rank ${updated.profile.rank}, ` +
+      `${updated.profile.placementsLeft} placements left)`,
+  );
 
   console.log("\n== leaderboard ==");
   alpha.send({ type: "get_leaderboard" });
   const board = await alpha.wait((m) => m.type === "leaderboard");
-  check(board.entries.length >= 2, `the leaderboard has entries (${board.entries.length})`);
-  check(board.entries[0].rank === 1, "ranks start at 1");
+  check(board.you?.id === "e2e-device-aaa", "your own profile comes back with it");
+  // Only placed players are listed, so whether we are on it depends on how
+  // many games this device has played on this server — but it must agree
+  // with what the profile says.
+  const listed = board.entries.some((e) => e.id === "e2e-device-aaa");
   check(
-    board.entries.every((e, i) => i === 0 || board.entries[i - 1].trophies >= e.trophies),
-    "entries are sorted by trophies",
+    listed === (board.you.placementsLeft === 0),
+    `on the board exactly when placed (listed ${listed}, ${board.you.placementsLeft} placements left)`,
+  );
+  check(board.entries.every((e, i) => e.rank === i + 1), "ranks run 1, 2, 3… with no gaps");
+  check(
+    board.entries.every((e, i) => i === 0 || board.entries[i - 1].rating >= e.rating),
+    "entries are sorted by rating",
   );
   check(!board.entries.some((e) => e.id.startsWith("bot-")), "bots never appear on it");
-  check(board.you?.id === "e2e-device-aaa", "your own profile comes back with it");
   const trophiesBeforeFriendly = board.you.trophies;
 
   alpha.send({ type: "leave_lobby" });

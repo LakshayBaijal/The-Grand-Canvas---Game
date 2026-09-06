@@ -13,6 +13,8 @@ import {
   randomBotName,
 } from "./bots.js";
 import { pickDemoPrompt } from "./prompts.js";
+import { dailyFor, dayOf, promptForDay } from "./daily.js";
+import { asInt, cleanText, RateLimit, sanitizeStrokes } from "./validate.js";
 import * as store from "./store.js";
 import * as queue from "./matchmaking.js";
 import {
@@ -67,13 +69,99 @@ import {
   voteCount,
   type Lobby,
   type Member,
+  stalledLobbies,
 } from "./rooms.js";
 
 const PORT = Number(process.env.PORT ?? 8090);
 const DB_PATH = process.env.DB_PATH ?? "data/leaderboard.db";
 
 store.openStore(DB_PATH);
-const wss = new WebSocketServer({ port: PORT });
+
+/** Trim the drawing archive on the way up, then daily. Doing it on a timer
+ *  rather than after each game keeps the delete off the path a player is
+ *  waiting on, and this server is expected to stay up for weeks at a time. */
+function prune(): void {
+  const { byAge, byCount } = store.pruneDrawings();
+  if (byAge + byCount > 0) {
+    console.log(`[archive] pruned ${byAge} expired, ${byCount} over cap (${store.countDrawings()} kept)`);
+  }
+  const daily = store.pruneDaily();
+  if (daily > 0) console.log(`[daily] pruned ${daily} entries from old galleries`);
+}
+prune();
+setInterval(prune, 24 * 60 * 60 * 1000).unref();
+
+/**
+ * The stuck-game watchdog.
+ *
+ * Every timed phase ends by a timer. If that timer is ever lost — whatever
+ * the cause — the players are left on a screen that never changes. Rather
+ * than bet on never having that bug, this sweeps for any game sitting well
+ * past its deadline, says so loudly, and moves it on using the same finisher
+ * the timer would have called. The old timer is cleared first so a late one
+ * can't fire on top and advance the game twice.
+ */
+const STALL_GRACE_MS = 30_000;
+
+/** Longer than any phase could legitimately run. A game this far past its
+ *  deadline was not slow — the process was frozen (host asleep, container
+ *  paused) and the clock jumped when it woke. Worth saying, because it means
+ *  the timers are fine and the machine is the thing to look at. */
+const CLOCK_JUMP_MS = 10 * 60 * 1000;
+
+function unstickGames(): void {
+  for (const lobby of stalledLobbies(Date.now(), STALL_GRACE_MS)) {
+    const lateMs = Date.now() - lobby.deadlineMs;
+    const late = Math.round(lateMs / 1000);
+    const why = lateMs > CLOCK_JUMP_MS ? " (the clock jumped — was the machine asleep?)" : "";
+    console.error(`[stall] ${lobby.code} stuck in ${lobby.phase} ${late}s past its deadline${why} — moving it on`);
+    clearLobbyTimer(lobby);
+    try {
+      switch (lobby.phase) {
+        case "prompt_writing": finishPromptWriting(lobby); break;
+        case "drawing": finishDrawingRound(lobby); break;
+        case "voting": finishVoting(lobby); break;
+        case "reveal": nextRound(lobby); break;
+      }
+    } catch (err) {
+      console.error(`[stall] ${lobby.code} could not be moved on:`, err);
+    }
+  }
+}
+setInterval(unstickGames, 15_000).unref();
+
+// A drawing is well under 100KB; ws's default ceiling is 100MB per frame,
+// which is a hundred megabytes any one phone could make this process hold.
+const MAX_MESSAGE_BYTES = 1024 * 1024;
+const wss = new WebSocketServer({ port: PORT, maxPayload: MAX_MESSAGE_BYTES });
+
+// Lobbies live in this process, so this process going down is every game in
+// progress going down. A bug in one handler must not be allowed to do that:
+// log it, keep serving. Both of these are the last line, not the first — every
+// message handler below is also wrapped individually.
+process.on("uncaughtException", (err) => {
+  console.error("[fatal-averted] uncaught exception:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[fatal-averted] unhandled rejection:", reason);
+});
+
+/** Gallery page size. A human drawing is a few KB, so this is a few hundred
+ *  KB a page — fine on a phone, and the client asks for more as you scroll. */
+const DAILY_PAGE = 20;
+
+function sendDailyInfo(ws: WebSocket, playerId: string): void {
+  const { day, prompt, endsAtMs } = dailyFor();
+  send(ws, {
+    type: "daily_info",
+    day,
+    prompt,
+    endsAtMs,
+    submitted: store.hasSubmittedDaily(day, playerId),
+    submissions: store.countDaily(day),
+    mine: store.myDailyEntry(day, playerId),
+  });
+}
 
 function send(ws: WebSocket, message: ServerMessage) {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
@@ -300,6 +388,9 @@ function finishVoting(lobby: Lobby) {
 }
 
 function nextRound(lobby: Lobby) {
+  // Logged so a game that stops here leaves a trace of whether its reveal
+  // timer ever fired — the one question a stalled-game report can't answer.
+  console.log(`[phase] ${lobby.code} reveal over (round ${lobby.roundIndex + 1}/${totalRounds(lobby)})`);
   if (advanceRound(lobby)) {
     startWriterTurn(lobby);
   } else {
@@ -423,24 +514,60 @@ queue.startMatchmaker({
 
 wss.on("connection", (ws) => {
   const connectionId = randomUUID();
+  const limit = new RateLimit();
   console.log(`[connect] ${connectionId}`);
   send(ws, { type: "welcome", connectionId });
 
+  // ws reports a frame over `maxPayload` (and any transport fault) as an
+  // 'error' event, then closes the socket. Without a listener that event is
+  // rethrown as an uncaught exception — so this is what turns "one phone sent
+  // a 5MB frame" into a log line about that one phone instead of a process
+  // event. The 'close' handler below does the actual cleanup.
+  ws.on("error", (err) => {
+    console.warn(`[socket] ${connectionId}: ${err.message}`);
+  });
+
   ws.on("message", (raw) => {
+    if (!limit.allow()) {
+      // Nothing in the game sends dozens of messages a second. A client that
+      // does is broken or hostile; after enough of it, stop paying for it.
+      if (limit.dropped > 500) ws.close(1008, "Too many messages");
+      return;
+    }
+
     let message: ClientMessage;
     try {
       message = JSON.parse(raw.toString());
     } catch {
       return;
     }
+    if (typeof message !== "object" || message === null || typeof message.type !== "string") return;
 
+    try {
+      handle(ws, message);
+    } catch (err) {
+      // One malformed message from one phone must never take the process —
+      // and every game in it — down with it.
+      console.error(`[handler] ${connectionId} ${message.type}:`, err);
+      sendError(ws, "That didn't work — try again");
+    }
+  });
+
+  function handle(ws: WebSocket, message: ClientMessage): void {
     // Two messages work without an identity: the handshake itself, and the
     // idle-canvas doodle the home screen shows before anyone signs in.
     if (message.type === "hello") {
-      const nickname = message.nickname.trim().slice(0, 16);
-      const playerId = message.playerId.trim().slice(0, 64);
+      const nickname = cleanText(message.nickname, 16);
+      const playerId = cleanText(message.playerId, 64);
       if (!playerId) return sendError(ws, "Missing player id");
       if (!nickname) return sendError(ws, "Enter a nickname first");
+      // A socket is one person. Re-sending hello with the same id is harmless
+      // (the app does it on reconnect); switching ids mid-connection is not a
+      // thing a real client does, and it is how a script would farm profiles.
+      const existing = identities.get(ws);
+      if (existing && existing.playerId !== playerId) {
+        return sendError(ws, "Reconnect to sign in as someone else");
+      }
       identities.set(ws, { playerId, nickname });
       store.upsertPlayer(playerId, nickname);
       sendAccount(ws, playerId);
@@ -476,7 +603,7 @@ wss.on("connection", (ws) => {
 
     switch (message.type) {
       case "set_nickname": {
-        const nickname = message.nickname.trim().slice(0, 16);
+        const nickname = cleanText(message.nickname, 16);
         if (!nickname) return sendError(ws, "Enter a nickname first");
         identity.nickname = nickname;
         store.upsertPlayer(playerId, nickname);
@@ -488,6 +615,57 @@ wss.on("connection", (ws) => {
           broadcastLobbyState(lobby);
         }
         sendProfile(ws, playerId);
+        break;
+      }
+
+      case "daily_info": {
+        sendDailyInfo(ws, playerId);
+        break;
+      }
+
+      case "daily_submit": {
+        const { day, prompt } = dailyFor();
+        const title = cleanText(message.title, 40);
+        const strokes = sanitizeStrokes(message.strokes);
+        if (strokes.length === 0) return sendError(ws, "Draw something first");
+        if (!title) return sendError(ws, "Give it a title");
+        const paper = cleanText(message.paper, 16) || undefined;
+        store.submitDaily({
+          day,
+          playerId,
+          nickname: identity.nickname,
+          title,
+          paper,
+          strokes,
+        });
+        // The daily is a labelled drawing like any other, so it goes in
+        // the long-term archive too. No blank was filled in, hence the
+        // empty answer; nobody judged it, hence raised 0.
+        try {
+          store.archiveDrawings([{ playerId, prompt, answer: "", title, paper, raised: 0, strokes }]);
+        } catch (err) {
+          console.error("could not archive a daily drawing:", err);
+        }
+        console.log(`[daily] ${identity.nickname} drew day ${day}`);
+        sendDailyInfo(ws, playerId);
+        break;
+      }
+
+      case "daily_gallery": {
+        const day = asInt(message.day) ?? dayOf(Date.now());
+        if (day > dayOf(Date.now())) return sendError(ws, "That day hasn't happened yet");
+        if (!store.hasSubmittedDaily(day, playerId)) {
+          return sendError(ws, "Draw the prompt first, then you can see everyone else's");
+        }
+        const beforeId = asInt(message.beforeId);
+        const page = store.dailyGallery(day, beforeId, DAILY_PAGE);
+        send(ws, {
+          type: "daily_gallery",
+          day,
+          prompt: promptForDay(day),
+          entries: page.entries,
+          hasMore: page.hasMore,
+        });
         break;
       }
 
@@ -547,7 +725,7 @@ wss.on("connection", (ws) => {
         queue.dequeue(playerId);
         try {
           const member: Member = { playerId, ws, nickname: identity.nickname };
-          const lobby = joinLobby(message.code, member);
+          const lobby = joinLobby(cleanText(message.code, 8), member);
           browsers.delete(ws);
           console.log(`[join_lobby] ${identity.nickname} -> ${lobby.code}`);
           broadcastLobbyState(lobby);
@@ -662,7 +840,9 @@ wss.on("connection", (ws) => {
         const lobby = getLobbyByPlayer(playerId);
         if (!lobby || lobby.phase !== "prompt_writing") return;
         if (playerId !== currentWriterId(lobby)) return;
-        recordPrompt(lobby, message.text);
+        const text = cleanText(message.text, 60);
+        if (!text) return sendError(ws, "Fill in the blank first");
+        recordPrompt(lobby, text);
         finishPromptWriting(lobby); // no need to make everyone wait out the clock
         break;
       }
@@ -670,7 +850,16 @@ wss.on("connection", (ws) => {
       case "submit_drawing": {
         const lobby = getLobbyByPlayer(playerId);
         if (!lobby || lobby.phase !== "drawing") return;
-        recordDrawing(lobby, playerId, message.title, message.strokes, message.paper);
+        // Cleaned here, once, before it is stored, scored, archived and sent
+        // to four other phones. A blank submission is still a submission —
+        // the round has to be able to move on past someone who drew nothing.
+        recordDrawing(
+          lobby,
+          playerId,
+          cleanText(message.title, 40),
+          sanitizeStrokes(message.strokes),
+          cleanText(message.paper, 16) || undefined,
+        );
         broadcastWaiting(lobby, lobby.roundDrawings.size, lobby.players.size);
         if (everyoneDrew(lobby)) finishDrawingRound(lobby);
         break;
@@ -679,6 +868,7 @@ wss.on("connection", (ws) => {
       case "submit_investment": {
         const lobby = getLobbyByPlayer(playerId);
         if (!lobby || lobby.phase !== "voting" || scoringFor(lobby) !== "money") return;
+        if (typeof message.allocations !== "object" || message.allocations === null) return;
         recordInvestment(lobby, playerId, message.allocations);
         broadcastWaiting(lobby, voteCount(lobby), lobby.players.size);
         if (everyoneVoted(lobby)) finishVoting(lobby);
@@ -688,7 +878,8 @@ wss.on("connection", (ws) => {
       case "submit_ranking": {
         const lobby = getLobbyByPlayer(playerId);
         if (!lobby || lobby.phase !== "voting" || scoringFor(lobby) !== "points") return;
-        recordRanking(lobby, playerId, message.order);
+        if (!Array.isArray(message.order)) return;
+        recordRanking(lobby, playerId, message.order.filter((id) => typeof id === "string"));
         broadcastWaiting(lobby, voteCount(lobby), lobby.players.size);
         if (everyoneVoted(lobby)) finishVoting(lobby);
         break;
@@ -719,7 +910,7 @@ wss.on("connection", (ws) => {
         break;
       }
     }
-  });
+  }
 
   ws.on("close", () => {
     console.log(`[disconnect] ${connectionId}`);

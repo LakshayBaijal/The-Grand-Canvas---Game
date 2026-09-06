@@ -483,7 +483,12 @@ export function recordInvestment(
   for (const [artistId, amountRaw] of Object.entries(allocations)) {
     if (artistId === investorId) continue;
     if (!lobby.roundDrawings.has(artistId)) continue;
-    const amount = Math.max(0, Math.floor(amountRaw));
+    // Anything that isn't a finite number is zero, not NaN: a NaN here
+    // survived every comparison below and poisoned the round's totals.
+    if (typeof amountRaw !== "number" || !Number.isFinite(amountRaw)) continue;
+    // Rounded down to the step the +/- buttons move by, so the ledger only
+    // ever holds amounts the real controls can produce.
+    const amount = Math.max(0, Math.floor(amountRaw / INVESTMENT_STEP) * INVESTMENT_STEP);
     if (amount === 0) continue;
     if (total + amount > INVESTMENT_BUDGET) continue;
     total += amount;
@@ -710,6 +715,26 @@ export function scoreRows(lobby: Lobby): ScoreRow[] {
 export function advanceRound(lobby: Lobby): boolean {
   lobby.roundIndex += 1;
   return lobby.roundIndex < lobby.writerOrder.length;
+}
+
+/**
+ * Games whose phase should have ended a while ago and didn't.
+ *
+ * Every timed phase moves on by a timer; if that timer is lost for any reason
+ * the players sit on a screen that never changes, with no way out but
+ * quitting. This finds those games so the caller can move them on. It is a
+ * net under the trapeze, not a replacement for the timer: [graceMs] is well
+ * past the timer's own 1.5s buzzer grace, so a game only shows up here when
+ * something has genuinely gone wrong.
+ */
+export function stalledLobbies(nowMs: number, graceMs: number): Lobby[] {
+  const out: Lobby[] = [];
+  for (const lobby of lobbies.values()) {
+    if (lobby.phase === "lobby" || lobby.phase === "results") continue;
+    if (lobby.deadlineMs <= 0) continue;
+    if (nowMs - lobby.deadlineMs > graceMs) out.push(lobby);
+  }
+  return out;
 }
 
 /** Returns the lobby to a fresh pre-game state, keeping the players and code. */
