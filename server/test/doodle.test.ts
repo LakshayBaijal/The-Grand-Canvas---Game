@@ -43,11 +43,18 @@ test("a drawing stays under the size it takes to feel instant on a phone", () =>
     const bytes = Buffer.byteLength(JSON.stringify(botDrawing(prompt, "", prompt)));
     worst = Math.max(worst, bytes);
   }
-  // Measured around 11KB after rounding, from ~20KB before. The ceiling is
-  // deliberately loose: it is here to catch a regression back to full-precision
-  // floats or a runaway stroke count, not to police normal variation.
+  // Re-baselined when shading, floor shadows and backdrops went in: drawings
+  // deliberately carry about twice the marks they used to (21 strokes was a
+  // bare silhouette on blank paper), so the bytes went up with them — worst
+  // measured ~29KB, average ~19KB.
+  //
+  // That is a real cost and it was taken on purpose. The ceiling is still here
+  // to catch a regression back to full-precision floats or a runaway stroke
+  // count, not to police normal variation. If this needs winning back, the
+  // stroke count is the lever: the coordinates are already rounded as far as
+  // they can usefully go.
   assert.ok(
-    worst < 24 * 1024,
+    worst < 36 * 1024,
     `largest drawing was ${(worst / 1024).toFixed(1)}KB — a round broadcasts five of these to every player`,
   );
 });

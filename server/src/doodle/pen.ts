@@ -99,7 +99,11 @@ export class Pen {
     if (points.length < 2) return;
     this.strokes.push({
       color: this.color,
-      width: this.width,
+      // Same argument as the coordinates: every width here comes out of a
+      // random range multiplied by a random scale, so it serialises as a full
+      // double — twenty-odd characters, once per stroke, for differences far
+      // below one screen pixel.
+      width: Math.round(this.width * 100) / 100,
       points: points.map((p) => this.clamp(p)),
     });
   }

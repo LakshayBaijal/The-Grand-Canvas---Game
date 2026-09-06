@@ -3750,3 +3750,248 @@ export function teddy(pen: Pen, rng: Rng, box: Box): void {
     pen.ellipse(cx + dir * box.w * 0.09, bodyY + box.h * 0.17, box.w * 0.06, box.h * 0.05, 0.85);
   }
 }
+
+// --- shading ---------------------------------------------------------------
+// Everything above draws outlines. Outlines alone are what made a page of these
+// read as clip art: no weight, no light, nothing to look at twice. The marks
+// below are the ones a person adds after the shape is right, and they are what
+// separates a sketch from a diagram.
+//
+// They are all cheap on the wire by construction. The pen emits points in
+// proportion to stroke length, so a 0.06-long hatch line costs five points
+// where a silhouette costs forty.
+
+/** Clips the infinite line through (px, py) in direction (dx, dy) to [box].
+ *
+ *  Hatching without clipping is just lines across the paper. Clipping is what
+ *  makes them read as shading *on* something. */
+function clipToBox(
+  box: Box,
+  px: number,
+  py: number,
+  dx: number,
+  dy: number,
+): [XY, XY] | null {
+  let t0 = -Infinity;
+  let t1 = Infinity;
+  const slabs: [number, number, number, number][] = [
+    [px, dx, box.x, box.x + box.w],
+    [py, dy, box.y, box.y + box.h],
+  ];
+  for (const [p, d, lo, hi] of slabs) {
+    if (Math.abs(d) < 1e-9) {
+      if (p < lo || p > hi) return null;
+      continue;
+    }
+    const a = (lo - p) / d;
+    const b = (hi - p) / d;
+    t0 = Math.max(t0, Math.min(a, b));
+    t1 = Math.min(t1, Math.max(a, b));
+  }
+  if (t1 <= t0) return null;
+  return [
+    { x: px + dx * t0, y: py + dy * t0 },
+    { x: px + dx * t1, y: py + dy * t1 },
+  ];
+}
+
+/** Parallel pencil strokes filling [box], at [angle] radians.
+ *
+ *  Each line stops short of the clipped ends by a random amount, because
+ *  hatching that meets the edge exactly reads as a filled polygon. The ragged
+ *  ends are the tell that a hand did it. */
+export function hatchFill(
+  pen: Pen,
+  rng: Rng,
+  box: Box,
+  opts: { angle?: number; spacing?: number; width?: number } = {},
+): void {
+  const angle = opts.angle ?? -Math.PI / 3;
+  const spacing = opts.spacing ?? rng.range(0.019, 0.028);
+  pen.setWidth(opts.width ?? rng.range(1.5, 2.3));
+
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const nx = -dy;
+  const ny = dx;
+  const cx = box.x + box.w * 0.5;
+  const cy = box.y + box.h * 0.5;
+  const reach = Math.ceil((box.w + box.h) / spacing);
+
+  for (let k = -reach; k <= reach; k++) {
+    const off = k * spacing + rng.range(-spacing * 0.16, spacing * 0.16);
+    const seg = clipToBox(box, cx + nx * off, cy + ny * off, dx, dy);
+    if (!seg) continue;
+    const [a, b] = seg;
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 0.012) continue;
+    const t0 = rng.range(0, 0.14);
+    const t1 = 1 - rng.range(0, 0.14);
+    pen.line(
+      { x: a.x + (b.x - a.x) * t0, y: a.y + (b.y - a.y) * t0 },
+      { x: a.x + (b.x - a.x) * t1, y: a.y + (b.y - a.y) * t1 },
+      0.5,
+    );
+  }
+}
+
+/** Shades one side of [box], the side away from the light, leaving the rest of
+ *  the form bare. Shading a shape evenly just greys it out; shading a band down
+ *  one edge is what makes it look round, or lit. */
+export function shadeSide(pen: Pen, rng: Rng, box: Box, lightFromLeft: boolean): void {
+  // Deliberately narrow and airy. A band across a third of the shape at tight
+  // spacing doesn't read as shading, it reads as the object being scribbled
+  // out — which is exactly what a wider first version of this looked like on
+  // anything round, because the band crossed the middle of the form.
+  const angle = rng.range(-1.25, -0.95);
+  const spacing = rng.range(0.026, 0.036);
+
+  const bandW = box.w * rng.range(0.14, 0.22);
+  hatchFill(
+    pen,
+    rng,
+    {
+      x: lightFromLeft ? box.x + box.w - bandW : box.x,
+      y: box.y + box.h * rng.range(0.28, 0.42),
+      w: bandW,
+      h: box.h * rng.range(0.5, 0.66),
+    },
+    { angle, spacing },
+  );
+
+  // A second band along the underside. Light falls from above in every drawing
+  // anybody has ever made, so this is the half that always works.
+  if (rng.chance(0.65)) {
+    const bandH = box.h * rng.range(0.14, 0.22);
+    hatchFill(
+      pen,
+      rng,
+      {
+        x: box.x + box.w * rng.range(0.12, 0.24),
+        y: box.y + box.h - bandH,
+        w: box.w * rng.range(0.52, 0.7),
+        h: bandH,
+      },
+      { angle, spacing },
+    );
+  }
+}
+
+/** The pool of dark under an object. Nothing else here does as much to stop a
+ *  drawing floating in the middle of the page. */
+export function groundShadow(pen: Pen, rng: Rng, box: Box): void {
+  const top = box.y + box.h + rng.range(0.004, 0.016);
+  const halfW = box.w * rng.range(0.42, 0.56);
+  const cx = box.x + box.w * 0.5 + rng.range(-0.02, 0.02);
+  pen.setWidth(rng.range(1.8, 2.6));
+  const rows = rng.int(3, 5);
+  for (let i = 0; i < rows; i++) {
+    // Narrower further back, so it sits like a pool rather than a stack.
+    const t = i / Math.max(1, rows - 1);
+    const w = halfW * (1 - t * rng.range(0.4, 0.6));
+    const y = top + i * rng.range(0.008, 0.013);
+    pen.line(
+      { x: cx - w + rng.range(-0.01, 0.01), y },
+      { x: cx + w + rng.range(-0.01, 0.01), y },
+      0.45,
+    );
+  }
+}
+
+/** Short marks radiating off a point: impact, attention, "look at this".
+ *  Comic shorthand, and it costs four points a stroke. */
+export function emphasisBurst(pen: Pen, rng: Rng, cx: number, cy: number, r: number): void {
+  pen.setWidth(rng.range(2.2, 3.2));
+  const n = rng.int(5, 8);
+  const start = rng.range(0, Math.PI * 2);
+  for (let i = 0; i < n; i++) {
+    const a = start + (i / n) * Math.PI * 2 + rng.range(-0.15, 0.15);
+    const r0 = r * rng.range(1, 1.15);
+    const r1 = r0 + r * rng.range(0.25, 0.5);
+    pen.line(
+      { x: cx + Math.cos(a) * r0, y: cy + Math.sin(a) * r0 },
+      { x: cx + Math.cos(a) * r1, y: cy + Math.sin(a) * r1 },
+      0.4,
+    );
+  }
+}
+
+// --- backdrops -------------------------------------------------------------
+// A subject on blank paper is a cut-out. These put it somewhere, using the
+// fewest marks that read as a place, and drawn light so they stay behind the
+// subject rather than competing with it.
+
+/** Floorline plus the skirting behind it: the cheapest interior there is. */
+export function roomFloor(pen: Pen, rng: Rng, y: number): void {
+  pen.setWidth(rng.range(2.4, 3.2));
+  pen.line({ x: 0.04, y }, { x: 0.96, y: y + rng.range(-0.012, 0.012) }, 0.7);
+  if (rng.chance(0.6)) {
+    pen.setWidth(rng.range(1.6, 2.2));
+    const d = rng.range(0.018, 0.03);
+    pen.line({ x: 0.04, y: y - d }, { x: 0.96, y: y - d + rng.range(-0.008, 0.008) }, 0.6);
+  }
+}
+
+/** Two walls meeting: a corner of a room. */
+export function roomCorner(pen: Pen, rng: Rng, floorY: number): void {
+  pen.setWidth(rng.range(2.2, 3));
+  const cx = rng.range(0.28, 0.72);
+  pen.line({ x: cx, y: rng.range(0.06, 0.14) }, { x: cx, y: floorY }, 0.6);
+  pen.line({ x: 0.04, y: floorY - rng.range(0.04, 0.09) }, { x: cx, y: floorY }, 0.6);
+  pen.line({ x: cx, y: floorY }, { x: 0.96, y: floorY - rng.range(0.04, 0.09) }, 0.6);
+}
+
+/** Boards running away from the viewer. Depth, for three strokes.
+ *
+ *  Kept short and few: run these to the bottom of the page and the converging
+ *  fan becomes the loudest thing in the drawing, which is the opposite of what
+ *  a backdrop is for. */
+export function floorBoards(pen: Pen, rng: Rng, y: number): void {
+  pen.setWidth(rng.range(1.3, 1.8));
+  const vpX = rng.range(0.35, 0.65);
+  const bottom = Math.min(0.95, y + rng.range(0.08, 0.14));
+  const n = rng.int(2, 3);
+  for (let i = 0; i <= n; i++) {
+    const x = 0.12 + (0.76 / n) * i;
+    pen.line({ x, y: bottom }, { x: vpX + (x - vpX) * 0.55, y }, 0.5);
+  }
+}
+
+/** A window on the back wall, with light coming through it. */
+export function backWindow(pen: Pen, rng: Rng): void {
+  const w = rng.range(0.16, 0.24);
+  const h = w * rng.range(0.9, 1.25);
+  const x = rng.chance(0.5) ? rng.range(0.06, 0.16) : rng.range(0.62, 0.76);
+  const y = rng.range(0.1, 0.2);
+  pen.setWidth(rng.range(2.2, 3));
+  pen.rect(x, y, w, h, 0.7);
+  pen.setWidth(rng.range(1.8, 2.4));
+  pen.line({ x: x + w * 0.5, y }, { x: x + w * 0.5, y: y + h }, 0.5);
+  pen.line({ x, y: y + h * 0.5 }, { x: x + w, y: y + h * 0.5 }, 0.5);
+  hatchFill(pen, rng, { x: x + w * 0.06, y: y + h * 0.06, w: w * 0.4, h: h * 0.4 }, {
+    angle: -Math.PI / 4,
+    spacing: rng.range(0.02, 0.03),
+  });
+}
+
+/** Sky: a couple of clouds and, sometimes, a sun. For anything outdoors. */
+export function skyline(pen: Pen, rng: Rng): void {
+  pen.setWidth(rng.range(2, 2.8));
+  const n = rng.int(1, 2);
+  for (let i = 0; i < n; i++) {
+    cloud(pen, rng, rng.range(0.08, 0.72), rng.range(0.07, 0.18), rng.range(0.045, 0.07));
+  }
+  if (rng.chance(0.45)) {
+    const sx = rng.range(0.76, 0.88);
+    const sy = rng.range(0.08, 0.16);
+    pen.setWidth(rng.range(2.2, 3));
+    pen.circle(sx, sy, rng.range(0.03, 0.045), 0.8);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      pen.line(
+        { x: sx + Math.cos(a) * 0.055, y: sy + Math.sin(a) * 0.055 },
+        { x: sx + Math.cos(a) * 0.08, y: sy + Math.sin(a) * 0.08 },
+        0.4,
+      );
+    }
+  }
+}

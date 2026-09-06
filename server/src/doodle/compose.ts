@@ -7,6 +7,11 @@ import type { Box } from "./parts.js";
 const INKS = ["#1A1A1A", "#1A1A1A", "#1A1A1A", "#243447", "#3A2A22"];
 const ACCENTS = ["#E53935", "#1E88E5", "#43A047", "#FB8C00", "#8E24AA", "#FDD835"];
 
+/** Shading and backdrop ink. Lighter than the outline on purpose: these marks
+ *  have to sit behind the subject, and on this paper a mid grey reads as the
+ *  side of the pencil rather than as another outline competing for attention. */
+const SHADES = ["#8C9199", "#7E8790", "#94918A"];
+
 /** Topics we can actually depict. The blank in each prompt is player-written
  *  and unpredictable, so this is best-effort: when nothing matches we still
  *  draw a contraption, which fits every prompt in this game by definition. */
@@ -479,6 +484,16 @@ function seedFrom(prompt: string, salt: string): number {
 type Ctx = {
   ink: string;
   accent: string;
+  /** Pencil grey for shading and backdrop. */
+  shade: string;
+  /** True when the subject came from an exact word match rather than a topical
+   *  guess, which is the difference between "draw a kettle" and "draw
+   *  something kitchen-ish". */
+  named: boolean;
+  /** Which way the light falls. Fixed per drawing so the shadow under the
+   *  subject and the shading on it agree with each other — they read as a
+   *  mistake the moment they disagree. */
+  lightFromLeft: boolean;
   primary: Topic | null;
   topics: Topic[];
   subjects: readonly PartFn[];
@@ -487,10 +502,46 @@ type Ctx = {
 // --- shared building blocks ------------------------------------------------
 
 /** The main mass of the drawing: the topic's own silhouette when it has one,
- *  otherwise a machine. */
+ *  otherwise a machine.
+ *
+ * The fallback rate is deliberately different for the two cases. A topical
+ * guess ("this is vaguely about cleaning") is worth overriding sometimes. An
+ * exact word match is not: when the answer says *dishes*, drawing a generic
+ * canister instead is simply the wrong picture, and at one in seven it was
+ * happening often enough to see on a single contact sheet. */
 function chassis(pen: Pen, rng: Rng, ctx: Ctx, box: Box): void {
-  if (ctx.subjects.length > 0 && rng.chance(0.85)) rng.pick(ctx.subjects)(pen, rng, box);
+  const keep = ctx.named ? 0.97 : 0.85;
+  if (ctx.subjects.length > 0 && rng.chance(keep)) rng.pick(ctx.subjects)(pen, rng, box);
   else parts.machineBody(pen, rng, box);
+}
+
+/** Everyday clutter on the floor beside the subject: the difference between an
+ *  object photographed against white and an object in a room. Placed outside
+ *  the subject's own footprint, and skipped when there is no room. */
+function sceneProps(pen: Pen, rng: Rng, ctx: Ctx, focus: Box): void {
+  // Only shapes that still read at this size. Anything with interior detail
+  // collapses into a dark smudge once it is a tenth of the page wide.
+  const PROPS: readonly PartFn[] = [
+    parts.mug, parts.crate, parts.bottle, parts.trashBin,
+    parts.bucket, parts.book, parts.plant, parts.ball,
+  ];
+  const footY = Math.min(0.9, focus.y + focus.h);
+  for (let i = 0; i < rng.int(1, 2); i++) {
+    const w = rng.range(0.11, 0.17);
+    const h = w * rng.range(0.9, 1.3);
+    // Hug whichever margin the subject left free.
+    const leftRoom = focus.x - 0.06;
+    const rightRoom = 0.94 - (focus.x + focus.w);
+    if (Math.max(leftRoom, rightRoom) < w) return;
+    const onLeft = leftRoom > rightRoom ? true : rightRoom > leftRoom ? false : rng.chance(0.5);
+    const x = onLeft ? rng.range(0.05, Math.max(0.05, leftRoom - w)) : rng.range(focus.x + focus.w + 0.02, 0.94 - w);
+    const y = footY - h + rng.range(-0.02, 0.02);
+    if (y < 0.1) return;
+    rng.pick(PROPS)(pen, rng, { x, y, w, h });
+    pen.setColor(ctx.shade);
+    parts.groundShadow(pen, rng, { x, y, w, h });
+    pen.setColor(ctx.ink);
+  }
 }
 
 /** Bolts [count] distinct fittings onto a body. Drawing from a pool this size
@@ -652,6 +703,66 @@ function accents(pen: Pen, rng: Rng, ctx: Ctx, box: Box): void {
   pen.setColor(ctx.ink);
 }
 
+// --- depth -----------------------------------------------------------------
+
+/** Topics that happen outdoors, and so want sky behind them rather than a
+ *  skirting board. */
+const OUTDOOR: ReadonlySet<Topic> = new Set<Topic>(["garden", "weather", "flight", "space", "vehicle"]);
+
+/**
+ * Puts the subject somewhere.
+ *
+ * Drawn *after* the subject, then moved to the front of the stroke list by the
+ * caller, so it can be positioned around whatever was actually drawn while
+ * still replaying behind it.
+ *
+ * Everything here is deliberately thin and grey. A backdrop that competes with
+ * the subject is worse than no backdrop at all — the point is to give the page
+ * a floor and a wall so the drawing stops reading as a cut-out.
+ */
+function backdrop(pen: Pen, rng: Rng, ctx: Ctx, focus: Box, grounded: boolean): void {
+  pen.setColor(ctx.shade);
+
+  const outdoors = ctx.primary !== null && OUTDOOR.has(ctx.primary);
+  // Below the subject, but never so low it falls off the page.
+  const floorY = Math.min(0.88, Math.max(0.6, focus.y + focus.h + rng.range(0.02, 0.07)));
+
+  // A floor line is not decoration, it is the thing that stops the subject
+  // hanging in space — so anything standing on something gets one, and only
+  // the extras are left to chance. Leaving this to a dice roll put a handful
+  // of drawings a sheet back to floating on blank paper.
+  if (grounded) parts.roomFloor(pen, rng, floorY);
+
+  if (outdoors) {
+    parts.skyline(pen, rng);
+    pen.setColor(ctx.ink);
+    return;
+  }
+
+  const choice = rng.int(0, 4);
+  if (choice === 0 && grounded) {
+    parts.floorBoards(pen, rng, floorY);
+  } else if (choice === 1) {
+    parts.roomCorner(pen, rng, floorY);
+  } else if (choice === 2 && focus.y > 0.24) {
+    // Only when the subject leaves room for it — a window drawn over the
+    // subject is the one way this makes the page worse.
+    parts.backWindow(pen, rng);
+  }
+  // The rest leave it at just the floor, which plenty of drawings want.
+
+  pen.setColor(ctx.ink);
+}
+
+/** Shading on the subject and its shadow on the floor. The single biggest
+ *  difference between these drawings and the flat outlines they used to be. */
+function depth(pen: Pen, rng: Rng, ctx: Ctx, focus: Box, grounded: boolean): void {
+  pen.setColor(ctx.shade);
+  if (rng.chance(0.8)) parts.shadeSide(pen, rng, focus, ctx.lightFromLeft);
+  if (grounded && rng.chance(0.85)) parts.groundShadow(pen, rng, focus);
+  pen.setColor(ctx.ink);
+}
+
 // --- page layouts ----------------------------------------------------------
 // The single biggest source of "these all look the same" was that every
 // drawing was one medium box in the middle of the page. Varying the whole
@@ -661,8 +772,8 @@ type Layout = (pen: Pen, rng: Rng, ctx: Ctx) => Box;
 
 /** One machine, centred. The classic. */
 const hero: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.34, 0.46);
-  const h = rng.range(0.28, 0.4);
+  const w = rng.range(0.42, 0.56);
+  const h = rng.range(0.34, 0.48);
   const box: Box = { x: 0.5 - w / 2 + rng.range(-0.05, 0.05), y: 0.42 - h / 2 + rng.range(-0.04, 0.06), w, h };
   chassis(pen, rng, ctx, box);
   details(pen, rng, box, rng.int(2, 4));
@@ -673,8 +784,8 @@ const hero: Layout = (pen, rng, ctx) => {
 
 /** Tall and narrow — a stack rather than a console. */
 const tower: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.18, 0.27);
-  const h = rng.range(0.42, 0.54);
+  const w = rng.range(0.23, 0.33);
+  const h = rng.range(0.48, 0.6);
   const box: Box = { x: 0.5 - w / 2 + rng.range(-0.1, 0.1), y: rng.range(0.14, 0.2), w, h };
   parts.machineBody(pen, rng, box);
   details(pen, rng, box, rng.int(2, 3));
@@ -686,8 +797,8 @@ const tower: Layout = (pen, rng, ctx) => {
 
 /** Wide and flat — a bench or production line. */
 const bench: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.5, 0.64);
-  const h = rng.range(0.16, 0.24);
+  const w = rng.range(0.56, 0.72);
+  const h = rng.range(0.21, 0.3);
   const box: Box = { x: 0.5 - w / 2, y: rng.range(0.38, 0.48), w, h };
   parts.machineBody(pen, rng, box);
   details(pen, rng, box, rng.int(2, 4));
@@ -699,8 +810,8 @@ const bench: Layout = (pen, rng, ctx) => {
 
 /** Give it eyes and limbs and it stops being an appliance. */
 const creature: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.28, 0.38);
-  const h = rng.range(0.26, 0.36);
+  const w = rng.range(0.34, 0.46);
+  const h = rng.range(0.32, 0.44);
   const box: Box = { x: 0.5 - w / 2 + rng.range(-0.05, 0.05), y: rng.range(0.26, 0.36), w, h };
   parts.machineBody(pen, rng, box);
   parts.eyes(pen, rng, box);
@@ -714,8 +825,8 @@ const creature: Layout = (pen, rng, ctx) => {
 
 /** A gadget you'd pick up, mid-use. */
 const handheld: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.24, 0.32);
-  const h = rng.range(0.28, 0.36);
+  const w = rng.range(0.3, 0.4);
+  const h = rng.range(0.34, 0.44);
   const box: Box = { x: rng.range(0.16, 0.26), y: rng.range(0.3, 0.4), w, h };
   parts.machineBody(pen, rng, box);
   parts.handle(pen, rng, box);
@@ -751,8 +862,8 @@ const wearable: Layout = (pen, rng, ctx) => {
 
 /** Machine on one side, the person it's for on the other. */
 const duo: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.26, 0.34);
-  const h = rng.range(0.24, 0.32);
+  const w = rng.range(0.32, 0.42);
+  const h = rng.range(0.3, 0.4);
   const box: Box = { x: rng.range(0.1, 0.16), y: rng.range(0.32, 0.42), w, h };
   chassis(pen, rng, ctx, box);
   details(pen, rng, box, rng.int(2, 3));
@@ -827,9 +938,9 @@ const hanging: Layout = (pen, rng, ctx) => {
 
 /** The everyday object itself, large, with the homework bolted onto it. */
 const showcase: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.42, 0.54);
-  const h = rng.range(0.34, 0.44);
-  const box: Box = { x: 0.5 - w / 2 + rng.range(-0.04, 0.04), y: rng.range(0.24, 0.34), w, h };
+  const w = rng.range(0.5, 0.64);
+  const h = rng.range(0.4, 0.52);
+  const box: Box = { x: 0.5 - w / 2 + rng.range(-0.04, 0.04), y: rng.range(0.18, 0.28), w, h };
   rng.pick(ctx.subjects)(pen, rng, box);
 
   // The bolted-on homework is the joke, but not every time — a clean object
@@ -868,8 +979,8 @@ const patentDiagram: Layout = (pen, rng, ctx) => {
     }
   }
 
-  const w = rng.range(0.3, 0.4);
-  const h = rng.range(0.26, 0.34);
+  const w = rng.range(0.38, 0.5);
+  const h = rng.range(0.32, 0.42);
   const box: Box = { x: 0.5 - w / 2 + rng.range(-0.06, 0.02), y: 0.44 - h / 2 + rng.range(-0.03, 0.05), w, h };
   chassis(pen, rng, ctx, box);
   details(pen, rng, box, rng.int(1, 3));
@@ -957,8 +1068,8 @@ const scaleGag: Layout = (pen, rng, ctx) => {
 
 /** Sitting on a surface, with a horizon behind it. A room rather than a void. */
 const tableTop: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.3, 0.4);
-  const h = rng.range(0.26, 0.34);
+  const w = rng.range(0.38, 0.5);
+  const h = rng.range(0.32, 0.42);
   const tableY = rng.range(0.6, 0.68);
   const box: Box = { x: 0.5 - w / 2 + rng.range(-0.08, 0.08), y: tableY - h, w, h };
   chassis(pen, rng, ctx, box);
@@ -1021,8 +1132,8 @@ const triptych: Layout = (pen, rng, ctx) => {
 
 /** The thing in the middle with the mess it deals with circling it. */
 const orbit: Layout = (pen, rng, ctx) => {
-  const w = rng.range(0.26, 0.34);
-  const h = rng.range(0.24, 0.3);
+  const w = rng.range(0.32, 0.4);
+  const h = rng.range(0.28, 0.36);
   const box: Box = { x: 0.5 - w / 2, y: 0.5 - h / 2 + rng.range(-0.04, 0.04), w, h };
   chassis(pen, rng, ctx, box);
   details(pen, rng, box, rng.int(1, 2));
@@ -1095,9 +1206,28 @@ const NAMED_LAYOUTS: readonly Layout[] = [
   hanging,
 ];
 
+/** Layouts whose focus isn't standing on anything: a panel of a comic strip,
+ *  a thing hanging off the ceiling, a hat. Dropping a floor shadow under those
+ *  puts a puddle of dark in mid-air. */
+const UNGROUNDED: ReadonlySet<Layout> = new Set<Layout>([
+  hanging,
+  wearable,
+  beforeAfter,
+  triptych,
+  orbit,
+]);
+
 /** Below this many strokes a drawing looks unfinished rather than minimal.
- *  Tuned against a contact sheet — most drawings land in the high teens. */
-const MIN_STROKES = 14;
+ *
+ * Was 14, which is what a bare silhouette costs — and with the word map now
+ * catching most answers, a bare silhouette is exactly what a lot of prompts
+ * were getting: one small object, correctly drawn, alone on a big empty page.
+ * Accurate and thin still reads as worse than the contraptions it replaced.
+ *
+ * It only counts what the layout drew, before the backdrop and shading add
+ * their own dozen or so. Pushed much past this and the top-up stops being a
+ * safety net and starts bolting dials onto things that were already finished. */
+const MIN_STROKES = 21;
 
 /** Marks added on top of whatever was drawn, sparingly. */
 function finishingMarks(pen: Pen, rng: Rng, ctx: Ctx): void {
@@ -1135,6 +1265,7 @@ export function drawForPrompt(prompt: string, answer: string, artistSalt: string
 
   const ink = rng.pick(INKS);
   const accent = rng.pick(ACCENTS);
+  const shade = rng.pick(SHADES);
   pen.setColor(ink);
 
   const { primary, all: topics } = detectTopic(rng, prompt, answer);
@@ -1147,7 +1278,16 @@ export function drawForPrompt(prompt: string, answer: string, artistSalt: string
     : primary
         ? TOPIC_SUBJECTS[primary] ?? []
         : [];
-  const ctx: Ctx = { ink, accent, primary, topics, subjects };
+  const ctx: Ctx = {
+    ink,
+    accent,
+    shade,
+    named: named !== null,
+    lightFromLeft: rng.chance(0.5),
+    primary,
+    topics,
+    subjects,
+  };
 
   // A prompt with something drawable in it should often lead with that thing
   // rather than burying it behind another machine.
@@ -1158,7 +1298,8 @@ export function drawForPrompt(prompt: string, answer: string, artistSalt: string
     : named
         ? NAMED_LAYOUTS
         : [...GENERAL_LAYOUTS, showcase, showcase, showcase, showcase];
-  const focus = rng.pick(pool)(pen, rng, ctx);
+  const layout = rng.pick(pool);
+  const focus = layout(pen, rng, ctx);
 
   // Some layouts can land thin — a bare silhouette and little else, which
   // reads as abandoned rather than simple. Keep bolting things onto the focus
@@ -1167,6 +1308,18 @@ export function drawForPrompt(prompt: string, answer: string, artistSalt: string
   for (let attempt = 0; attempt < 3 && pen.strokes.length < MIN_STROKES; attempt++) {
     details(pen, rng, focus, 2);
   }
+
+  if (!UNGROUNDED.has(layout) && rng.chance(0.5)) sceneProps(pen, rng, ctx, focus);
+
+  depth(pen, rng, ctx, focus, !UNGROUNDED.has(layout));
+
+  // The backdrop is drawn last so it can be placed around the finished
+  // drawing, then moved to the front so it replays behind it. Both matter: a
+  // backdrop that can't see the subject draws through it, and one that arrives
+  // last looks like it was scribbled over the top.
+  const backdropAt = pen.strokes.length;
+  backdrop(pen, rng, ctx, focus, !UNGROUNDED.has(layout));
+  pen.strokes.unshift(...pen.strokes.splice(backdropAt));
 
   finishingMarks(pen, rng, ctx);
   return pen.strokes;
