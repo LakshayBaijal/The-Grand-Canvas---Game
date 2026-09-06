@@ -366,6 +366,124 @@ one long scribble. A typical drawing takes 10-15 seconds.
 - If no server is reachable, the card simply doesn't appear. Nothing else on
   the screen changes.
 
+## The Daily
+
+One prompt for the whole world, changing at midnight UTC. Tap **THE DAILY** on
+the menu, draw it, give it a title, send it in — and then you get to see what
+everyone else on earth made of the same idea, newest first, as far down as you
+care to scroll.
+
+It is deliberately the opposite of a round:
+
+- **No clock.** Take an hour if you like.
+- **Nothing locked.** Every colour, every paper, every pen — for everyone,
+  whether or not they own the pack. The daily has no competition in it, so a
+  locked colour would be protecting nothing. This never touches the player's
+  purchases: the styles picked here live for that one drawing
+  (`StyleSelection` in `customize_sheet.dart`) and are never saved.
+- **Nobody votes.** Nothing is scored, ranked, or funded. The gallery is the
+  reward.
+- **The gallery is for participants.** The server only answers `daily_gallery`
+  for a day the player has submitted a drawing for. Otherwise the app never
+  even asks.
+- **One entry per player per day.** Drawing again replaces the earlier one
+  ("Have another go"), so the day is the unit, not the attempt.
+
+The prompts live in `server/src/daily.ts` — around 400 of them, written as
+complete scenes rather than templates with a blank (there is no writer), and
+shuffled once with a fixed seed so consecutive days don't come from the same
+section and every server agrees on the order. Day *N* always gets the same
+prompt; it repeats after a bit over a year.
+
+Entries are stored in the `daily_entries` table and kept for 30 days
+(`DAILY_RETENTION_DAYS`). Each one is also written into the drawing archive
+below, so the daily feeds the long-term set too.
+
+## The drawing archive
+
+Every **human** drawing from every round is kept, in `drawings` in the same
+SQLite file: the finished sentence, just the words typed into the blank, the
+title, the paper, how much it raised, and the strokes. That is a labelled pair
+— a prompt somebody wrote and the picture somebody drew for it — which is the
+shape a training set wants, and it is what a future gallery or share feature
+would be built on.
+
+Two decisions worth knowing:
+
+- **Strokes, not images.** Compressed, a drawing is ~3KB; a 1000px PNG of the
+  same thing is ~60KB, and the strokes re-render at any size, on any paper,
+  and can be replayed being drawn. Rasterise on demand if you ever need a
+  picture; don't store one.
+- **Bots never land here.** Their drawings come out of `doodle/compose.ts`,
+  so archiving them would mean training on our own output.
+
+Retention is 180 days or 250,000 rows, whichever bites first
+(`DRAWING_RETENTION_DAYS`, `DRAWING_MAX_ROWS`), pruned on startup and daily.
+`store.readDrawings(afterId, limit)` pages the archive out for export.
+
+If you use these for model training, say so in the privacy policy and in
+Play's data-safety form — not a design opinion, just a question the form asks.
+
+## Guardrails
+
+Everything a phone sends is untrusted, and one broken or hostile client must
+never be able to take the round — or the process — down for everyone else.
+None of this is content moderation; it is about *shape* and *size*, not what
+people draw or write.
+
+- **Drawings are cleaned, not trusted** (`server/src/validate.ts`). A drawing
+  is relayed to every other player and stored, so a badly-shaped one — a
+  string where a number should be, an `Infinity`, a 50MB stroke list — used
+  to throw inside every *other* client's decoder and drop *their*
+  connection. `sanitizeStrokes` keeps only strokes with a valid hex colour, a
+  finite width (clamped 0.5–60), and ≥2 finite points (clamped into the
+  canvas); caps the total at 800 strokes / 16,000 points; and passes the pen
+  style through only as a short plain word. Applied to `submit_drawing` and
+  `daily_submit`, once, before anything is stored, scored or sent.
+- **Typed text is single-line and bounded.** Nicknames, titles, the prompt
+  blank and lobby codes go through `cleanText`: control characters removed,
+  line breaks turned into spaces, whitespace collapsed, length capped. These
+  strings are laid out in one-line UI on other people's screens.
+- **Money can't be NaN.** `recordInvestment` treats anything that isn't a
+  finite number as zero (a NaN used to survive every comparison and poison
+  the round's totals) and snaps amounts down to `INVESTMENT_STEP`, so the
+  ledger only ever holds amounts the real +/- buttons can produce.
+- **Frames are capped at 1MB** (`maxPayload`). ws's default is 100MB per
+  frame, which is a hundred megabytes any one phone could make the server
+  hold. An oversized frame closes *that* socket, cleanly, via the per-socket
+  `error` handler — nobody else notices.
+- **One bad message can't crash the process.** Every message handler runs
+  inside a try/catch that logs and replies with an error to the sender;
+  `uncaughtException`/`unhandledRejection` are logged as a last line rather
+  than exiting. Lobbies live in memory, so the process going down is every
+  game going down.
+- **Rate limit per socket** — a token bucket of 30 messages/second with a
+  burst of 60. Nothing in the game needs more; a client sending hundreds is
+  ignored, and after 500 dropped messages disconnected.
+- **A socket is one person.** Re-sending `hello` with the same id is fine
+  (the app does it on reconnect); switching to a different id on a live
+  socket is refused, because that's how a script would farm profiles.
+- **The app skips a frame it can't read** rather than hanging up on the whole
+  game (`GameConnection`).
+- **A stuck game gets unstuck.** Every timed phase ends by a timer; if that
+  timer is ever lost, players sit on a screen that never changes. A watchdog
+  sweeps every 15 seconds for any game more than 30 seconds past its
+  deadline, logs `[stall]`, clears the old timer, and moves the game on with
+  the same finisher the timer would have used. `stalledLobbies` in
+  `rooms.ts` is the pure part, and `test/stall.test.ts` pins what counts as
+  stuck (not merely late, not waiting, not finished).
+
+  The one stall seen so far was the host machine going to sleep mid-game:
+  the process froze, the clock jumped 70 minutes on wake, and the watchdog
+  moved the game on before the original timer could fire twice. When the
+  lateness is longer than any phase could be (10+ minutes) the log says so
+  — `the clock jumped — was the machine asleep?` — because in that case the
+  server is fine and the machine hosting it is the thing to look at. A
+  laptop hosting a LAN party will do this if its lid closes.
+
+`test/validate.test.ts` and `test/investing.test.ts` pin the cleaning rules;
+the "used to" cases above are each one of those tests.
+
 ## Bots
 
 Empty seats can be filled so a game works with fewer people. They use ordinary
@@ -495,7 +613,8 @@ Game/
 │       ├── index.ts       connection handling + phase orchestration
 │       ├── rooms.ts        lobby state machine, both scoring modes, trophies
 │       ├── matchmaking.ts  the ranked queue + bot backfill
-│       ├── store.ts        SQLite profiles, trophies, leaderboard
+│       ├── store.ts        SQLite: profiles, leaderboard, drawing archive, daily gallery
+│       ├── daily.ts        the daily prompt bank + which day gets which
 │   └── test/e2e.mjs      full ranked + friendly run against a live server
 │       ├── prompts.ts    fill-in-the-blank templates + idle-canvas sentences
 │       ├── bots.ts       bot names, titles, investing behaviour, pacing
@@ -510,8 +629,8 @@ Game/
         ├── theme.dart            colours & component styling in one place
         ├── models/               protocol data classes
         ├── services/             WebSocket connection, device identity
-        ├── screens/              home, queue, leaderboard, and the
-        │                         phase-driven game screen
+        ├── screens/              home, queue, leaderboard, the daily, and
+        │                         the phase-driven game screen
         ├── views/                one view per game phase
         └── widgets/              drawing canvas, countdown timer,
                                   live_doodle.dart + doodle_stage.dart
@@ -623,8 +742,19 @@ npm run test:e2e     # in another
 It covers identity persistence and rename, the ranked queue filling with bots,
 a ranked game starting itself, trophies scaling with the human share, the
 leaderboard excluding bots, and friendly games leaving the ladder untouched.
-It takes a few minutes on purpose: bots deliberately use most of the phase
-clock, and the run waits them out rather than faking the timings.
+**It takes ten to twelve minutes** on purpose: voting and reveal phases run
+their real clocks (about 53s and 37s a round), and the run waits them out
+rather than faking the timings — so an apparently silent terminal is normal.
+Its per-message wait is 200 seconds; if it prints `timed out waiting for a
+message`, check the server log for a `[stall]` line. If that line says the
+clock jumped, the machine slept during the run (Windows will suspend a laptop
+left alone) and the test, not the server, is what gave up — run it again with
+the machine awake.
+
+Note that a rank and a leaderboard entry only exist once a device has played
+`PLACEMENT_GAMES` ranked games, so on a fresh server the e2e checks the
+*relationship* — no rank while placing, a rank once placed — rather than
+expecting the test device to be on the board after one game.
 
 **Looking at the drawings** is the only way to check the doodle engine — the
 useful questions ("does this read as a key?", "is the same mark in every

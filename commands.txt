@@ -1,1 +1,4 @@
 ./start-server.sh
+
+cd app
+flutter build apk --release
