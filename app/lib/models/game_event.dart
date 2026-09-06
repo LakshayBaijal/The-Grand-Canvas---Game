@@ -1,3 +1,4 @@
+import 'daily_models.dart';
 import 'lobby_state.dart';
 import 'round_models.dart';
 import 'stroke.dart';
@@ -193,6 +194,47 @@ class DoodleEvent extends GameEvent {
   final String artistName;
   final String title;
   final List<Stroke> strokes;
+}
+
+/// Today's daily prompt, and where this player stands with it. Sent on
+/// request and again after a submission.
+class DailyInfoEvent extends GameEvent {
+  const DailyInfoEvent({
+    required this.day,
+    required this.prompt,
+    required this.endsAtMs,
+    required this.submitted,
+    required this.submissions,
+    required this.mine,
+  });
+
+  final int day;
+  final String prompt;
+
+  /// When the prompt changes.
+  final int endsAtMs;
+  final bool submitted;
+
+  /// How many people have drawn it so far today.
+  final int submissions;
+
+  /// This player's own entry, once they have made one.
+  final DailyEntry? mine;
+}
+
+/// A page of a day's gallery, newest first.
+class DailyGalleryEvent extends GameEvent {
+  const DailyGalleryEvent({
+    required this.day,
+    required this.prompt,
+    required this.entries,
+    required this.hasMore,
+  });
+
+  final int day;
+  final String prompt;
+  final List<DailyEntry> entries;
+  final bool hasMore;
 }
 
 class ErrorEvent extends GameEvent {

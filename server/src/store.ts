@@ -1,6 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { brotliCompressSync, brotliDecompressSync, constants } from "node:zlib";
+
+import type { Stroke } from "./types.js";
 
 import {
   applyFloor,
@@ -99,6 +102,39 @@ export function openStore(path: string): void {
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_players_google " +
       "ON players(google_sub) WHERE google_sub IS NOT NULL",
   );
+
+  // Finished drawings. See "the drawing archive" below for why these are kept
+  // as strokes rather than images, and why bots never land here.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS drawings (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_ms  INTEGER NOT NULL,
+      player_id   TEXT    NOT NULL,
+      prompt      TEXT    NOT NULL,
+      answer      TEXT    NOT NULL,
+      title       TEXT    NOT NULL,
+      paper       TEXT,
+      raised      INTEGER NOT NULL DEFAULT 0,
+      strokes     BLOB    NOT NULL
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_drawings_created ON drawings(created_ms)");
+
+  // The daily gallery. One row per player per day; drawing again replaces it.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_entries (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      day         INTEGER NOT NULL,
+      player_id   TEXT    NOT NULL,
+      nickname    TEXT    NOT NULL,
+      title       TEXT    NOT NULL,
+      paper       TEXT,
+      strokes     BLOB    NOT NULL,
+      created_ms  INTEGER NOT NULL,
+      UNIQUE(day, player_id)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_daily_day ON daily_entries(day, id DESC)");
 
   db.exec("DROP INDEX IF EXISTS idx_players_rank");
   db.exec("CREATE INDEX IF NOT EXISTS idx_players_rating ON players(rating DESC, created_ms ASC)");
@@ -311,4 +347,285 @@ export function rankOf(id: string): number | null {
 
 export function closeStore(): void {
   db?.close();
+}
+
+// --- the drawing archive ---------------------------------------------------
+
+/**
+ * Every human drawing, kept.
+ *
+ * A finished drawing is currently shown for a few seconds and then dropped on
+ * the floor. Keeping it costs very little and is worth a lot: it is a labelled
+ * pair — a sentence somebody wrote, and the picture somebody else drew for it —
+ * which is exactly the shape a training set wants, and it is also what any
+ * future gallery or share feature would be built on.
+ *
+ * Two decisions worth knowing about:
+ *
+ *  * **Strokes, not images.** A drawing is vector data. Compressed it is ~3KB,
+ *    where a 1000px PNG of the same thing is ~60KB, and the strokes re-render
+ *    at any size, on any paper, and can be replayed being drawn. Rasterising
+ *    here would cost twenty times the disk to store strictly less.
+ *
+ *  * **Humans only.** Bot drawings are generated from `doodle/compose.ts`, so
+ *    archiving them would mean training on our own output. They are also the
+ *    majority of drawings in a lobby padded with bots, which would make the
+ *    set mostly synthetic without anyone noticing.
+ */
+
+/** How long a drawing is kept. Age is the honest axis — a two-year-old doodle
+ *  is not more useful than a recent one, and unbounded growth on a small disk
+ *  is how a server falls over quietly at 3am. */
+const RETENTION_DAYS = Number(process.env.DRAWING_RETENTION_DAYS ?? 180);
+
+/** A second ceiling, for when a burst of traffic fills the disk faster than
+ *  age alone would clear it. Whichever limit bites first wins. At ~3KB a row
+ *  this default is well under a gigabyte. */
+const DEFAULT_MAX_ROWS = Number(process.env.DRAWING_MAX_ROWS ?? 250_000);
+
+export type ArchivedDrawing = {
+  playerId: string;
+  /** The finished sentence, as everyone in the lobby saw it. */
+  prompt: string;
+  /** Just the words the writer typed into the blank — the part anyone chose,
+   *  and the strongest single label for what the picture should show. */
+  answer: string;
+  /** What the artist named their own drawing. */
+  title: string;
+  paper?: string;
+  /** What it raised. Not needed to render anything — it is here because it is
+   *  a free quality signal: other players judged this drawing, and a set can
+   *  be filtered on that later without having to re-run the judging. */
+  raised: number;
+  strokes: Stroke[];
+};
+
+/** Rows come back with the strokes already decompressed and parsed. */
+export type StoredDrawing = ArchivedDrawing & { id: number; createdMs: number };
+
+export function archiveDrawings(entries: readonly ArchivedDrawing[]): void {
+  if (entries.length === 0) return;
+  const now = Date.now();
+  const insert = db.prepare(
+    `INSERT INTO drawings
+       (created_ms, player_id, prompt, answer, title, paper, raised, strokes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const e of entries) {
+    // Brotli rather than gzip: measured about 30% smaller again on stroke
+    // JSON, and this is written once and read rarely, so the slower compress
+    // costs nothing that matters.
+    const blob = brotliCompressSync(Buffer.from(JSON.stringify(e.strokes)), {
+      params: { [constants.BROTLI_PARAM_QUALITY]: 9 },
+    });
+    insert.run(
+      now,
+      e.playerId,
+      e.prompt,
+      e.answer,
+      e.title,
+      e.paper ?? null,
+      Math.round(e.raised),
+      blob,
+    );
+  }
+}
+
+/** Drops anything past either limit. Safe to call whenever; it is cheap when
+ *  there is nothing to do, because both conditions are indexed.
+ *
+ *  Both limits can be overridden per call, which is what lets a one-off
+ *  reclaim run trim harder than the standing policy without a redeploy. */
+export function pruneDrawings(
+  opts: { maxAgeMs?: number; maxRows?: number } = {},
+): { byAge: number; byCount: number } {
+  const maxAgeMs = opts.maxAgeMs ?? RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const MAX_ROWS = opts.maxRows ?? DEFAULT_MAX_ROWS;
+  const cutoff = Date.now() - maxAgeMs;
+  const byAge = db.prepare("DELETE FROM drawings WHERE created_ms < ?").run(cutoff);
+  // Keep the newest MAX_ROWS. `id` is monotonic, so "oldest" needs no date
+  // comparison — anything below the id at the cutoff position goes.
+  const byCount = db
+    .prepare(
+      `DELETE FROM drawings WHERE id < (
+         SELECT MIN(id) FROM (SELECT id FROM drawings ORDER BY id DESC LIMIT ?)
+       )`,
+    )
+    .run(MAX_ROWS);
+  return {
+    byAge: Number(byAge.changes ?? 0),
+    byCount: Number(byCount.changes ?? 0),
+  };
+}
+
+/**
+ * Reads drawings back out, oldest first, for export.
+ *
+ * Paged by id rather than by offset so an export can be resumed, and so it
+ * stays correct while rows are being added underneath it.
+ */
+export function readDrawings(afterId = 0, limit = 500): StoredDrawing[] {
+  const rows = db
+    .prepare(
+      `SELECT id, created_ms, player_id, prompt, answer, title, paper, raised, strokes
+         FROM drawings WHERE id > ? ORDER BY id ASC LIMIT ?`,
+    )
+    .all(afterId, limit) as DrawingRow[];
+  return rows.map((r) => ({
+    id: Number(r.id),
+    createdMs: Number(r.created_ms),
+    playerId: r.player_id,
+    prompt: r.prompt,
+    answer: r.answer,
+    title: r.title,
+    paper: r.paper ?? undefined,
+    raised: Number(r.raised),
+    strokes: JSON.parse(brotliDecompressSync(Buffer.from(r.strokes)).toString("utf8")) as Stroke[],
+  }));
+}
+
+export function countDrawings(): number {
+  const row = db.prepare("SELECT COUNT(*) AS n FROM drawings").get() as { n: number };
+  return Number(row.n);
+}
+
+/** Total size of the stored stroke blobs. What to watch if you want to know
+ *  whether the retention settings are holding. */
+export function archiveBytes(): number {
+  const row = db
+    .prepare("SELECT COALESCE(SUM(LENGTH(strokes)), 0) AS bytes FROM drawings")
+    .get() as { bytes: number };
+  return Number(row.bytes);
+}
+
+type DrawingRow = {
+  id: number;
+  created_ms: number;
+  player_id: string;
+  prompt: string;
+  answer: string;
+  title: string;
+  paper: string | null;
+  raised: number;
+  strokes: Uint8Array;
+};
+
+// --- the daily gallery -----------------------------------------------------
+// One drawing per player per day, viewable by everyone who also drew that day.
+// Kept apart from `drawings` above because the two have different lives: the
+// archive is a long-term training set nobody looks at, this is a gallery that
+// is looked at constantly for a few days and then never again.
+
+/** How long a day's gallery stays browsable. */
+const DAILY_RETENTION_DAYS = Number(process.env.DAILY_RETENTION_DAYS ?? 30);
+
+export type DailySubmission = {
+  day: number;
+  playerId: string;
+  nickname: string;
+  title: string;
+  paper?: string;
+  strokes: Stroke[];
+};
+
+export type DailyEntry = {
+  id: number;
+  day: number;
+  artistId: string;
+  artistName: string;
+  title: string;
+  paper?: string;
+  strokes: Stroke[];
+  createdMs: number;
+};
+
+/** Records today's drawing. Drawing again the same day replaces the earlier
+ *  one — the day is the unit, not the attempt. */
+export function submitDaily(s: DailySubmission): void {
+  const blob = brotliCompressSync(Buffer.from(JSON.stringify(s.strokes)), {
+    params: { [constants.BROTLI_PARAM_QUALITY]: 9 },
+  });
+  db.prepare(
+    `INSERT INTO daily_entries (day, player_id, nickname, title, paper, strokes, created_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(day, player_id) DO UPDATE SET
+       nickname = excluded.nickname,
+       title = excluded.title,
+       paper = excluded.paper,
+       strokes = excluded.strokes,
+       created_ms = excluded.created_ms`,
+  ).run(s.day, s.playerId, s.nickname, s.title, s.paper ?? null, blob, Date.now());
+}
+
+export function hasSubmittedDaily(day: number, playerId: string): boolean {
+  const row = db
+    .prepare("SELECT 1 AS yes FROM daily_entries WHERE day = ? AND player_id = ?")
+    .get(day, playerId);
+  return row !== undefined;
+}
+
+export function myDailyEntry(day: number, playerId: string): DailyEntry | null {
+  const row = db
+    .prepare(`${DAILY_SELECT} WHERE day = ? AND player_id = ?`)
+    .get(day, playerId) as DailyRow | undefined;
+  return row ? toDailyEntry(row) : null;
+}
+
+export function countDaily(day: number): number {
+  const row = db
+    .prepare("SELECT COUNT(*) AS n FROM daily_entries WHERE day = ?")
+    .get(day) as { n: number };
+  return Number(row.n);
+}
+
+/** A page of the day's gallery, newest first. Paged by id so scrolling stays
+ *  stable while new entries arrive above. */
+export function dailyGallery(
+  day: number,
+  beforeId: number | null,
+  limit: number,
+): { entries: DailyEntry[]; hasMore: boolean } {
+  const rows = (
+    beforeId === null
+      ? db.prepare(`${DAILY_SELECT} WHERE day = ? ORDER BY id DESC LIMIT ?`).all(day, limit + 1)
+      : db
+          .prepare(`${DAILY_SELECT} WHERE day = ? AND id < ? ORDER BY id DESC LIMIT ?`)
+          .all(day, beforeId, limit + 1)
+  ) as DailyRow[];
+  const hasMore = rows.length > limit;
+  return { entries: rows.slice(0, limit).map(toDailyEntry), hasMore };
+}
+
+export function pruneDaily(opts: { maxAgeDays?: number } = {}): number {
+  const days = opts.maxAgeDays ?? DAILY_RETENTION_DAYS;
+  const cutoffDay = Math.floor(Date.now() / (24 * 60 * 60 * 1000)) - days;
+  const result = db.prepare("DELETE FROM daily_entries WHERE day < ?").run(cutoffDay);
+  return Number(result.changes ?? 0);
+}
+
+const DAILY_SELECT =
+  "SELECT id, day, player_id, nickname, title, paper, strokes, created_ms FROM daily_entries";
+
+type DailyRow = {
+  id: number;
+  day: number;
+  player_id: string;
+  nickname: string;
+  title: string;
+  paper: string | null;
+  strokes: Uint8Array;
+  created_ms: number;
+};
+
+function toDailyEntry(r: DailyRow): DailyEntry {
+  return {
+    id: Number(r.id),
+    day: Number(r.day),
+    artistId: r.player_id,
+    artistName: r.nickname,
+    title: r.title,
+    paper: r.paper ?? undefined,
+    strokes: JSON.parse(brotliDecompressSync(Buffer.from(r.strokes)).toString("utf8")) as Stroke[],
+    createdMs: Number(r.created_ms),
+  };
 }

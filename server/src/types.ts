@@ -35,6 +35,9 @@ export type DrawingEntry = {
   paper?: string;
 };
 
+/** One drawing in a day's gallery. */
+export type DailyEntry = DrawingEntry & { id: number; day: number; createdMs: number };
+
 /** Who backed a drawing and by how much — money in ranked games, vote points
  *  in friendly ones. */
 export type Backer = { name: string; amount: number };
@@ -169,7 +172,17 @@ export type ClientMessage =
   | { type: "leave_lobby" }
   /** Asks for one ambient doodle to replay on an idle screen. Doesn't
    *  require being in a lobby — it's decoration, not game state. */
-  | { type: "request_doodle" };
+  | { type: "request_doodle" }
+  // --- the daily ---
+  /** Today's prompt, and whether this player has already drawn it. */
+  | { type: "daily_info" }
+  /** No clock and nothing locked: everything is allowed in the daily.
+   *  Submitting twice in one day replaces the first drawing. */
+  | { type: "daily_submit"; strokes: Stroke[]; title: string; paper?: string }
+  /** A page of the gallery for [day] (today when omitted), newest first.
+   *  Only answered for a day this player has submitted a drawing for —
+   *  the gallery is the reward for taking part. */
+  | { type: "daily_gallery"; day?: number; beforeId?: number };
 
 export type ServerMessage =
   | { type: "pong"; serverTimeMs: number }
@@ -278,5 +291,25 @@ export type ServerMessage =
       artistName: string;
       title: string;
       strokes: Stroke[];
+    }
+  | {
+      type: "daily_info";
+      /** Whole days since the epoch, UTC. Names the gallery. */
+      day: number;
+      prompt: string;
+      /** When the prompt changes, so the app can say how long is left. */
+      endsAtMs: number;
+      submitted: boolean;
+      /** How many people have drawn it so far. */
+      submissions: number;
+      /** This player's own entry for today, if they have made one. */
+      mine: DailyEntry | null;
+    }
+  | {
+      type: "daily_gallery";
+      day: number;
+      prompt: string;
+      entries: DailyEntry[];
+      hasMore: boolean;
     }
   | { type: "error"; message: string };

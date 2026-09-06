@@ -16,6 +16,7 @@ import '../widgets/doodle_stage.dart';
 import '../widgets/logo.dart';
 import '../services/audio_service.dart';
 import 'game_screen.dart';
+import 'daily_screen.dart';
 import 'leaderboard_screen.dart';
 import 'queue_screen.dart';
 import 'title_screen.dart';
@@ -447,6 +448,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && _connected) widget.connection.requestDoodle();
   }
 
+  Future<void> _openDaily() async {
+    if (!await _ensureConnected()) return;
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DailyScreen(
+          connection: widget.connection,
+          myId: _identity!.playerId,
+        ),
+      ),
+    );
+    if (mounted && _connected) widget.connection.requestDoodle();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Title music while booting, then the main theme on the menu. `play`
@@ -604,6 +619,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 12),
+              // The one mode with no competition in it, so it sits under the
+              // two that have, and in the calmer colour.
+              _ModeCard(
+                title: 'THE DAILY',
+                subtitle: 'One prompt for the whole world. No clock, everything unlocked.',
+                badge: const SketchIcon(SketchGlyph.pencil, size: 22, color: GameColors.cyan),
+                accent: GameColors.cyan,
+                filled: false,
+                onPressed: _busy ? null : _openDaily,
               ),
               const SizedBox(height: 14),
               OutlinedButton.icon(

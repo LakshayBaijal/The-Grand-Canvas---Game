@@ -14,24 +14,46 @@ import '../widgets/unlock_sheet.dart';
 /// Server allows 75s; keep in sync with DRAW_SECONDS on the server.
 const _drawSeconds = 75;
 
+/// The drawing screen, in two moods.
+///
+/// In a round it has a clock, a round counter, and the palette the player has
+/// actually unlocked. In the daily ([unlocked]) there is no clock, no counter,
+/// and every colour, paper and pen is open — the daily is the one part of the
+/// game nobody is competing in, so there is nothing for a locked colour to
+/// protect.
 class DrawView extends StatefulWidget {
   const DrawView({
     super.key,
     required this.prompt,
-    required this.deadlineMs,
-    required this.roundIndex,
-    required this.totalRounds,
-    required this.submitted,
-    required this.total,
     required this.onSubmit,
+    this.deadlineMs,
+    this.roundIndex,
+    this.totalRounds,
+    this.submitted,
+    this.total,
+    this.unlocked = false,
+    this.heading = 'RESEARCH',
+    this.screenTitle,
   });
 
   final String prompt;
-  final int deadlineMs;
-  final int roundIndex;
-  final int totalRounds;
-  final int submitted;
-  final int total;
+
+  /// No deadline means no clock: the drawing is done when the player says so.
+  final int? deadlineMs;
+  final int? roundIndex;
+  final int? totalRounds;
+  final int? submitted;
+  final int? total;
+
+  /// Everything available, nothing saved: styles chosen here live for this
+  /// drawing only and never touch the player's purchases.
+  final bool unlocked;
+
+  /// The small label over the prompt.
+  final String heading;
+
+  /// App bar text. Defaults to the round counter when there is one.
+  final String? screenTitle;
   final void Function(List<Stroke> strokes, String title, PaperStyle paper)
   onSubmit;
 
@@ -45,6 +67,10 @@ class _DrawViewState extends State<DrawView> {
   final _titleController = TextEditingController();
   final _canvasKey = GlobalKey();
 
+  /// Where paper and pen come from in the unlocked mode. Null in a round,
+  /// where the player's own saved styles apply.
+  StyleSelection? _selection;
+
   List<Stroke>? _pendingStrokes;
   bool _naming = false;
   bool _submitted = false;
@@ -52,6 +78,17 @@ class _DrawViewState extends State<DrawView> {
   @override
   void initState() {
     super.initState();
+    if (widget.unlocked) {
+      final selection = StyleSelection();
+      _selection = selection;
+      _applyStyles = () {
+        _controller.paper = selection.paper;
+        _controller.pen = selection.pen;
+      };
+      _applyStyles();
+      selection.addListener(_applyStyles);
+      return;
+    }
     // Follow the player's chosen styles, including changes made from the
     // customise sheet part-way through a drawing.
     _applyStyles = () {
@@ -64,7 +101,13 @@ class _DrawViewState extends State<DrawView> {
 
   @override
   void dispose() {
-    Entitlements.instance.removeListener(_applyStyles);
+    final selection = _selection;
+    if (selection != null) {
+      selection.removeListener(_applyStyles);
+      selection.dispose();
+    } else {
+      Entitlements.instance.removeListener(_applyStyles);
+    }
     _controller.dispose();
     _titleController.dispose();
     super.dispose();
@@ -107,9 +150,17 @@ class _DrawViewState extends State<DrawView> {
 
   @override
   Widget build(BuildContext context) {
+    final selection = _selection;
+    final roundIndex = widget.roundIndex;
+    final totalRounds = widget.totalRounds;
+    final screenTitle = widget.screenTitle ??
+        (roundIndex != null && totalRounds != null
+            ? 'ROUND ${roundIndex + 1}/$totalRounds'
+            : 'DRAW');
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('ROUND ${widget.roundIndex + 1}/${widget.totalRounds}'),
+        title: Text(screenTitle),
         actions: [
           // One offer, not two. Colours and styles are sold together anyway, so
           // two separate chips asked the same question twice and neither read
@@ -117,7 +168,14 @@ class _DrawViewState extends State<DrawView> {
           // is a single labelled pill; once it's all owned it collapses back to
           // a plain icon for *choosing* paper and pens, because there's nothing
           // left to sell and it should stop asking.
-          if (!_submitted && !_naming)
+          if (!_submitted && !_naming && selection != null)
+            _CornerAction(
+              icon: SketchGlyph.sparkle,
+              tooltip: 'Paper & pens',
+              color: GameColors.cyan,
+              onTap: () => showCustomizeSheet(context, selection: selection),
+            )
+          else if (!_submitted && !_naming)
             ListenableBuilder(
               listenable: Entitlements.instance,
               builder: (context, _) {
@@ -174,9 +232,9 @@ class _DrawViewState extends State<DrawView> {
                     ),
                     child: Column(
                       children: [
-                        const Text(
-                          'RESEARCH',
-                          style: TextStyle(
+                        Text(
+                          widget.heading,
+                          style: const TextStyle(
                             color: GameColors.textMuted,
                             fontSize: 10,
                             letterSpacing: 2,
@@ -198,9 +256,9 @@ class _DrawViewState extends State<DrawView> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  if (!_submitted)
+                  if (!_submitted && widget.deadlineMs != null)
                     CountdownBar(
-                      deadlineMs: widget.deadlineMs,
+                      deadlineMs: widget.deadlineMs!,
                       totalSeconds: _drawSeconds,
                       onExpired: _forceSubmit,
                     ),
@@ -227,13 +285,15 @@ class _DrawViewState extends State<DrawView> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 22),
                       child: WaitingIndicator(
-                        label: 'Homework done! Waiting for the others…',
+                        label: widget.total == null
+                            ? 'Sent!'
+                            : 'Homework done! Waiting for the others…',
                         submitted: widget.submitted,
                         total: widget.total,
                       ),
                     )
                   else if (!_naming) ...[
-                    _DrawToolbar(controller: _controller),
+                    _DrawToolbar(controller: _controller, unlocked: widget.unlocked),
                     const SizedBox(height: 8),
                   ] else
                     const SizedBox(height: 8),
@@ -245,6 +305,8 @@ class _DrawViewState extends State<DrawView> {
                 strokes: _pendingStrokes!,
                 paper: _controller.paper,
                 controller: _titleController,
+                heading: widget.unlocked ? 'NAME YOUR DRAWING' : 'NAME YOUR HOMEWORK',
+                hint: widget.unlocked ? 'e.g. Tuesday, Mostly' : 'e.g. The Boredom Blaster 3000',
                 onCancel: _keepDrawing,
                 onSubmit: _confirmSubmit,
               ),
@@ -262,6 +324,8 @@ class _TitlePopup extends StatefulWidget {
     required this.strokes,
     required this.paper,
     required this.controller,
+    required this.heading,
+    required this.hint,
     required this.onCancel,
     required this.onSubmit,
   });
@@ -269,6 +333,8 @@ class _TitlePopup extends StatefulWidget {
   final List<Stroke> strokes;
   final PaperStyle paper;
   final TextEditingController controller;
+  final String heading;
+  final String hint;
   final VoidCallback onCancel;
   final VoidCallback onSubmit;
 
@@ -297,10 +363,10 @@ class _TitlePopupState extends State<_TitlePopup> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'NAME YOUR HOMEWORK',
+                Text(
+                  widget.heading,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: GameColors.textMuted,
                     fontSize: 11,
                     letterSpacing: 2,
@@ -330,9 +396,7 @@ class _TitlePopupState extends State<_TitlePopup> {
                   onSubmitted: (_) {
                     if (canSubmit) widget.onSubmit();
                   },
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. The Boredom Blaster 3000',
-                  ),
+                  decoration: InputDecoration(hintText: widget.hint),
                 ),
                 const SizedBox(height: 4),
                 FilledButton(
@@ -357,9 +421,12 @@ class _TitlePopupState extends State<_TitlePopup> {
 }
 
 class _DrawToolbar extends StatelessWidget {
-  const _DrawToolbar({required this.controller});
+  const _DrawToolbar({required this.controller, this.unlocked = false});
 
   final DrawingController controller;
+
+  /// Every colour open, whatever the player owns. The daily only.
+  final bool unlocked;
 
   /// Black and yellow are always free — between them and the eraser you can
   /// draw anything the game asks for, so the lock never costs anyone points.
@@ -397,7 +464,7 @@ class _DrawToolbar extends StatelessWidget {
                   return _EraserChip(controller: controller);
                 }
                 final color = _palette[index - 1];
-                final locked =
+                final locked = !unlocked &&
                     !_freeColors.contains(color) &&
                     !Entitlements.instance.hasFullPalette;
                 final selected =

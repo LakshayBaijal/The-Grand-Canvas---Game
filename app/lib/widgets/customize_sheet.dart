@@ -9,32 +9,66 @@ import 'sketch_icons.dart';
 import 'drawing_canvas.dart';
 import 'unlock_sheet.dart';
 
+/// A paper and pen chosen for one drawing only, with nothing locked.
+///
+/// The daily has no clock and no prizes, so it is also the one place where
+/// the whole cupboard is open to everyone. This holds that choice locally
+/// rather than writing it into [Entitlements], which would quietly hand out
+/// the paid pack to anyone who opened the daily once.
+class StyleSelection extends ChangeNotifier {
+  PaperStyle _paper = PaperStyle.free;
+  PenStyle _pen = PenStyle.free;
+
+  PaperStyle get paper => _paper;
+  PenStyle get pen => _pen;
+
+  set paper(PaperStyle value) {
+    _paper = value;
+    notifyListeners();
+  }
+
+  set pen(PenStyle value) {
+    _pen = value;
+    notifyListeners();
+  }
+}
+
 /// Pick your paper and your pen.
 ///
 /// Both are part of the paid pack, never the ad — the purchase has to be worth
 /// more than the free route or it isn't a product. Locked styles are still
 /// shown and still previewed, because you can't want something you can't see;
 /// tapping one explains itself instead of doing nothing.
-Future<void> showCustomizeSheet(BuildContext context) {
+///
+/// With a [selection], everything is unlocked and the choice lands there
+/// instead of in the player's saved styles — see [StyleSelection].
+Future<void> showCustomizeSheet(BuildContext context, {StyleSelection? selection}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => const _CustomizeSheet(),
+    builder: (_) => _CustomizeSheet(selection: selection),
   );
 }
 
 class _CustomizeSheet extends StatelessWidget {
-  const _CustomizeSheet();
+  const _CustomizeSheet({this.selection});
+
+  final StyleSelection? selection;
 
   @override
   Widget build(BuildContext context) {
     final entitlements = Entitlements.instance;
+    final free = selection;
 
     return ListenableBuilder(
-      listenable: entitlements,
+      listenable: free ?? entitlements,
       builder: (context, _) {
-        final owned = entitlements.hasStyles;
+        final owned = free != null || entitlements.hasStyles;
+        final currentPaper = free?.paper ?? entitlements.paper;
+        final currentPen = free?.pen ?? entitlements.pen;
+        void pickPaper(PaperStyle s) => free != null ? free.paper = s : entitlements.choosePaper(s);
+        void pickPen(PenStyle s) => free != null ? free.pen = s : entitlements.choosePen(s);
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
@@ -90,10 +124,12 @@ class _CustomizeSheet extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                owned
-                    ? 'Everyone sees your paper and pen when your drawing comes up.'
-                    : 'Part of the one-off unlock. Everyone sees your paper and pen '
-                        'when your drawing comes up.',
+                free != null
+                    ? 'Everything is open in the daily. Pick whatever suits the prompt.'
+                    : owned
+                        ? 'Everyone sees your paper and pen when your drawing comes up.'
+                        : 'Part of the one-off unlock. Everyone sees your paper and pen '
+                            'when your drawing comes up.',
                 style: const TextStyle(color: GameColors.textMuted, fontSize: 12, height: 1.35),
               ),
               const SizedBox(height: 18),
@@ -111,10 +147,10 @@ class _CustomizeSheet extends StatelessWidget {
                       return _StyleTile(
                         label: style.label,
                         locked: locked,
-                        selected: entitlements.paper == style,
+                        selected: currentPaper == style,
                         onTap: locked
                             ? () => showUnlockSheet(context)
-                            : () => entitlements.choosePaper(style),
+                            : () => pickPaper(style),
                         preview: CustomPaint(painter: _PaperPreview(style)),
                       );
                     },
@@ -136,12 +172,12 @@ class _CustomizeSheet extends StatelessWidget {
                       return _StyleTile(
                         label: style.label,
                         locked: locked,
-                        selected: entitlements.pen == style,
+                        selected: currentPen == style,
                         onTap: locked
                             ? () => showUnlockSheet(context)
-                            : () => entitlements.choosePen(style),
+                            : () => pickPen(style),
                         preview: CustomPaint(
-                          painter: _PenPreview(style, entitlements.paper),
+                          painter: _PenPreview(style, currentPaper),
                         ),
                       );
                     },

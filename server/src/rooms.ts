@@ -11,7 +11,8 @@ import type {
   Stroke,
 } from "./types.js";
 import { fillTemplate, pickTemplate } from "./prompts.js";
-import { createBot } from "./bots.js";
+import { createBot, isBotId } from "./bots.js";
+import { archiveDrawings } from "./store.js";
 import {
   BOT_RATING,
   rateGame,
@@ -527,7 +528,31 @@ export function scoreRoundAndBuildReveal(lobby: Lobby): RoundResult[] {
   lobby.roundPenalty = new Map();
   lobby.phase = "reveal";
 
-  return scoringFor(lobby) === "money" ? scoreByInvestment(lobby) : scoreByRanking(lobby);
+  const results = scoringFor(lobby) === "money" ? scoreByInvestment(lobby) : scoreByRanking(lobby);
+
+  // Archive here rather than at submission time: this is the first moment a
+  // drawing is both final and judged, and what it raised is worth keeping
+  // alongside it. Never allowed to take the round down with it — a failed
+  // write to the archive is not a reason for nobody to see their scores.
+  try {
+    archiveDrawings(
+      results
+        .filter((r) => !isBotId(r.artistId))
+        .map((r) => ({
+          playerId: r.artistId,
+          prompt: lobby.completedPrompt,
+          answer: lobby.promptAnswer,
+          title: r.title,
+          paper: r.paper,
+          raised: r.total,
+          strokes: r.strokes,
+        })),
+    );
+  } catch (err) {
+    console.error("could not archive this round's drawings:", err);
+  }
+
+  return results;
 }
 
 /** Ranked: tallies investments into each drawing's total, pays placement

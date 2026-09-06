@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../models/daily_models.dart';
 import '../models/game_event.dart';
 import '../models/lobby_state.dart';
 import '../models/round_models.dart';
@@ -46,7 +48,15 @@ class GameConnection {
     final ready = Completer<void>();
     channel.stream.listen(
       (raw) {
-        final event = _decode(raw as String);
+        GameEvent? event;
+        try {
+          event = _decode(raw as String);
+        } catch (e) {
+          // One frame we can't read is not a reason to hang up on the whole
+          // game. Skipping it keeps the connection — and the round — alive.
+          debugPrint('GameConnection: ignoring an unreadable message ($e)');
+          return;
+        }
         if (event == null) return;
         if (event is WelcomeEvent && !ready.isCompleted) ready.complete();
         if (_isPhaseEvent(event)) _lastPhase = event;
@@ -179,6 +189,26 @@ class GameConnection {
               .map((s) => Stroke.fromJson(s as Map<String, dynamic>))
               .toList(),
         );
+      case 'daily_info':
+        return DailyInfoEvent(
+          day: json['day'] as int,
+          prompt: json['prompt'] as String,
+          endsAtMs: json['endsAtMs'] as int,
+          submitted: json['submitted'] as bool,
+          submissions: json['submissions'] as int,
+          mine: json['mine'] == null
+              ? null
+              : DailyEntry.fromJson(json['mine'] as Map<String, dynamic>),
+        );
+      case 'daily_gallery':
+        return DailyGalleryEvent(
+          day: json['day'] as int,
+          prompt: json['prompt'] as String,
+          entries: (json['entries'] as List)
+              .map((e) => DailyEntry.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          hasMore: json['hasMore'] as bool,
+        );
       case 'error':
         return ErrorEvent(json['message'] as String);
       case 'pong':
@@ -257,6 +287,26 @@ class GameConnection {
 
   /// Asks for one ambient doodle to replay while players wait around.
   void requestDoodle() => _send({'type': 'request_doodle'});
+
+  /// Today's prompt and whether we've drawn it. Answered with `daily_info`.
+  void dailyInfo() => _send({'type': 'daily_info'});
+
+  /// Submits today's drawing. The server answers with a fresh `daily_info`,
+  /// so the screen never has to guess what state it's in afterwards.
+  void submitDaily(List<Stroke> strokes, String title, PaperStyle paper) => _send({
+        'type': 'daily_submit',
+        'strokes': strokes.map((s) => s.toJson()).toList(),
+        'title': title,
+        'paper': paper.id,
+      });
+
+  /// A page of a day's gallery (today when [day] is omitted), newest first.
+  /// Pass the last entry's id as [beforeId] to get the next page.
+  void dailyGallery({int? day, int? beforeId}) => _send({
+        'type': 'daily_gallery',
+        'day': ?day,
+        'beforeId': ?beforeId,
+      });
 
   void _send(Map<String, dynamic> message) => _channel?.sink.add(jsonEncode(message));
 
