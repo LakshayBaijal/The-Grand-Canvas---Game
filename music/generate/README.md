@@ -12,8 +12,14 @@ voices (`acoustic.mjs`, `acoustic2.mjs`) over a shared low-level synth engine
   below), WAV writer, scales/chords.
 - `acoustic.mjs`, `acoustic2.mjs` — instrument voices built on the engine:
   marimba, kalimba, upright bass, brushes, bowed strings, triangle, etc.
-- `score.mjs` — the 10 screen loops (title through leaderboard), each written
-  as a short arrangement spec, plus `renderScore()`/`saveScore()`.
+- `cinematic.mjs` — the big voices the reveal and leaderboard lean on: string
+  ensemble, felt piano, choir pad, sub bass, timpani, taiko, swell, impact.
+- `score.mjs` — the 11 screen loops (the theme through final results), each
+  written as a short arrangement spec, plus `renderScore()`/`saveScore()`.
+  Two things every track shares: a `swing` amount (off-beat eighths land
+  late), and an optional `sticks` layer (woodblock — `true` for a straight
+  count, `"clave"` for son clave, `"busy"` for eighths) that sits on top of
+  whatever `perc` kit is playing rather than replacing it.
 - `songs3.mjs` — the UI stingers (win, lose, correct, round-start, trophy).
 - `launch.mjs` — the one-shot launch signature: a pencil stroke, then the
   motif. Plays once at app boot.
@@ -25,7 +31,7 @@ voices (`acoustic.mjs`, `acoustic2.mjs`) over a shared low-level synth engine
 
 ```bash
 cd music/generate
-node render_score.mjs       # the 10 screen loops -> ../v5_wav
+node render_score.mjs       # the 11 screen loops -> ../v5_wav
 node render_stingers.mjs    # the 5 UI stingers    -> ../v5_wav
 node render_launch.mjs      # the launch signature  -> ../v5_wav
 ```
@@ -44,7 +50,11 @@ done
 Then copy the relevant files from `music/v5_mp3/` into `app/assets/audio/`,
 renaming to match the `Music`/`Sfx` enums in
 `app/lib/services/audio_service.dart` (e.g. `s05_drawing.mp3` ->
-`drawing.mp3`).
+`drawing.mp3`). One exception to the one-to-one mapping: `s01_title` is
+installed as `theme.mp3`, and **both** `Music.title` and `Music.menu` point at
+it. Boot is over in a couple of seconds and the theme is a 65-second piece
+with a shape, so sharing the file is what lets `AudioService.play` carry one
+continuous performance from launch into the menu instead of restarting it.
 
 ## The one thing that trips people up
 

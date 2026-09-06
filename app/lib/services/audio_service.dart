@@ -10,8 +10,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// between them reads as one score following the player rather than a set of
 /// unrelated loops.
 enum Music {
-  title('title.mp3'),
-  menu('menu.mp3'),
+  /// Boot and menu are deliberately the same file. The theme is a 65-second
+  /// piece with a shape — hook, answer, turn, climb, payoff — and boot is over
+  /// in a couple of seconds, so pointing them at separate tracks meant nobody
+  /// ever heard past its first phrase. Sharing the file lets [play] carry one
+  /// continuous performance from launch into the menu without a restart.
+  title('theme.mp3'),
+  menu('theme.mp3'),
   lobby('lobby.mp3'),
   matchmaking('matchmaking.mp3'),
   prompt('prompt.mp3', gain: 0.8),
@@ -146,6 +151,14 @@ class AudioService extends ChangeNotifier {
     if (_failed) return;
     if (!_loaded) await load();
     if (_playing == music) return;
+    // Two screens can share a track — boot and the menu both play the theme.
+    // Crossfading a file to itself would restart it half a second in, so when
+    // only the label changed, record the change and leave the audio running.
+    if (_playing != null && _playing!.file == music.file && _playing!.gain == music.gain) {
+      _playing = music;
+      notifyListeners();
+      return;
+    }
     _playing = music;
     notifyListeners();
     if (!_musicOn) return;

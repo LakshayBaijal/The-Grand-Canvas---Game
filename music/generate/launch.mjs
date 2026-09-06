@@ -41,17 +41,21 @@ export function renderLaunch() {
   // is what gives it the "chime" quality a mnemonic needs to cut through a
   // phone speaker.
   const start = 0.40;
-  const step = 0.115;
+  const step = 0.105;
   MOTIF.forEach((deg, i) => {
     const m = degToMidi(D, "major", deg) + 12;
-    const t = Math.round((start + i * step) * SR);
+    // A lilt: the off-notes land a hair late, the same shuffle the screen
+    // loops carry. It is a few milliseconds, and it is the difference between
+    // the mnemonic sounding typed and sounding played.
+    const swing = i % 2 === 1 ? step * 0.16 : 0;
+    const t = Math.round((start + i * step + swing) * SR);
     ksPluck(L, R, t, midiToFreq(m), 0.9, 0.30, {
-      damping: 0.42,
-      brightness: 0.62,
+      damping: 0.38,
+      brightness: 0.72,
       pick: 0.22,
       pan: -0.18 + i * 0.12,
     });
-    mallet(L, R, t, midiToFreq(m + 12), 0.20, "glockenspiel", { pan: 0.16 - i * 0.09 });
+    mallet(L, R, t, midiToFreq(m + 12), 0.26, "glockenspiel", { pan: 0.16 - i * 0.09 });
   });
 
   // --- 3. the landing -------------------------------------------------------
