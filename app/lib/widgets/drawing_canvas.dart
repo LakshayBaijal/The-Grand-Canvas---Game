@@ -264,13 +264,86 @@ class DrawingController extends ChangeNotifier {
             color: s.color,
             width: s.width,
             style: styleFor(s),
-            points: s.points
-                .map((p) => Point(p.dx / canvasSize.width, p.dy / canvasSize.height))
-                .toList(),
+            points: _simplify(
+              s.points
+                  .map((p) => Point(p.dx / canvasSize.width, p.dy / canvasSize.height))
+                  .toList(),
+              _simplifyTolerance,
+            ),
           ),
         )
         .toList();
   }
+}
+
+/// How far a point may sit from the line it would be dropped from, in canvas
+/// fractions. 0.0012 is just over one pixel on a 1000px canvas — below what
+/// anyone can see on a hand-drawn wobble, and well under the width of even the
+/// thinnest pen.
+const double _simplifyTolerance = 0.0012;
+
+/// Ramer–Douglas–Peucker: keeps the points that define the shape and drops the
+/// ones a straight line already covers.
+///
+/// Capture is one point per pan-update event, so a 120Hz phone records about
+/// 120 points per second of contact whether the finger moved a pixel or a
+/// centimetre. A busy 75-second drawing is thousands of points, and every one
+/// of them is stored, sent to every other player, and replayed. Freehand input
+/// is mostly redundant by nature — this typically removes 80-90% of a stroke
+/// with no visible change to it.
+///
+/// Iterative rather than recursive: a single stroke can be long enough that the
+/// recursive form is a real stack-depth risk on a slow drag.
+List<Point> _simplify(List<Point> points, double tolerance) {
+  if (points.length < 3) return points;
+
+  final keep = List<bool>.filled(points.length, false);
+  keep[0] = true;
+  keep[points.length - 1] = true;
+
+  final stack = <List<int>>[
+    [0, points.length - 1],
+  ];
+
+  while (stack.isNotEmpty) {
+    final range = stack.removeLast();
+    final first = range[0];
+    final last = range[1];
+    if (last <= first + 1) continue;
+
+    final a = points[first];
+    final b = points[last];
+    final dx = b.x - a.x;
+    final dy = b.y - a.y;
+    final span = sqrt(dx * dx + dy * dy);
+
+    var worst = 0.0;
+    var worstAt = first;
+    for (var i = first + 1; i < last; i++) {
+      final p = points[i];
+      // Perpendicular distance to AB — or, when the stroke has looped back to
+      // where it started, plain distance from that point.
+      final d = span < 1e-9
+          ? sqrt((p.x - a.x) * (p.x - a.x) + (p.y - a.y) * (p.y - a.y))
+          : ((dx * (a.y - p.y)) - ((a.x - p.x) * dy)).abs() / span;
+      if (d > worst) {
+        worst = d;
+        worstAt = i;
+      }
+    }
+
+    if (worst > tolerance) {
+      keep[worstAt] = true;
+      stack.add([first, worstAt]);
+      stack.add([worstAt, last]);
+    }
+  }
+
+  final out = <Point>[];
+  for (var i = 0; i < points.length; i++) {
+    if (keep[i]) out.add(points[i]);
+  }
+  return out;
 }
 
 /// An interactive freehand-drawing surface. Wrap in a fixed-aspect-ratio
