@@ -31,3 +31,4 @@ music/v3_mp3/
 music/v4_wav/
 music/v4_mp3/
 music/v5_wav/
+# v5_mp3 is kept for history; v6_ogg is what ships.

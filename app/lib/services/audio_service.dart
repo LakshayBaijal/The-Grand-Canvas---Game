@@ -9,24 +9,31 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Every one of these is a variation on the same four-note motif, so moving
 /// between them reads as one score following the player rather than a set of
 /// unrelated loops.
+///
+/// OGG Vorbis, not MP3, and that is not a taste call: every track here is a
+/// seamless loop, and MP3 cannot loop seamlessly. The format pads both ends
+/// of a file with encoder silence (roughly 50ms), and Android's player does
+/// not trim it on the loop path, so each time round there was a click of
+/// nothing at the seam — which is what "the music breaks" was. Vorbis is
+/// sample-exact.
 enum Music {
   /// Boot and menu are deliberately the same file. The theme is a 65-second
   /// piece with a shape — hook, answer, turn, climb, payoff — and boot is over
   /// in a couple of seconds, so pointing them at separate tracks meant nobody
   /// ever heard past its first phrase. Sharing the file lets [play] carry one
   /// continuous performance from launch into the menu without a restart.
-  title('theme.mp3'),
-  menu('theme.mp3'),
-  lobby('lobby.mp3'),
-  matchmaking('matchmaking.mp3'),
-  prompt('prompt.mp3', gain: 0.8),
-  drawing('drawing.mp3', gain: 0.5),
-  waiting('waiting.mp3', gain: 0.7),
-  presentation('presentation.mp3'),
-  voting('voting.mp3'),
-  reveal('reveal.mp3'),
-  results('results.mp3'),
-  leaderboard('leaderboard.mp3', gain: 0.85);
+  title('theme.ogg'),
+  menu('theme.ogg'),
+  lobby('lobby.ogg'),
+  matchmaking('matchmaking.ogg'),
+  prompt('prompt.ogg', gain: 0.8),
+  drawing('drawing.ogg', gain: 0.5),
+  waiting('waiting.ogg', gain: 0.7),
+  presentation('presentation.ogg'),
+  voting('voting.ogg'),
+  reveal('reveal.ogg'),
+  results('results.ogg'),
+  leaderboard('leaderboard.ogg', gain: 0.85);
 
   const Music(this.file, {this.gain = 1.0});
   final String file;
@@ -45,12 +52,12 @@ enum Music {
 enum Sfx {
   /// The signature that plays once at launch. Louder than the rest on purpose:
   /// it is the only sound with nothing underneath it.
-  launch('sting_launch.mp3', gain: 1.0),
-  win('sting_win.mp3'),
-  lose('sting_lose.mp3'),
-  correct('sting_correct.mp3'),
-  roundStart('sting_round.mp3'),
-  trophy('sting_trophy.mp3');
+  launch('sting_launch.ogg', gain: 1.0),
+  win('sting_win.ogg'),
+  lose('sting_lose.ogg'),
+  correct('sting_correct.ogg'),
+  roundStart('sting_round.ogg'),
+  trophy('sting_trophy.ogg');
 
   const Sfx(this.file, {this.gain = 1.4});
   final String file;

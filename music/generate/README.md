@@ -36,25 +36,56 @@ node render_stingers.mjs    # the 5 UI stingers    -> ../v5_wav
 node render_launch.mjs      # the launch signature  -> ../v5_wav
 ```
 
-Then encode to MP3 and copy into the app:
+Then encode to **OGG Vorbis** and copy into the app:
 
 ```bash
 FFMPEG=/path/to/ffmpeg   # this repo used D:\dev\ffmpeg\...\bin\ffmpeg.exe
 
 for f in ../v5_wav/*.wav; do
   name=$(basename "$f" .wav)
-  "$FFMPEG" -y -i "$f" -codec:a libmp3lame -b:a 128k -write_xing 1 "../v5_mp3/${name}.mp3"
+  "$FFMPEG" -y -i "$f" -c:a libvorbis -q:a 5 "../v6_ogg/${name}.ogg"
 done
 ```
 
-Then copy the relevant files from `music/v5_mp3/` into `app/assets/audio/`,
+**Vorbis, not MP3, and it is not a taste call.** Every screen track is a
+seamless loop — `renderScore` folds the reverb tail back over the opening so
+the seam is sample-exact in the WAV. MP3 then throws that away: the format
+pads both ends of a file with encoder silence (~50ms), and Android's player
+does not trim it on the loop path, so each time round there was a click of
+nothing at the seam. That was "the music breaks in between". Vorbis has no
+padding; the decoded OGG has exactly the WAV's sample count.
+
+Then copy the relevant files from `music/v6_ogg/` into `app/assets/audio/`,
 renaming to match the `Music`/`Sfx` enums in
-`app/lib/services/audio_service.dart` (e.g. `s05_drawing.mp3` ->
-`drawing.mp3`). One exception to the one-to-one mapping: `s01_title` is
-installed as `theme.mp3`, and **both** `Music.title` and `Music.menu` point at
+`app/lib/services/audio_service.dart` (e.g. `s05_drawing.ogg` ->
+`drawing.ogg`). One exception to the one-to-one mapping: `s01_title` is
+installed as `theme.ogg`, and **both** `Music.title` and `Music.menu` point at
 it. Boot is over in a couple of seconds and the theme is a 65-second piece
 with a shape, so sharing the file is what lets `AudioService.play` carry one
 continuous performance from launch into the menu instead of restarting it.
+
+## The drums were silent for three weeks
+
+Worth knowing so nobody re-lives it. `percEnv` in `engine.mjs` starts its
+1.5ms attack ramp at exactly zero, and every drum and plucked-bass voice ends
+its render loop early with `if (env < tiny) break;` — which was true on the
+very first sample. So kick, snare, hats, crash, the woodblock, the toms, the
+timpani, the taiko **and the upright bass** rendered nothing at all, from the
+day the music was committed until someone asked where the beats were. Only
+voices without that early exit (brush, clap, tambourine, triangle) ever
+sounded. The ramp now starts at 0.2% instead of 0, which is inaudible on a
+drum hit. If you add a percussive voice, either use `percEnv` or don't put a
+`break` on the first sample.
+
+Two things followed from being able to hear the kit. It gets its own **dry
+bus** (`D`/`E` in `renderScore`): the chorus, delay and room reverb that make
+the pads sit back never touch a transient — the delay in particular is timed
+at six sixteenths, which put a ghost of every kick on the "and" of the bar.
+Measured as the 30ms RMS on each downbeat over the 30ms one sixteenth later,
+the theme went from 1.09 (barely there) to 2.42 with the bus. And there are
+three real kit patterns now — `halfbeat`, `beat`, `beatfull` — built from the
+engine's kick/snare/hat/clap, with a `fill: "roll"` and `crash: true` for
+section changes.
 
 ## The one thing that trips people up
 

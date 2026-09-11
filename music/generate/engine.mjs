@@ -116,11 +116,20 @@ export function ampEnv(t, dur, { attack = 0.005, decay = 0.2, sustain = 0.6, rel
   return tail;
 }
 
-/** Percussive envelope: instant attack, exponential fall to silence. */
+/** Percussive envelope: near-instant attack, exponential fall to silence.
+ *
+ *  The attack ramp starts at a small non-zero value on purpose. Every drum
+ *  and plucked-bass voice ends its render loop early with
+ *  `if (env < tiny) break;` — and with the ramp starting at exactly 0, that
+ *  test was true on the very first sample, so kick, snare, hats, crash,
+ *  the woodblock, the upright bass, the toms and the timpani all rendered
+ *  nothing at all. The whole score shipped with no bass and no drums, and it
+ *  took a "where are the beats?" to find out. A 0.2% onset is inaudible on a
+ *  drum hit; silence was not. */
 export function percEnv(t, decay) {
   if (t < 0) return 0;
   const a = 0.0015;
-  const atk = t < a ? t / a : 1;
+  const atk = t < a ? Math.max(0.002, t / a) : 1;
   return atk * Math.exp(-t / decay);
 }
 
