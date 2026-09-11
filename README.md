@@ -399,6 +399,30 @@ Entries are stored in the `daily_entries` table and kept for 30 days
 (`DAILY_RETENTION_DAYS`). Each one is also written into the drawing archive
 below, so the daily feeds the long-term set too.
 
+### The morning reminder
+
+One notification a day at 9am local — *"Today's prompt: A snail on its way
+somewhere important."* — and nothing else, ever. Tapping it opens the Daily.
+
+It is entirely local, which is the whole design: there is no push service,
+no Firebase project, no device tokens, and nothing for the server to send.
+Whenever the app connects it asks for `daily_upcoming` (the next fourteen
+days' prompts, each with the UTC midnight it goes live at), and the phone
+schedules a notification a day from that with `flutter_local_notifications`.
+The arithmetic — which prompt is *live* at 9am local, which is not always
+"today's" for someone far west of UTC — is in `reminder_plan.dart`, kept free
+of any plugin so `reminder_plan_test.dart` can pin it as plain Dart. If the
+app isn't opened for two weeks the reminders simply run out, which is the
+polite thing for them to do.
+
+It is off until the player says yes. The question is asked exactly once,
+right after their first Daily submission — the moment they know what it would
+be for — and there is a switch in the gallery to change their mind. Android
+13+ shows its own permission prompt at that point; the alarms are inexact
+(`inexactAllowWhileIdle`), so no exact-alarm permission is needed and
+"around nine" is the entire promise. The manifest declares the boot receiver
+so a restart doesn't silently drop the schedule.
+
 ## The drawing archive
 
 Every **human** drawing from every round is kept, in `drawings` in the same

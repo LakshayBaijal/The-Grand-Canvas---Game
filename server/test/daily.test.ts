@@ -42,6 +42,24 @@ test("every day has a prompt, and the schedule is the same everywhere", () => {
   assert.equal(d.prompt, promptForDay(d.day));
 });
 
+test("the upcoming schedule is today first, contiguous, and starts at midnight UTC", () => {
+  // Mirrors what the `daily_upcoming` handler builds, since the phone
+  // schedules reminders straight off it.
+  const today = dayOf(Date.now());
+  const days = Array.from({ length: 14 }, (_, i) => ({
+    day: today + i,
+    prompt: promptForDay(today + i),
+    startsAtMs: (today + i) * 24 * 60 * 60 * 1000,
+  }));
+  assert.equal(days[0].day, today);
+  assert.equal(days[0].prompt, dailyFor().prompt, "day zero is the prompt the app shows right now");
+  for (let i = 1; i < days.length; i++) {
+    assert.equal(days[i].day, days[i - 1].day + 1, "no gaps");
+    assert.equal(days[i].startsAtMs - days[i - 1].startsAtMs, 24 * 60 * 60 * 1000);
+  }
+  assert.equal(new Date(days[1].startsAtMs).getUTCHours(), 0, "a day starts at midnight UTC");
+});
+
 test("one entry per player per day; drawing again replaces it", () => {
   const dir = freshStore();
   try {

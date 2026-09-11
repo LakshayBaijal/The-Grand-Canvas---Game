@@ -7,6 +7,7 @@ import '../models/game_event.dart';
 import '../models/stroke.dart';
 import '../models/styles.dart';
 import '../services/audio_service.dart';
+import '../services/daily_reminder.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
 import '../views/draw_view.dart';
@@ -75,6 +76,9 @@ class _DailyScreenState extends State<DailyScreen> {
     if (!mounted) return;
     switch (event) {
       case DailyInfoEvent():
+        // The one moment to ask about the morning reminder: they've just sent
+        // their first drawing in, so they know exactly what it would be for.
+        final justSubmitted = _stage == _Stage.sending && event.submitted;
         setState(() {
           _info = event;
           if (event.submitted) {
@@ -92,6 +96,7 @@ class _DailyScreenState extends State<DailyScreen> {
             _stage = _Stage.intro;
           }
         });
+        if (justSubmitted && !DailyReminder.instance.decided) _offerReminder();
       case DailyGalleryEvent():
         if (event.day != _galleryDay) return;
         setState(() {
@@ -115,6 +120,40 @@ class _DailyScreenState extends State<DailyScreen> {
   }
 
   void _startDrawing() => setState(() => _stage = _Stage.drawing);
+
+  Future<void> _offerReminder() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tomorrow\'s prompt at 9am?'),
+        content: const Text(
+          'One notification a morning with the day\'s prompt — nothing else, ever. '
+          'You can switch it off from the gallery.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('NO THANKS')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('REMIND ME')),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (yes == true) {
+      final on = await DailyReminder.instance.enable();
+      if (on) widget.connection.dailyUpcoming();
+    } else {
+      await DailyReminder.instance.decline();
+    }
+  }
+
+  Future<void> _toggleReminder(bool on) async {
+    if (on) {
+      final granted = await DailyReminder.instance.enable();
+      if (granted) widget.connection.dailyUpcoming();
+    } else {
+      await DailyReminder.instance.disable();
+    }
+    if (mounted) setState(() {});
+  }
 
   Future<void> _confirmLeave() async {
     final leave = await showDialog<bool>(
@@ -195,6 +234,8 @@ class _DailyScreenState extends State<DailyScreen> {
           onLoadMore: _loadMore,
           onRefresh: _refresh,
           onDrawAgain: _startDrawing,
+          reminderOn: DailyReminder.instance.enabled,
+          onToggleReminder: _toggleReminder,
         );
     }
   }
@@ -401,6 +442,8 @@ class _Gallery extends StatefulWidget {
     required this.onLoadMore,
     required this.onRefresh,
     required this.onDrawAgain,
+    required this.reminderOn,
+    required this.onToggleReminder,
   });
 
   final DailyInfoEvent info;
@@ -411,6 +454,8 @@ class _Gallery extends StatefulWidget {
   final VoidCallback onLoadMore;
   final Future<void> Function() onRefresh;
   final VoidCallback onDrawAgain;
+  final bool reminderOn;
+  final ValueChanged<bool> onToggleReminder;
 
   @override
   State<_Gallery> createState() => _GalleryState();
@@ -461,7 +506,9 @@ class _GalleryState extends State<_Gallery> {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     _PromptCard(info: widget.info, big: false),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
+                    _ReminderRow(on: widget.reminderOn, onChanged: widget.onToggleReminder),
+                    const SizedBox(height: 10),
                     if (mine != null) _Mine(entry: mine, onDrawAgain: widget.onDrawAgain),
                     const SizedBox(height: 18),
                     Row(
@@ -529,6 +576,35 @@ class _GalleryState extends State<_Gallery> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The one setting the Daily has: a morning nudge with the prompt in it.
+class _ReminderRow extends StatelessWidget {
+  const _ReminderRow({required this.on, required this.onChanged});
+
+  final bool on;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+      decoration: GameDecor.panel(radius: 14),
+      child: Row(
+        children: [
+          const SketchIcon(SketchGlyph.clock, size: 16, color: GameColors.lime),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              "Tomorrow's prompt at 9am",
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+          ),
+          Switch(value: on, onChanged: onChanged, activeThumbColor: GameColors.lime),
+        ],
       ),
     );
   }

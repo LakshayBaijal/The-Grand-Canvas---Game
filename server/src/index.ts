@@ -624,6 +624,22 @@ wss.on("connection", (ws) => {
         break;
       }
 
+      case "daily_upcoming": {
+        // Fourteen days: enough that a phone opened once a week never runs
+        // out of scheduled reminders, and few enough that a stale cache on a
+        // phone nobody opens stops nagging on its own.
+        const today = dayOf(Date.now());
+        send(ws, {
+          type: "daily_upcoming",
+          days: Array.from({ length: 14 }, (_, i) => ({
+            day: today + i,
+            prompt: promptForDay(today + i),
+            startsAtMs: (today + i) * 24 * 60 * 60 * 1000,
+          })),
+        });
+        break;
+      }
+
       case "daily_submit": {
         const { day, prompt } = dailyFor();
         const title = maskProfanity(cleanText(message.title, 40));

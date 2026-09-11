@@ -11,6 +11,7 @@ import '../models/round_models.dart';
 import '../models/stroke.dart';
 import '../models/styles.dart';
 import 'identity.dart';
+import 'reminder_plan.dart';
 
 /// Owns the single WebSocket connection to the game server and translates raw
 /// JSON frames into typed [GameEvent]s.
@@ -209,6 +210,12 @@ class GameConnection {
               .toList(),
           hasMore: json['hasMore'] as bool,
         );
+      case 'daily_upcoming':
+        return DailyUpcomingEvent(
+          (json['days'] as List)
+              .map((d) => UpcomingDay.fromJson(d as Map<String, dynamic>))
+              .toList(),
+        );
       case 'error':
         return ErrorEvent(json['message'] as String);
       case 'pong':
@@ -299,6 +306,9 @@ class GameConnection {
         'title': title,
         'paper': paper.id,
       });
+
+  /// The next fortnight of prompts, for the local reminder schedule.
+  void dailyUpcoming() => _send({'type': 'daily_upcoming'});
 
   /// A page of a day's gallery (today when [day] is omitted), newest first.
   /// Pass the last entry's id as [beforeId] to get the next page.

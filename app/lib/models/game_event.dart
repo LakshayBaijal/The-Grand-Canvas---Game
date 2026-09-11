@@ -1,3 +1,4 @@
+import '../services/reminder_plan.dart';
 import 'daily_models.dart';
 import 'lobby_state.dart';
 import 'round_models.dart';
@@ -235,6 +236,12 @@ class DailyGalleryEvent extends GameEvent {
   final String prompt;
   final List<DailyEntry> entries;
   final bool hasMore;
+}
+
+/// The next fortnight of daily prompts, for scheduling local reminders.
+class DailyUpcomingEvent extends GameEvent {
+  const DailyUpcomingEvent(this.days);
+  final List<UpcomingDay> days;
 }
 
 class ErrorEvent extends GameEvent {

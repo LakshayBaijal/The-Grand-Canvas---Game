@@ -182,7 +182,11 @@ export type ClientMessage =
   /** A page of the gallery for [day] (today when omitted), newest first.
    *  Only answered for a day this player has submitted a drawing for —
    *  the gallery is the reward for taking part. */
-  | { type: "daily_gallery"; day?: number; beforeId?: number };
+  | { type: "daily_gallery"; day?: number; beforeId?: number }
+  /** The next fortnight of prompts, so the phone can schedule a local
+   *  "today's prompt" reminder without the server having to push anything
+   *  (no Firebase, no tokens, works offline once fetched). */
+  | { type: "daily_upcoming" };
 
 export type ServerMessage =
   | { type: "pong"; serverTimeMs: number }
@@ -311,5 +315,11 @@ export type ServerMessage =
       prompt: string;
       entries: DailyEntry[];
       hasMore: boolean;
+    }
+  /** Today and the days after it, in order. `startsAtMs` is midnight UTC at
+   *  the start of that day, which is when its prompt goes live. */
+  | {
+      type: "daily_upcoming";
+      days: { day: number; prompt: string; startsAtMs: number }[];
     }
   | { type: "error"; message: string };

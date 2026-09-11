@@ -16,6 +16,7 @@ import '../widgets/doodle_stage.dart';
 import '../widgets/logo.dart';
 import '../services/audio_service.dart';
 import 'game_screen.dart';
+import '../services/daily_reminder.dart';
 import 'daily_screen.dart';
 import 'leaderboard_screen.dart';
 import 'queue_screen.dart';
@@ -138,6 +139,16 @@ class _HomeScreenState extends State<HomeScreen> {
       _bootStatus = 'CONNECTING';
     });
     await _ensureConnected(silent: true);
+
+    // Tapping the morning reminder should land on the prompt it announced,
+    // not on the menu with the prompt one tap further away.
+    DailyReminder.instance.onTapped = () {
+      if (mounted && !_inGame && !_queued) _openDaily();
+    };
+    if (DailyReminder.instance.launchedFromReminder) {
+      DailyReminder.instance.launchedFromReminder = false;
+      if (mounted && _identity?.hasNickname == true) _openDaily();
+    }
   }
 
   Future<void> _loadSavedAddress() async {
@@ -197,6 +208,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (identity.hasNickname) {
       widget.connection.hello(identity);
       widget.connection.requestDoodle();
+      // Refresh the fortnight of reminders on every connection, so a phone
+      // opened once a week never runs dry.
+      if (DailyReminder.instance.enabled) widget.connection.dailyUpcoming();
     }
     unawaited(
       SharedPreferences.getInstance().then(
@@ -234,6 +248,8 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       case ProfileEvent(:final profile):
         setState(() => _profile = profile);
+      case DailyUpcomingEvent(:final days):
+        DailyReminder.instance.schedule(days);
       case DoodleEvent():
         setState(() => _doodle = event);
       case LobbyStateEvent(:final lobby):

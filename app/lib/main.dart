@@ -3,11 +3,12 @@ import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
 import 'services/audio_service.dart';
+import 'services/daily_reminder.dart';
 import 'services/entitlements.dart';
 import 'services/game_connection.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // The game is designed for a phone held upright; rotating mid-drawing would
   // rescale the canvas under the player's finger.
@@ -21,6 +22,9 @@ void main() {
   // Read the saved music/sound preference before the first screen asks to
   // play anything, so a muted player never gets a burst of audio first.
   AudioService.instance.load();
+  // Awaited: it decides whether this launch came from tapping a reminder,
+  // which the home screen needs to know before it builds.
+  await DailyReminder.instance.init();
   runApp(const BadMentalCanvasApp());
 }
 
