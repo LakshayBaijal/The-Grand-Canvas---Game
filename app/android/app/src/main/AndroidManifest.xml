@@ -14,7 +14,8 @@
          itself from the next fortnight of prompts (no push service). Android
          13+ asks the player before any notification shows; the boot receiver
          re-arms the schedule after a restart. Inexact alarms, so no
-         exact-alarm permission is needed -- "around 9am" is the whole ask. -->
+         exact-alarm permission is needed; "around 9am" is the whole ask.
+         (Mind the XML rule: no double hyphen inside a comment.) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
