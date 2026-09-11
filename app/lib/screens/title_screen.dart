@@ -40,7 +40,8 @@ class _Rule extends StatelessWidget {
   }
 }
 
-class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStateMixin {
+class _TitleScreenState extends State<TitleScreen>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1400),
@@ -62,7 +63,10 @@ class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStat
     return FadeTransition(
       opacity: curve,
       child: SlideTransition(
-        position: Tween(begin: const Offset(0, 0.25), end: Offset.zero).animate(curve),
+        position: Tween(
+          begin: const Offset(0, 0.25),
+          end: Offset.zero,
+        ).animate(curve),
         child: child,
       ),
     );
@@ -84,12 +88,17 @@ class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStat
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Spacer(flex: 5),
-                _stagger(0, 0.5, const GrandCanvasLogo(size: 168, animate: true)),
+                _stagger(
+                  0,
+                  0.5,
+                  const GrandCanvasLogo(size: 168, animate: true),
+                ),
                 const SizedBox(height: 34),
                 _stagger(0.35, 0.8, const GrandCanvasWordmark()),
                 const SizedBox(height: 20),
                 _stagger(
-                  0.55, 1,
+                  0.55,
+                  1,
                   // A rule either side of the tagline, so the line reads as a
                   // finished lockup rather than loose text under a logo.
                   const Row(
@@ -113,27 +122,14 @@ class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const Spacer(flex: 4),
-                // The studio line. Small and last, the way a card at the end
+                // The studio credit. Small and last, the way a card at the end
                 // of a film is: it belongs to the game without competing with
-                // the game's own name.
+                // the game's own name. The mark is the animated studio logo —
+                // Flutter plays the GIF's frames itself, so it moves.
+                _stagger(0.75, 1, const _StudioCredit()),
                 _stagger(
-                  0.75, 1,
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 18),
-                    child: Text(
-                      'A WHOSEGAMES GAME',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: GameColors.textMuted,
-                        fontSize: 10,
-                        letterSpacing: 3,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                _stagger(
-                  0.7, 1,
+                  0.7,
+                  1,
                   SizedBox(
                     height: 34,
                     child: Column(
@@ -163,6 +159,97 @@ class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStat
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// "Created by Whose?Games · Developer Lakshay Baijal", with the studio's
+/// animated mark beside it. The "?" is the brand's own colour: the question
+/// mark is the logo, and it is also the word's punctuation.
+class _StudioCredit extends StatelessWidget {
+  const _StudioCredit();
+
+  static const _electric = Color(0xFF2F7BFF);
+  static const _signal = Color(0xFF7FD4FF);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            // The 240px GIF: at 48 logical pixels that is retina-sharp, and
+            // it is a third the size of the big one.
+            child: Image.asset(
+              'assets/brand/whosegames.gif',
+              width: 48,
+              height: 48,
+              filterQuality: FilterQuality.medium,
+              gaplessPlayback: true,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'CREATED BY',
+                  style: TextStyle(
+                    color: GameColors.textMuted,
+                    fontSize: 9,
+                    letterSpacing: 2.4,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text.rich(
+                  const TextSpan(
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.4,
+                      color: GameColors.textPrimary,
+                      height: 1.1,
+                    ),
+                    children: [
+                      TextSpan(text: 'Whose'),
+                      TextSpan(
+                        text: '?',
+                        style: TextStyle(color: _electric),
+                      ),
+                      TextSpan(
+                        text: 'Games',
+                        style: TextStyle(
+                          color: _signal,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 3),
+                const Text(
+                  'DEVELOPER · LAKSHAY BAIJAL',
+                  maxLines: 1,
+                  overflow: TextOverflow.fade,
+                  softWrap: false,
+                  style: TextStyle(
+                    color: GameColors.textMuted,
+                    fontSize: 9,
+                    letterSpacing: 1.8,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
