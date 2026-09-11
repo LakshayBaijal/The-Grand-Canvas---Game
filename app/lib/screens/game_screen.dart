@@ -50,6 +50,9 @@ class _GameScreenState extends State<GameScreen> {
   int _waitingTotal = 0;
   bool _disconnected = false;
 
+  /// Server refusals so far, handed to the prompt box so it can unlock.
+  int _rejections = 0;
+
   /// The bot drawing replaying on the lobby's idle canvas.
   DoodleEvent? _doodle;
 
@@ -110,6 +113,7 @@ class _GameScreenState extends State<GameScreen> {
         });
       case ErrorEvent(:final message):
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        setState(() => _rejections++);
       case DisconnectedEvent():
         setState(() => _disconnected = true);
       default:
@@ -257,6 +261,7 @@ class _GameScreenState extends State<GameScreen> {
           key: ValueKey('prompt-${_promptWriting!.roundIndex}'),
           event: _promptWriting!,
           onSubmit: widget.connection.submitPrompt,
+          rejections: _rejections,
         ),
       GamePhase.drawing => DrawView(
           key: ValueKey('draw-${_round!.roundIndex}'),

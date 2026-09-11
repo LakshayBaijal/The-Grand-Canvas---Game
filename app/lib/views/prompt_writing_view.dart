@@ -11,7 +11,17 @@ const _promptSeconds = 40;
 /// "homework problem"; everyone else just watches and waits, same as
 /// Jackbox's Patently Stupid.
 class PromptWritingView extends StatefulWidget {
-  const PromptWritingView({super.key, required this.event, required this.onSubmit});
+  const PromptWritingView({
+    super.key,
+    required this.event,
+    required this.onSubmit,
+    this.rejections = 0,
+  });
+
+  /// Bumped by the parent each time the server refuses a submission (foul
+  /// language in the blank). The box locks on submit; this is what unlocks
+  /// it again so the writer can reword instead of sitting out the clock.
+  final int rejections;
 
   final PromptWritingEvent event;
   final void Function(String) onSubmit;
@@ -23,6 +33,14 @@ class PromptWritingView extends StatefulWidget {
 class _PromptWritingViewState extends State<PromptWritingView> {
   final _controller = TextEditingController();
   bool _submitted = false;
+
+  @override
+  void didUpdateWidget(PromptWritingView old) {
+    super.didUpdateWidget(old);
+    if (widget.rejections != old.rejections && _submitted) {
+      setState(() => _submitted = false);
+    }
+  }
 
   @override
   void dispose() {

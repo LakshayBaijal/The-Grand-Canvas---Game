@@ -15,6 +15,7 @@ import {
 import { pickDemoPrompt } from "./prompts.js";
 import { dailyFor, dayOf, promptForDay } from "./daily.js";
 import { asInt, cleanText, RateLimit, sanitizeStrokes } from "./validate.js";
+import { hasProfanity, maskProfanity } from "./profanity.js";
 import * as store from "./store.js";
 import * as queue from "./matchmaking.js";
 import {
@@ -625,7 +626,7 @@ wss.on("connection", (ws) => {
 
       case "daily_submit": {
         const { day, prompt } = dailyFor();
-        const title = cleanText(message.title, 40);
+        const title = maskProfanity(cleanText(message.title, 40));
         const strokes = sanitizeStrokes(message.strokes);
         if (strokes.length === 0) return sendError(ws, "Draw something first");
         if (!title) return sendError(ws, "Give it a title");
@@ -842,6 +843,11 @@ wss.on("connection", (ws) => {
         if (playerId !== currentWriterId(lobby)) return;
         const text = cleanText(message.text, 60);
         if (!text) return sendError(ws, "Fill in the blank first");
+        // Rejected rather than masked: the writer still has the clock and can
+        // reword. (If they don't, the timeout fills the blank generically, so
+        // a refusal can never stall the round.) The app unlocks the box again
+        // on this error.
+        if (hasProfanity(text)) return sendError(ws, "Keep it clean — try other words");
         recordPrompt(lobby, text);
         finishPromptWriting(lobby); // no need to make everyone wait out the clock
         break;
@@ -853,10 +859,13 @@ wss.on("connection", (ws) => {
         // Cleaned here, once, before it is stored, scored, archived and sent
         // to four other phones. A blank submission is still a submission —
         // the round has to be able to move on past someone who drew nothing.
+        // Titles are masked, not refused: the title arrives with the drawing,
+        // and losing 75 seconds of drawing over its name would be the worse
+        // outcome. The drawing itself is never inspected.
         recordDrawing(
           lobby,
           playerId,
-          cleanText(message.title, 40),
+          maskProfanity(cleanText(message.title, 40)),
           sanitizeStrokes(message.strokes),
           cleanText(message.paper, 16) || undefined,
         );

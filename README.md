@@ -428,8 +428,23 @@ Play's data-safety form — not a design opinion, just a question the form asks.
 
 Everything a phone sends is untrusted, and one broken or hostile client must
 never be able to take the round — or the process — down for everyone else.
-None of this is content moderation; it is about *shape* and *size*, not what
-people draw or write.
+Almost all of this is about *shape* and *size*, not content. The one
+content rule is narrow and deliberate:
+
+- **Foul language is filtered in written text only** — the prompt blank and
+  drawing titles, the two places a few typed words land on every other
+  player's screen. **Drawings are never inspected, classified or filtered**
+  by anything; what people draw is the game's freedom. `profanity.ts` holds
+  the list (English plus Hindi as it gets typed) in two tiers: whole-word
+  for short or ambiguous terms so "Dickens" and "Scunthorpe" pass, and
+  anywhere-in-word only for terms that are rude in every word they appear
+  in. A foul prompt blank is *refused* with "Keep it clean — try other
+  words" and the box unlocks so the writer can reword (the timeout still
+  fills the blank generically, so a refusal can never stall the round). A
+  rude title is *masked* to asterisks rather than refused, because the title
+  arrives with the drawing and losing 75 seconds of drawing over its name
+  would be the worse outcome. `test/profanity.test.ts` pins both the catches
+  and — the half that matters — the innocent words that must pass.
 
 - **Drawings are cleaned, not trusted** (`server/src/validate.ts`). A drawing
   is relayed to every other player and stored, so a badly-shaped one — a
