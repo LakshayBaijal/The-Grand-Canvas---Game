@@ -1,5 +1,7 @@
 # 🖼 The Grand Canvas
 
+*A WhoseGames game.*
+
 A Jackbox-style party drawing game for **3–5 players**, built for Android and iOS.
 Everyone plays on their own phone — no shared TV screen needed.
 
@@ -917,15 +919,19 @@ The game is fully playable, but these are needed for a public release:
 
    **Give it a persistent disk** and point `DB_PATH` at it — on most hosts the
    filesystem is wiped on every deploy, which would reset the leaderboard.
-2. **Application ID.** Currently `com.drawandfool.draw_and_fool` in
-   `app/android/app/build.gradle.kts` (left over from before the rename — it's
-   just an internal identifier, invisible to players). Change it to a domain
-   you own before release — it can never be changed after your first Play
-   Store upload.
+2. **Application ID.** Set to `com.whosegames.grandcanvas` (the studio, then
+   the game). It can never be changed after your first Play Store upload, so
+   if that is not the id you want, change it *now*. Note that Google sign-in
+   is registered against this exact package name plus the signing key's
+   SHA-1, so the Cloud Console entry has to match it.
 3. **Signing key.** Create an upload keystore and wire it into a release
    `signingConfig`; the release build currently uses debug signing.
-4. **App icon and name.** Replace the default Flutter launcher icons and set the
-   display name in `AndroidManifest.xml`.
+4. **App icon and name.** Done: the launcher icon is the game's own logo,
+   rendered from the `GrandCanvasLogo` widget by `test/launcher_icon_test.dart`
+   and turned into every mipmap (including an adaptive icon) by
+   `flutter_launcher_icons`. Regenerate with
+   `flutter test test/launcher_icon_test.dart && dart run flutter_launcher_icons`
+   from `app/`. The display name is set in `AndroidManifest.xml`.
 5. **Build the bundle:** `flutter build appbundle --release`
 6. **Store listing.** Play requires a privacy policy, screenshots, a feature
    graphic, and a content rating questionnaire.

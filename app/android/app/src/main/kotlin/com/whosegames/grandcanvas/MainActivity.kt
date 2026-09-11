@@ -1,4 +1,4 @@
-package com.drawandfool.draw_and_fool
+package com.whosegames.grandcanvas
 
 import io.flutter.embedding.android.FlutterActivity
 

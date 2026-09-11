@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.drawandfool.draw_and_fool"
+    namespace = "com.whosegames.grandcanvas"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -18,8 +18,13 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.drawandfool.draw_and_fool"
+        // WhoseGames is the studio; this is the id the Play Store will know the
+        // game by. It can never change after the first upload, so it was set
+        // to the brand before there was one. (Google sign-in is registered
+        // against this exact string plus the signing key's SHA-1 -- see the
+        // README's "Linking a Google account" -- so the Cloud Console entry
+        // has to match it.)
+        applicationId = "com.whosegames.grandcanvas"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

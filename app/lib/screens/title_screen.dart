@@ -113,6 +113,25 @@ class _TitleScreenState extends State<TitleScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const Spacer(flex: 4),
+                // The studio line. Small and last, the way a card at the end
+                // of a film is: it belongs to the game without competing with
+                // the game's own name.
+                _stagger(
+                  0.75, 1,
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 18),
+                    child: Text(
+                      'A WHOSEGAMES GAME',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: GameColors.textMuted,
+                        fontSize: 10,
+                        letterSpacing: 3,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
                 _stagger(
                   0.7, 1,
                   SizedBox(
