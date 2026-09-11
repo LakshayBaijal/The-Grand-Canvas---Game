@@ -114,12 +114,4 @@
     </g>
   </g>
 
-  <!-- Sparkles: the biggest one where the light comes from. -->
-  <g fill="#EAF4FF">
-    <g transform="translate(232 190) scale(52)"><use href="#spark" filter="url(#haze)" opacity="0.8"/><use href="#spark"/></g>
-    <g transform="translate(818 150) scale(34)"><use href="#spark" filter="url(#haze)" opacity="0.8"/><use href="#spark"/></g>
-    <g transform="translate(700 610) scale(22)"><use href="#spark"/></g>
-    <g transform="translate(300 790) scale(18)"><use href="#spark"/></g>
-    <g transform="translate(860 860) scale(40)"><use href="#spark" filter="url(#haze)" opacity="0.8"/><use href="#spark"/></g>
-  </g>
 </svg>
