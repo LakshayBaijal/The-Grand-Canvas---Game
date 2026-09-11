@@ -691,28 +691,82 @@ export function car(pen: Pen, rng: Rng, box: Box): void {
   }
 }
 
+/** A pet, side on, standing: a dog most of the time, otherwise a cat. The
+ *  old one was a lumpy blob with a circle on it, which is what "animal" looks
+ *  like when nothing commits to a species. What sells each is small and
+ *  specific — floppy ears and a snout, or pointed ears and whiskers. */
 export function animal(pen: Pen, rng: Rng, box: Box): void {
+  const cat = rng.chance(0.4);
+  const u = Math.min(box.w, box.h);
   pen.setWidth(rng.range(4, 5));
-  pen.blob(box.x + box.w * 0.5, box.y + box.h * 0.6, Math.min(box.w, box.h) * 0.42, 3);
-  const headR = Math.min(box.w, box.h) * 0.22;
-  const hx = box.x + box.w * 0.75;
-  const hy = box.y + box.h * 0.25;
+
+  // Body: a long ellipse sitting in the lower half.
+  const bx = box.x + box.w * 0.45;
+  const by = box.y + box.h * 0.6;
+  const brx = box.w * 0.32;
+  const bry = box.h * 0.2;
+  pen.ellipse(bx, by, brx, bry, 0.8);
+
+  // Head, overlapping the front of the body.
+  const headR = u * 0.17;
+  const hx = box.x + box.w * 0.78;
+  const hy = box.y + box.h * 0.36;
   pen.circle(hx, hy, headR);
-  // Ears.
-  pen.setWidth(3);
-  for (const side of [-1, 1]) {
-    pen.polyline(
-      [
-        { x: hx + side * headR * 0.5, y: hy - headR * 0.7 },
-        { x: hx + side * headR * 0.8, y: hy - headR * 1.5 },
-        { x: hx + side * headR * 1.0, y: hy - headR * 0.4 },
-      ],
-      false,
-      0.6,
-    );
+
+  if (cat) {
+    // Pointed ears.
+    pen.setWidth(3.2);
+    for (const side of [-1, 1]) {
+      pen.polyline(
+        [
+          { x: hx + side * headR * 0.35, y: hy - headR * 0.85 },
+          { x: hx + side * headR * 0.75, y: hy - headR * 1.6 },
+          { x: hx + side * headR * 0.95, y: hy - headR * 0.35 },
+        ],
+        false,
+        0.5,
+      );
+    }
+    // Whiskers.
+    pen.setWidth(2);
+    for (const side of [-1, 1]) {
+      for (const dy of [-0.05, 0.12]) {
+        pen.line(
+          { x: hx + side * headR * 0.45, y: hy + headR * (0.25 + dy) },
+          { x: hx + side * headR * 1.5, y: hy + headR * (0.15 + dy * 2.5) },
+          0.4,
+        );
+      }
+    }
+    // Tail curling up behind.
+    pen.setWidth(3.5);
+    pen.arc(box.x + box.w * 0.1, box.y + box.h * 0.42, u * 0.2, 0.3, 2.6, 0.7);
+  } else {
+    // Floppy ears: two lobes hanging off the top of the head.
+    pen.setWidth(3.2);
+    for (const side of [-1, 1]) {
+      pen.ellipse(hx + side * headR * 0.85, hy - headR * 0.1, headR * 0.28, headR * 0.6, 0.6);
+    }
+    // Snout: a small rounded bump on the front, with a nose.
+    pen.ellipse(hx + headR * 0.9, hy + headR * 0.25, headR * 0.45, headR * 0.32, 0.6);
+    pen.setWidth(4);
+    pen.circle(hx + headR * 1.25, hy + headR * 0.15, headR * 0.1);
+    // Tail up, wagging.
+    pen.setWidth(3.5);
+    pen.arc(box.x + box.w * 0.12, box.y + box.h * 0.4, u * 0.18, -0.4, 1.6, 0.7);
   }
-  // Tail.
-  pen.arc(box.x + box.w * 0.15, box.y + box.h * 0.45, headR * 0.9, -1.2, 1.2, 0.7);
+
+  // Eye.
+  pen.setWidth(4);
+  pen.circle(hx + headR * 0.3, hy - headR * 0.15, headR * 0.09);
+
+  // Four legs, front pair and back pair, with little feet.
+  pen.setWidth(3.4);
+  const footY = by + bry + box.h * 0.16;
+  for (const fx of [bx - brx * 0.7, bx - brx * 0.45, bx + brx * 0.45, bx + brx * 0.7]) {
+    pen.line({ x: fx, y: by + bry * 0.6 }, { x: fx, y: footY }, 0.5);
+    pen.line({ x: fx - u * 0.02, y: footY }, { x: fx + u * 0.035, y: footY }, 0.4);
+  }
 }
 
 export function musicNotes(pen: Pen, rng: Rng, cx: number, cy: number, size: number): void {
@@ -869,25 +923,64 @@ export function laptop(pen: Pen, rng: Rng, box: Box): void {
   );
 }
 
+/** A toaster with a slice popped up. The old one was the slice alone — a
+ *  dome on a rectangle — which at doodle size read as a window or a
+ *  tombstone. The toaster is the recognisable part: the slots, the lever,
+ *  and the bread sticking out of the top. */
 export function toast(pen: Pen, rng: Rng, box: Box): void {
   pen.setWidth(rng.range(4, 5));
-  const w = box.w * 0.7;
+  const w = box.w * 0.78;
   const x = box.x + (box.w - w) / 2;
-  const crustY = box.y + box.h * 0.28;
-  // Domed top, straight sides.
-  pen.arc(x + w * 0.5, crustY, w * 0.5, Math.PI, Math.PI * 2, 0.7);
+  const topY = box.y + box.h * 0.42;
+  const bottomY = box.y + box.h;
+  const bodyH = bottomY - topY;
+
+  // Body: rounded shoulders, straight sides, flat bottom.
+  const r = w * 0.12;
   pen.polyline(
     [
-      { x, y: crustY },
-      { x, y: box.y + box.h },
-      { x: x + w, y: box.y + box.h },
-      { x: x + w, y: crustY },
+      { x, y: topY + r },
+      { x, y: bottomY },
+      { x: x + w, y: bottomY },
+      { x: x + w, y: topY + r },
     ],
     false,
     0.8,
   );
-  pen.setWidth(2.6);
-  pen.rect(x + w * 0.14, crustY + box.h * 0.1, w * 0.72, box.h * 0.48);
+  pen.arc(x + r, topY + r, r, Math.PI, Math.PI * 1.5, 0.6);
+  pen.arc(x + w - r, topY + r, r, Math.PI * 1.5, Math.PI * 2, 0.6);
+  pen.line({ x: x + r, y: topY }, { x: x + w - r, y: topY }, 0.7);
+
+  // Two slots along the top.
+  pen.setWidth(3);
+  for (const fx of [0.3, 0.62]) {
+    pen.line({ x: x + w * (fx - 0.1), y: topY + bodyH * 0.06 }, { x: x + w * (fx + 0.18), y: topY + bodyH * 0.06 }, 0.5);
+  }
+
+  // The slice, popped up out of the first slot: domed top, straight sides.
+  pen.setWidth(rng.range(3.6, 4.4));
+  const sw = w * 0.34;
+  const sx = x + w * 0.15;
+  const sTop = box.y + box.h * 0.1;
+  pen.arc(sx + sw * 0.5, sTop + sw * 0.4, sw * 0.5, Math.PI, Math.PI * 2, 0.7);
+  pen.line({ x: sx, y: sTop + sw * 0.4 }, { x: sx, y: topY }, 0.6);
+  pen.line({ x: sx + sw, y: sTop + sw * 0.4 }, { x: sx + sw, y: topY }, 0.6);
+
+  // Lever on the side, and a cord trailing off.
+  pen.setWidth(3.4);
+  const lvY = topY + bodyH * 0.35;
+  pen.line({ x: x + w, y: lvY }, { x: x + w + box.w * 0.08, y: lvY }, 0.5);
+  pen.line({ x: x + w + box.w * 0.08, y: lvY - box.h * 0.04 }, { x: x + w + box.w * 0.08, y: lvY + box.h * 0.04 }, 0.5);
+  pen.setWidth(2.4);
+  pen.polyline(
+    [
+      { x: x + w * 0.85, y: bottomY },
+      { x: x + w * 0.95, y: bottomY + box.h * 0.05 },
+      { x: x + w * 1.1, y: bottomY + box.h * 0.03 },
+    ],
+    false,
+    0.8,
+  );
 }
 
 export function iceCream(pen: Pen, rng: Rng, box: Box): void {
@@ -3932,10 +4025,27 @@ export function roomFloor(pen: Pen, rng: Rng, y: number): void {
 }
 
 /** Two walls meeting: a corner of a room. */
-export function roomCorner(pen: Pen, rng: Rng, floorY: number): void {
+/** The corner of a room: a vertical where two walls meet, and skirting running
+ *  off to each side.
+ *
+ *  The vertical goes in whichever margin [avoid] leaves free. It used to land
+ *  anywhere across the middle of the page, which put a tall grey line straight
+ *  through the subject in about a third of drawings — and a line through a cat
+ *  is not a wall, it is a random stroke. With no margin wide enough it draws
+ *  the skirting only, meeting at one edge. */
+export function roomCorner(pen: Pen, rng: Rng, floorY: number, avoid: Box): void {
   pen.setWidth(rng.range(2.2, 3));
-  const cx = rng.range(0.28, 0.72);
-  pen.line({ x: cx, y: rng.range(0.06, 0.14) }, { x: cx, y: floorY }, 0.6);
+  const leftRoom = avoid.x - 0.08;
+  const rightRoom = 0.92 - (avoid.x + avoid.w);
+  const side = leftRoom >= rightRoom ? -1 : 1;
+  const room = Math.max(leftRoom, rightRoom);
+  let cx: number;
+  if (room >= 0.1) {
+    cx = side < 0 ? rng.range(0.08, avoid.x - 0.05) : rng.range(avoid.x + avoid.w + 0.05, 0.92);
+    pen.line({ x: cx, y: rng.range(0.06, 0.14) }, { x: cx, y: floorY }, 0.6);
+  } else {
+    cx = side < 0 ? 0.05 : 0.95;
+  }
   pen.line({ x: 0.04, y: floorY - rng.range(0.04, 0.09) }, { x: cx, y: floorY }, 0.6);
   pen.line({ x: cx, y: floorY }, { x: 0.96, y: floorY - rng.range(0.04, 0.09) }, 0.6);
 }

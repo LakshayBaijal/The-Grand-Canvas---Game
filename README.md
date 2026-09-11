@@ -506,6 +506,28 @@ first names, are never labelled in the UI, and are ordinary lobby members
 server-side — every phase check treats them exactly like humans, so there's no
 separate bot code path through the game.
 
+### What a bot draws — and what it never draws on
+
+A bot drawing is composed, not random, and the rule that keeps it looking
+composed is in `doodle/compose.ts`: **machine fittings go on machines only.**
+Dials, levers, propellers, hoses, wheels, springs, blueprint callouts and the
+stray "eureka" lightbulb are a contraption's identity — and were, for a while,
+being applied to whatever the answer named, which is how a cake got a hose, a
+speaker got a propeller and a toilet got wheels. When the prompt names a real
+thing (or the topic offers one), the bot draws *that*, big and clean, with a
+floor, some shading and a prop or two beside it — and nothing bolted onto it.
+Only a prompt with nothing drawable in it becomes a contraption, and that is
+the only place the fittings pool is used.
+
+Two smaller rules from the same contact sheet: when several words in an
+answer name a shape, the *last* one wins (English puts the head noun last —
+"flat phone battery" is a battery, not a flat), and the room-corner backdrop
+line goes in whichever margin the subject leaves free, never through it.
+
+Judge this work by looking, not by stroke counts: `scratchpad`-style contact
+sheets (a grid of `botDrawing()` output rendered to an image) are how every
+one of those rules was found.
+
 ### Why bots run on the server, not the client
 
 This was measured rather than assumed, because "the server is doing all the bot

@@ -150,7 +150,9 @@ const WORD_SHAPES: Record<string, PartFn> = {
   bin: parts.trashBin, trash: parts.trashBin, rubbish: parts.trashBin,
   garbage: parts.trashBin, recycling: parts.trashBin,
   chair: parts.chair, desk: parts.chair, sofa: parts.chair, seat: parts.chair,
-  house: parts.house, home: parts.house, apartment: parts.house, flat: parts.house,
+  // "flat" is not here: as an answer it is far more often "flat battery" or
+  // "flat tyre" than a home, and it was drawing houses for both.
+  house: parts.house, home: parts.house, apartment: parts.house,
   box: parts.crate, boxes: parts.crate, parcel: parts.crate, delivery: parts.crate,
   package: parts.crate, shoe: parts.shoe, shoes: parts.shoe, boots: parts.shoe,
 
@@ -430,13 +432,21 @@ function expand(text: string): Set<string> {
 }
 
 /** The most specific shape the text names, or null. */
+/**
+ * The most specific shape the text names, or null.
+ *
+ * When several words hit, the *last* wins. English noun phrases put the head
+ * noun last — "flat phone battery" is a battery, "lost luggage" is luggage,
+ * "cold showers" is a shower — and taking the first hit drew a house for the
+ * first of those, because "flat" is also a word for an apartment.
+ */
 function findNamedShape(words: Set<string>): PartFn | null {
-  const hits: PartFn[] = [];
+  let hit: PartFn | null = null;
   for (const word of words) {
     const shape = WORD_SHAPES[word];
-    if (shape && !hits.includes(shape)) hits.push(shape);
+    if (shape) hit = shape;
   }
-  return hits.length > 0 ? hits[0] : null;
+  return hit;
 }
 
 /**
@@ -544,9 +554,28 @@ function sceneProps(pen: Pen, rng: Rng, ctx: Ctx, focus: Box): void {
   }
 }
 
-/** Bolts [count] distinct fittings onto a body. Drawing from a pool this size
- *  is what keeps two machines of the same silhouette from matching. */
+/** The drawing in progress. Set by drawForPrompt before any layout runs, so
+ *  the helpers below can tell a real thing from a machine without every one
+ *  of a dozen call sites having to be told. */
+let current: Ctx | null = null;
+
+/**
+ * Bolts [count] distinct fittings onto a body — but only a *machine's* body.
+ *
+ * This was the single biggest source of drawings that made no sense: the same
+ * pool that gives a contraption its dials and levers was being applied to
+ * whatever the answer named, so a cake got a hose, a speaker got a propeller,
+ * and a toilet got a crank. On a machine those are its identity; on a real
+ * object they are noise. When the drawing has a subject, this does nothing,
+ * and `fittings` exists for the one place a machine is wanted next to one.
+ */
 function details(pen: Pen, rng: Rng, box: Box, count: number): void {
+  if (current && current.subjects.length > 0) return;
+  fittings(pen, rng, box, count);
+}
+
+/** Fittings, unconditionally. For bodies that really are machines. */
+function fittings(pen: Pen, rng: Rng, box: Box, count: number): void {
   const pool: (() => void)[] = [
     () => parts.dial(pen, rng, box),
     () => parts.buttons(pen, rng, box),
@@ -597,6 +626,9 @@ function details(pen: Pen, rng: Rng, box: Box, count: number): void {
  * drawing that called this, which is exactly the kind of thing that makes a
  * gallery of doodles look like one doodle. */
 function base(pen: Pen, rng: Rng, box: Box): void {
+  // A toilet on wheels and a snowflake on a spring were both real output.
+  // Things that stand on something already draw it themselves.
+  if (current && current.subjects.length > 0) return;
   const options: (() => void)[] = [
     () => parts.wheels(pen, rng, box),
     () => parts.legs(pen, rng, box),
@@ -690,13 +722,22 @@ function topicAccents(pen: Pen, rng: Rng, topic: Topic, box: Box, accent: string
   }
 }
 
+/** Accents that draw *onto* the subject rather than beside it. Right on a
+ *  machine, wrong on a thing: wings on a bird that already has wings, a
+ *  screen stuck across a laptop, plus-signs over a cake. */
+const ON_BODY: ReadonlySet<Topic> = new Set<Topic>(["tech", "flight", "space"]);
+
 function accents(pen: Pen, rng: Rng, ctx: Ctx, box: Box): void {
   if (!ctx.primary) return;
+  const hasSubject = ctx.subjects.length > 0;
   pen.setColor(ctx.ink);
-  topicAccents(pen, rng, ctx.primary, box, ctx.accent);
-  // A second topic sometimes sneaks in when the prompt mentions several.
+  if (!(hasSubject && ON_BODY.has(ctx.primary))) {
+    topicAccents(pen, rng, ctx.primary, box, ctx.accent);
+  }
+  // A second topic sometimes sneaks in when the prompt mentions several —
+  // rarely, on a real thing, where a second decoration is usually one too many.
   const secondary = ctx.topics.find((t) => t !== ctx.primary);
-  if (secondary && rng.chance(0.5)) {
+  if (secondary && !(hasSubject && ON_BODY.has(secondary)) && rng.chance(hasSubject ? 0.25 : 0.5)) {
     pen.setColor(ctx.ink);
     topicAccents(pen, rng, secondary, box, ctx.accent);
   }
@@ -743,7 +784,7 @@ function backdrop(pen: Pen, rng: Rng, ctx: Ctx, focus: Box, grounded: boolean): 
   if (choice === 0 && grounded) {
     parts.floorBoards(pen, rng, floorY);
   } else if (choice === 1) {
-    parts.roomCorner(pen, rng, floorY);
+    parts.roomCorner(pen, rng, floorY, focus);
   } else if (choice === 2 && focus.y > 0.24) {
     // Only when the subject leaves room for it — a window drawn over the
     // subject is the one way this makes the page worse.
@@ -945,12 +986,14 @@ const showcase: Layout = (pen, rng, ctx) => {
 
   // The bolted-on homework is the joke, but not every time — a clean object
   // is often the clearer read.
-  if (rng.chance(0.7)) {
+  if (rng.chance(0.45)) {
     const gw = rng.range(0.12, 0.17);
     const gh = rng.range(0.09, 0.14);
     const gadget = beside(rng, box, gw, gh);
     parts.machineBody(pen, rng, gadget);
-    details(pen, rng, gadget, rng.int(1, 2));
+    // `fittings`, not `details`: this box *is* a machine, sitting beside the
+    // subject, and a dial is what makes it read as one.
+    fittings(pen, rng, gadget, rng.int(1, 2));
   }
   accents(pen, rng, ctx, box);
   return box;
@@ -1165,22 +1208,24 @@ const orbit: Layout = (pen, rng, ctx) => {
  * which is right when all we have is a vague topic — but wrong the moment we
  * know the prompt says "alarm". Knowing what to draw and then burying it under
  * a generic contraption is the whole failure mode this avoids. */
-const GENERAL_LAYOUTS: readonly Layout[] = [
+/** For when nothing in the prompt could be drawn as a thing, so the drawing
+ *  is a contraption — the one case where dials, wheels and a blueprint frame
+ *  are the point. `wearable`, `hanging` and `orbit` are gone even here: a box
+ *  on a stick figure's head, a box with strings dropping onto something, and
+ *  a ring of stars all read as arbitrary shapes rather than as a machine. */
+const MACHINE_LAYOUTS: readonly Layout[] = [
   hero,
   tower,
   bench,
   creature,
   handheld,
-  wearable,
   duo,
   beforeAfter,
-  hanging,
   patentDiagram,
   pileUp,
   scaleGag,
   tableTop,
   triptych,
-  orbit,
 ];
 
 /** Weighted so a named subject is nearly always the hero, but spread across
@@ -1197,13 +1242,16 @@ const NAMED_LAYOUTS: readonly Layout[] = [
   showcase, showcase, showcase,
   hero, hero,
   tableTop, tableTop,
-  patentDiagram, patentDiagram,
   scaleGag,
   pileUp,
-  orbit,
-  triptych,
   duo,
-  hanging,
+  // `triptych` is out too: three panels each a quarter of the page turned a
+  // named subject into three unreadable thumbnails. It stays for machines,
+  // where "the same box, more elaborate each time" is the joke.
+  // Not here, on purpose: `patentDiagram` (its callout bubbles — a circle on
+  // a stick — were the most-reported "random shape"), `orbit` (stars around a
+  // kettle), and `hanging` (a box with strings dropping onto the subject).
+  // All three make sense around a machine and nonsense around a thing.
 ];
 
 /** Layouts whose focus isn't standing on anything: a panel of a comic strip,
@@ -1229,21 +1277,19 @@ const UNGROUNDED: ReadonlySet<Layout> = new Set<Layout>([
  * safety net and starts bolting dials onto things that were already finished. */
 const MIN_STROKES = 21;
 
-/** Marks added on top of whatever was drawn, sparingly. */
+/** Marks added on top of whatever was drawn, sparingly — and only over a
+ *  contraption. A stray lightbulb, an exclamation mark and a handful of plus
+ *  signs floating in a corner were, with the fittings, most of what made a
+ *  page look like random shapes. Over a machine they are the "eureka" of the
+ *  joke; over a drawing of a cat they are litter. */
 function finishingMarks(pen: Pen, rng: Rng, ctx: Ctx): void {
-  pen.setColor(rng.chance(0.6) ? ctx.accent : ctx.ink);
-  // Was 0.3, which put sparkles in a third of all drawings — enough that they
-  // stopped reading as a flourish and started reading as house style. The
-  // `orbit` layout scatters its own, so this backed off further.
-  if (rng.chance(0.2)) parts.sparkles(pen, rng, { x: 0.2, y: 0.12, w: 0.6, h: 0.3 });
-  if (rng.chance(0.16)) {
-    pen.setColor(ctx.accent);
+  if (ctx.subjects.length > 0) return;
+  pen.setColor(ctx.accent);
+  if (rng.chance(0.15)) parts.sparkles(pen, rng, { x: 0.2, y: 0.12, w: 0.6, h: 0.3 });
+  if (rng.chance(0.12)) {
     parts.lightbulb(pen, rng, rng.range(0.13, 0.24), rng.range(0.15, 0.23), rng.range(0.035, 0.05));
   }
-  if (rng.chance(0.16)) {
-    pen.setColor(ctx.accent);
-    parts.exclaim(pen, rng, rng.range(0.78, 0.9), rng.range(0.16, 0.26), rng.range(0.04, 0.06));
-  }
+  pen.setColor(ctx.ink);
 }
 
 /**
@@ -1288,28 +1334,31 @@ export function drawForPrompt(prompt: string, answer: string, artistSalt: string
     topics,
     subjects,
   };
+  current = ctx;
 
-  // A prompt with something drawable in it should often lead with that thing
-  // rather than burying it behind another machine.
-  // When we know exactly what to draw, only layouts that stage the subject are
-  // eligible. When it's a topical guess, spread across everything as before.
-  const pool = subjects.length === 0
-    ? GENERAL_LAYOUTS
-    : named
-        ? NAMED_LAYOUTS
-        : [...GENERAL_LAYOUTS, showcase, showcase, showcase, showcase];
+  // Anything with a subject — named outright, or guessed from the topic —
+  // gets staged as that subject. Only a prompt with nothing drawable in it
+  // becomes a contraption. The topical case used to draw from the machine
+  // pool half the time, which is how "traffic" came out as a box on wheels
+  // when the topic had a perfectly good car to offer.
+  const pool = subjects.length === 0 ? MACHINE_LAYOUTS : NAMED_LAYOUTS;
   const layout = rng.pick(pool);
   const focus = layout(pen, rng, ctx);
 
   // Some layouts can land thin — a bare silhouette and little else, which
-  // reads as abandoned rather than simple. Keep bolting things onto the focus
-  // until there's enough on the page to look finished.
+  // reads as abandoned rather than simple. A machine is topped up with more
+  // machine; a thing is topped up with more *room* around it, never with
+  // fittings bolted onto it.
   pen.setColor(ink);
-  for (let attempt = 0; attempt < 3 && pen.strokes.length < MIN_STROKES; attempt++) {
-    details(pen, rng, focus, 2);
+  const thin = pen.strokes.length < MIN_STROKES;
+  if (thin && subjects.length === 0) {
+    for (let attempt = 0; attempt < 3 && pen.strokes.length < MIN_STROKES; attempt++) {
+      details(pen, rng, focus, 2);
+    }
   }
 
-  if (!UNGROUNDED.has(layout) && rng.chance(0.5)) sceneProps(pen, rng, ctx, focus);
+  const grounded = !UNGROUNDED.has(layout);
+  if (grounded && (thin || rng.chance(0.5))) sceneProps(pen, rng, ctx, focus);
 
   depth(pen, rng, ctx, focus, !UNGROUNDED.has(layout));
 
