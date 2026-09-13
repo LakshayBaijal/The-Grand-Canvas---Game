@@ -74,6 +74,10 @@ android {
 
     buildTypes {
         release {
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = if (hasUploadKey) {
                 signingConfigs.getByName("upload")
             } else {
@@ -95,4 +99,10 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // The ads SDK pulls in an old androidx.work whose Room database class
+    // gets stripped by R8 in release builds: the app then dies on launch
+    // with "Failed to create an instance of androidx.work.impl.WorkDatabase"
+    // before Flutter even starts. A current work-runtime is built for R8,
+    // and proguard-rules.pro keeps the generated Room classes to be sure.
+    implementation("androidx.work:work-runtime:2.10.0")
 }

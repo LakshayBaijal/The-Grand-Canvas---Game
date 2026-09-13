@@ -693,7 +693,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _openLeaderboard,
                       icon: const Icon(Icons.leaderboard_rounded, size: 18),
-                      label: const Text('LEADERBOARD'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('LEADERBOARD', maxLines: 1),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -705,7 +708,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         size: 16,
                         color: GameColors.primary,
                       ),
-                      label: const Text('HALL OF FAME'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('HALL OF FAME', maxLines: 1),
+                      ),
                     ),
                   ),
                 ],

@@ -4,7 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timezone/data/latest.dart' as tzdata;
+// latest_all, not latest: the smaller set drops legacy alias names, and
+// Android still reports India as "Asia/Calcutta" (the database's name is
+// "Asia/Kolkata"). Without the aliases the lookup fails on every phone in
+// the game's home market and the reminder fires at the wrong hour.
+import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'reminder_plan.dart';
@@ -54,14 +58,24 @@ class DailyReminder extends ChangeNotifier {
     _enabled = prefs.getBool(_enabledKey) ?? false;
     _decided = prefs.getBool(_decidedKey) ?? false;
 
+    tzdata.initializeTimeZones();
     try {
-      tzdata.initializeTimeZones();
       final info = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(info.identifier));
     } catch (e) {
-      // Fall back to UTC rather than refuse to start: a wrong hour is a
-      // nuisance, a crash on launch is not.
+      // Unknown name. Rather than fall back to UTC (a wrong hour for
+      // everyone east or west of Greenwich), take any zone whose current
+      // offset matches the phone's: the reminder then fires at the right
+      // local hour even if the name is one we've never heard of.
       debugPrint('DailyReminder: could not resolve the local timezone ($e)');
+      final offset = DateTime.now().timeZoneOffset;
+      for (final location in tz.timeZoneDatabase.locations.values) {
+        if (location.currentTimeZone.offset == offset) {
+          tz.setLocalLocation(location);
+          debugPrint('DailyReminder: using ${location.name} by offset');
+          break;
+        }
+      }
     }
 
     try {
@@ -97,7 +111,10 @@ class DailyReminder extends ChangeNotifier {
   Future<bool> enable() async {
     var granted = true;
     if (_ready) {
-      final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       granted = await android?.requestNotificationsPermission() ?? true;
     }
     await _setEnabled(granted);
@@ -124,7 +141,10 @@ class DailyReminder extends ChangeNotifier {
   /// Replaces every pending reminder with one per day from [days].
   Future<void> schedule(List<UpcomingDay> days) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_cacheKey, jsonEncode(days.map((d) => d.toJson()).toList()));
+    await prefs.setString(
+      _cacheKey,
+      jsonEncode(days.map((d) => d.toJson()).toList()),
+    );
     if (!_enabled || !_ready) return;
 
     await _plugin.cancelAll();
