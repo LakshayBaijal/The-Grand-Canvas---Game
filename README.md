@@ -929,9 +929,10 @@ picture?") aren't assertable. Two throwaway techniques worth reusing:
 ## Before shipping to the Play Store
 
 > **The step-by-step version of this section, in plain words, is
-> [GOING-LIVE.md](GOING-LIVE.md).** Hosting on Railway, the persistent disk,
-> pointing the app at it with `--dart-define=SERVER=…`, Google sign-in, the
-> signing key, the Play Console checklist, and the weekly routine after launch.
+> [GOING-LIVE.md](GOING-LIVE.md).** A free VM on Oracle Cloud, a free DuckDNS
+> name, `deploy/setup-vm.sh` to install everything in one command, `.env` for
+> every setting, `build-app.ps1` to build with them, Google sign-in, the
+> signing key, the Play Console checklist, and the routine after launch.
 
 The game is fully playable, but these are needed for a public release:
 
