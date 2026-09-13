@@ -353,7 +353,10 @@ export function renderScore(cfg) {
   applyReverb(D, E, 0.07, 0.6, 0.5);
   for (let i = 0; i < n; i++) { L[i] += D[i]; R[i] += E[i]; }
   tameMids(L, R, style === "epic" ? 0.3 : 0.42);
-  master(L, R, { targetPeak: 0.88, drive: style === "epic" ? 1.03 : 1.06, fadeOut: 0.3 });
+  // Drive is what makes a track *loud* rather than merely peaking at the
+  // ceiling: the soft clipper folds the transients over and the average level
+  // rises. 1.06 was polite; the whole score read as too soft on a phone.
+  master(L, R, { targetPeak: 0.92, drive: style === "epic" ? 1.3 : 1.45, fadeOut: 0.3 });
 
   // Seamless loop: everything after the final bar is reverb/release tail. Fold
   // it back over the opening so the loop point has no gap and no pile-up —
@@ -396,13 +399,13 @@ export const SCORE = [
       // Straight in on the hook. There was a four-bar accompaniment-only intro
       // here; on a screen people sit on for minutes it just read as the track
       // being slow to start, and on every loop it came round again.
-      { bars: 4, motif: "full", voice: "uke", double: "glockenspiel", amp: 0.46, pad: 0.12, bass: "root", perc: "beat", sticks: true, arp: 4, level: 0.9 },
+      { bars: 4, motif: "full", voice: "uke", double: "glockenspiel", amp: 0.46, pad: 0.12, bass: "root", perc: "light", sticks: true, arp: 4, level: 0.9 },
       // A2 — call and response: the whistle asks, the glockenspiel answers in
       // the gap `call` leaves at the back of the bar.
-      { bars: 4, motif: ["call", "full"], voice: "whistle", echo: "glockenspiel", amp: 0.5, pad: 0.14, bass: "root", perc: "beat", sticks: "clave", arp: 4, shimmer: true, level: 0.94 },
+      { bars: 4, motif: ["call", "full"], voice: "whistle", echo: "glockenspiel", amp: 0.5, pad: 0.14, bass: "root", perc: "groove", sticks: "clave", arp: 4, shimmer: true, level: 0.94 },
       // B — the turn. Drops the kit and inverts the tune, so the return of the
       // hook afterwards is worth something. The sticks carry it alone here.
-      { bars: 4, motif: ["invert", "turn"], voice: "marimba", echo: "vibraphone", amp: 0.34, bass: "walk", perc: "halfbeat", sticks: "clave", comp: true, pad: 0.1, level: 0.78, fill: "roll" },
+      { bars: 4, motif: ["invert", "turn"], voice: "marimba", echo: "vibraphone", amp: 0.34, bass: "walk", perc: "brush", sticks: "clave", comp: true, pad: 0.1, level: 0.78, fill: "roll" },
       // A3 — back, on a walking bass, with the bouncy restatement alternating.
       { bars: 4, motif: ["full", "skip"], voice: "uke", double: "glockenspiel", amp: 0.48, bass: "walk", perc: "beat", sticks: "clave", comp: true, arp: 4, level: 0.98, crash: true },
       // C — the lift: up a step, then up an octave. Nowhere else in the score
@@ -413,7 +416,7 @@ export const SCORE = [
       // Outro — comes down, but keeps the kit and the sticks running. With no
       // intro to hand back to, a wind-down that thinned out to nothing would
       // just put the slow opening back on every loop.
-      { bars: 6, motif: ["tail", "sparse", "turn", "full"], voice: "marimba", double: "glockenspiel", doubleAmp: 0.12, amp: 0.36, bass: "walk", perc: "beat", sticks: true, arp: 4, pad: 0.12, level: 0.8 },
+      { bars: 6, motif: ["tail", "sparse", "turn", "full"], voice: "marimba", double: "glockenspiel", doubleAmp: 0.12, amp: 0.36, bass: "walk", perc: "light", sticks: true, arp: 4, pad: 0.12, level: 0.8 },
     ],
   },
   {
@@ -424,9 +427,9 @@ export const SCORE = [
     instruments: "Marimba · upright bass · brushes · ukulele comp",
     bpm: 100, root: D, scale: "major", prog: [1, 6, 4, 5], style: "cozy", reverb: 0.24, swing: 0.32,
     sections: [
-      { bars: 4, motif: "stretch", voice: "marimba", amp: 0.3, bass: "walk", perc: "halfbeat", comp: true, pad: 0.08 },
-      { bars: 4, motif: ["stretch", "full", "stretch", "turn"], voice: "marimba", echo: "glockenspiel", amp: 0.3, bass: "walk", perc: "beat", sticks: true, comp: true, arp: 4, pad: 0.08 },
-      { bars: 4, motif: ["full", "skip", "up", "turn"], voice: "uke", double: "glockenspiel", amp: 0.34, bass: "walk", perc: "beatfull", sticks: "clave", comp: "busy", pad: 0.07, level: 1.08, fill: "roll" },
+      { bars: 4, motif: "stretch", voice: "marimba", amp: 0.3, bass: "walk", perc: "brush", comp: true, pad: 0.08 },
+      { bars: 4, motif: ["stretch", "full", "stretch", "turn"], voice: "marimba", echo: "glockenspiel", amp: 0.3, bass: "walk", perc: "light", sticks: true, comp: true, arp: 4, pad: 0.08 },
+      { bars: 4, motif: ["full", "skip", "up", "turn"], voice: "uke", double: "glockenspiel", amp: 0.34, bass: "walk", perc: "beat", sticks: "clave", comp: "busy", pad: 0.07, level: 1.08, fill: "roll" },
     ],
   },
   {
@@ -438,8 +441,8 @@ export const SCORE = [
     bpm: 110, root: D, scale: "major", prog: [1, 5, 6, 5], style: "cozy", reverb: 0.22, swing: 0.3,
     sections: [
       { bars: 4, motif: "fragment", voice: "marimba", amp: 0.26, bass: "root", perc: "tick", pad: 0.1, level: 0.68 },
-      { bars: 4, motif: ["fragment", "full", "fragment", "up"], voice: "marimba", echo: "glockenspiel", amp: 0.26, bass: "root", perc: "halfbeat", sticks: true, arp: 4, pad: 0.1, level: 0.8 },
-      { bars: 4, motif: ["full", "fragment", "turn", "call"], voice: "uke", amp: 0.28, bass: "walk", perc: "beat", sticks: "clave", comp: true, pad: 0.09, level: 0.9 },
+      { bars: 4, motif: ["fragment", "full", "fragment", "up"], voice: "marimba", echo: "glockenspiel", amp: 0.26, bass: "root", perc: "light", sticks: true, arp: 4, pad: 0.1, level: 0.8 },
+      { bars: 4, motif: ["full", "fragment", "turn", "call"], voice: "uke", amp: 0.28, bass: "walk", perc: "groove", sticks: "clave", comp: true, pad: 0.09, level: 0.9 },
     ],
   },
   {
@@ -451,8 +454,8 @@ export const SCORE = [
     bpm: 96, root: D, scale: "major", prog: [1, 4, 6, 5], style: "cozy", reverb: 0.26, swing: 0.3,
     sections: [
       { bars: 4, motif: "invert", voice: "kalimba", amp: 0.28, bass: "root", perc: "brush", arp: 4, pad: 0.13, level: 0.68 },
-      { bars: 4, motif: ["invert", "full", "invert", "call"], voice: "kalimba", echo: "glockenspiel", amp: 0.28, bass: "root", perc: "halfbeat", arp: 4, pad: 0.13, level: 0.78 },
-      { bars: 4, motif: ["full", "turn", "invert", "full"], voice: "marimba", double: "glockenspiel", amp: 0.3, bass: "walk", perc: "beat", sticks: true, comp: true, pad: 0.12, level: 0.95 },
+      { bars: 4, motif: ["invert", "full", "invert", "call"], voice: "kalimba", echo: "glockenspiel", amp: 0.28, bass: "root", perc: "light", arp: 4, pad: 0.13, level: 0.78 },
+      { bars: 4, motif: ["full", "turn", "invert", "full"], voice: "marimba", double: "glockenspiel", amp: 0.3, bass: "walk", perc: "groove", sticks: true, comp: true, pad: 0.12, level: 0.95 },
     ],
   },
   {
@@ -478,7 +481,7 @@ export const SCORE = [
     bpm: 98, root: D, scale: "major", prog: [1, 1, 4, 4], style: "cozy", reverb: 0.28, swing: 0.32,
     sections: [
       { bars: 4, motif: "fragment", voice: "vibraphone", amp: 0.27, bass: "root", perc: "brush", arp: 4, pad: 0.15, level: 0.72 },
-      { bars: 4, motif: ["fragment", "full", "call", "turn"], voice: "vibraphone", echo: "glockenspiel", amp: 0.27, bass: "root", pad: 0.15, perc: "beat", comp: true, arp: 4, level: 0.84 },
+      { bars: 4, motif: ["fragment", "full", "call", "turn"], voice: "vibraphone", echo: "glockenspiel", amp: 0.27, bass: "root", pad: 0.15, perc: "light", comp: true, arp: 4, level: 0.84 },
     ],
   },
   {
@@ -489,8 +492,8 @@ export const SCORE = [
     instruments: "Ukulele · glockenspiel · upright bass · snaps",
     bpm: 116, root: D, scale: "major", prog: [1, 5, 6, 4], style: "cozy", reverb: 0.21, swing: 0.34,
     sections: [
-      { bars: 4, motif: "full", voice: "uke", double: "glockenspiel", amp: 0.38, bass: "root", perc: "beat", sticks: true, comp: true, arp: 4, pad: 0.07 },
-      { bars: 4, motif: ["full", "skip", "turn", "up"], voice: "uke", echo: "glockenspiel", amp: 0.38, bass: "walk", perc: "beatfull", sticks: "clave", comp: "busy", arp: 4, shimmer: true, level: 1.06, fill: "roll", crash: true },
+      { bars: 4, motif: "full", voice: "uke", double: "glockenspiel", amp: 0.38, bass: "root", perc: "groove", sticks: true, comp: true, arp: 4, pad: 0.07 },
+      { bars: 4, motif: ["full", "skip", "turn", "up"], voice: "uke", echo: "glockenspiel", amp: 0.38, bass: "walk", perc: "beat", sticks: "clave", comp: "busy", arp: 4, shimmer: true, level: 1.06, fill: "roll", crash: true },
     ],
   },
   {
@@ -501,7 +504,7 @@ export const SCORE = [
     instruments: "Marimba · upright bass · woodblock · snaps",
     bpm: 126, root: D, scale: "dorian", prog: [1, 7, 4, 5], style: "cozy", reverb: 0.2, swing: 0.3,
     sections: [
-      { bars: 4, motif: "full", voice: "marimba", amp: 0.34, bass: "walk", perc: "beat", sticks: true, comp: true, arp: 4, level: 0.92 },
+      { bars: 4, motif: "full", voice: "marimba", amp: 0.34, bass: "walk", perc: "light", sticks: true, comp: true, arp: 4, level: 0.92 },
       { bars: 4, motif: ["full", "skip", "up", "turn"], voice: "marimba", echo: "glockenspiel", amp: 0.34, bass: "walk", perc: "beatfull", sticks: "clave", comp: "busy", arp: 4, level: 1.04 },
       { bars: 4, motif: ["up", "skip", "full", "high"], voice: "uke", double: "glockenspiel", amp: 0.36, bass: "walk", perc: "beatfull", sticks: "busy", comp: "busy", arp: 2, shimmer: true, level: 1.12, fill: "roll", crash: true },
     ],
@@ -541,10 +544,10 @@ export const SCORE = [
     instruments: "Ukulele · glockenspiel · whistle · upright bass · full kit",
     bpm: 114, root: D, scale: "major", prog: [1, 5, 6, 4, 4, 5, 1, 5], style: "cozy", reverb: 0.26, swing: 0.28,
     sections: [
-      { bars: 4, motif: "full", voice: "uke", double: "glockenspiel", amp: 0.44, bass: "root", perc: "beat", sticks: true, comp: true, arp: 4, level: 0.9 },
+      { bars: 4, motif: "full", voice: "uke", double: "glockenspiel", amp: 0.44, bass: "root", perc: "groove", sticks: true, comp: true, arp: 4, level: 0.9 },
       { bars: 4, motif: ["skip", "full"], voice: "whistle", echo: "glockenspiel", amp: 0.46, bass: "walk", perc: "beatfull", sticks: "clave", comp: "busy", arp: 4, shimmer: true, level: 1, crash: true },
       { bars: 4, motif: ["high", "full", "turn", "skip"], voice: "uke", double: "glockenspiel", echo: "whistle", amp: 0.48, bass: "walk", perc: "beatfull", sticks: "clave", comp: "busy", arp: 4, level: 1.06, fill: "roll" },
-      { bars: 4, motif: ["tail", "sparse", "full", "tail"], voice: "marimba", double: "glockenspiel", doubleAmp: 0.12, amp: 0.34, bass: "walk", perc: "beat", sticks: true, arp: 4, pad: 0.12, level: 0.78 },
+      { bars: 4, motif: ["tail", "sparse", "full", "tail"], voice: "marimba", double: "glockenspiel", doubleAmp: 0.12, amp: 0.34, bass: "walk", perc: "light", sticks: true, arp: 4, pad: 0.12, level: 0.78 },
     ],
   },
 ];

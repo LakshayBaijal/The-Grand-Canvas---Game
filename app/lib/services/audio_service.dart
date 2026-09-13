@@ -109,7 +109,9 @@ class AudioService extends ChangeNotifier {
 
   bool _musicOn = true;
   bool _sfxOn = true;
-  double _volume = 0.55;
+  static const _defaultVolume = 0.8;
+  static const _volumeLiftedKey = 'audio_music_volume_lifted_v2';
+  double _volume = _defaultVolume;
   bool _loaded = false;
   bool _failed = false;
 
@@ -131,7 +133,15 @@ class AudioService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       _musicOn = prefs.getBool(_musicPrefsKey) ?? true;
       _sfxOn = prefs.getBool(_sfxPrefsKey) ?? true;
-      _volume = prefs.getDouble(_volumePrefsKey) ?? 0.55;
+      _volume = prefs.getDouble(_volumePrefsKey) ?? _defaultVolume;
+      // The default went up (0.55 -> 0.8: the score was too soft on a phone).
+      // A player who had never touched the slider is still sitting on the
+      // old default, so lift them once; anyone who set their own level keeps it.
+      if (!(prefs.getBool(_volumeLiftedKey) ?? false)) {
+        if ((_volume - 0.55).abs() < 0.001) _volume = _defaultVolume;
+        await prefs.setBool(_volumeLiftedKey, true);
+        await prefs.setDouble(_volumePrefsKey, _volume);
+      }
 
       _a = AudioPlayer();
       _b = AudioPlayer();
