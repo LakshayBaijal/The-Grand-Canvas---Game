@@ -40,3 +40,7 @@ music/v5_wav/
 app/android/key.properties
 *.jks
 *.keystore
+
+# Downloads from Google Cloud etc. Never in git.
+Private Folder/
+client_secret_*.json
