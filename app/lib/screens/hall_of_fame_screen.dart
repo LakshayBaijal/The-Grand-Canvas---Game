@@ -9,6 +9,7 @@ import '../services/game_connection.dart';
 import '../theme.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/celebration.dart';
+import '../widgets/drawing_actions.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/sketch_icons.dart';
 
@@ -34,7 +35,24 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
   void initState() {
     super.initState();
     _sub = widget.connection.events.listen((event) {
-      if (!mounted || event is! DailyHistoryEvent) return;
+      if (!mounted) return;
+      if (event is ArtistHiddenEvent) {
+        setState(() {
+          _days = _days
+              ?.map(
+                (d) => HallDay(
+                  day: d.day,
+                  prompt: d.prompt,
+                  top: d.top
+                      .where((e) => e.artistId != event.artistId)
+                      .toList(),
+                ),
+              )
+              .toList();
+        });
+        return;
+      }
+      if (event is! DailyHistoryEvent) return;
       setState(() {
         final current = _days ?? [];
         final seen = current.map((d) => d.day).toSet();
@@ -96,7 +114,21 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
                   }
                   return PopIn(
                     index: i < 6 ? i : 6,
-                    child: _DayCard(day: days[i]),
+                    child: _DayCard(
+                      day: days[i],
+                      onActions: (entry) => showDrawingActions(
+                        context,
+                        strokes: entry.strokes,
+                        paper: entry.paper,
+                        title: entry.title,
+                        prompt: days[i].prompt,
+                        artistLabel: entry.artistName,
+                        onReport: (reason) async => widget.connection
+                            .reportDrawing(entryId: entry.id, reason: reason),
+                        onHide: () async =>
+                            widget.connection.hideArtist(entryId: entry.id),
+                      ),
+                    ),
                   );
                 },
               ),
@@ -106,9 +138,10 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
 }
 
 class _DayCard extends StatelessWidget {
-  const _DayCard({required this.day});
+  const _DayCard({required this.day, required this.onActions});
 
   final HallDay day;
+  final void Function(DailyEntry entry) onActions;
 
   static const _months = [
     'Jan',
@@ -161,7 +194,11 @@ class _DayCard extends StatelessWidget {
                 if (i > 0) const SizedBox(width: 10),
                 Expanded(
                   child: i < day.top.length
-                      ? HallTile(entry: day.top[i], prompt: day.prompt)
+                      ? HallTile(
+                          entry: day.top[i],
+                          prompt: day.prompt,
+                          onActions: () => onActions(day.top[i]),
+                        )
                       : const SizedBox.shrink(),
                 ),
               ],
@@ -181,11 +218,16 @@ class HallTile extends StatelessWidget {
     required this.entry,
     required this.prompt,
     this.isMe = false,
+    this.onActions,
   });
 
   final DailyEntry entry;
   final String prompt;
   final bool isMe;
+
+  /// Save / share / report / hide. Long-press here, or the button in the
+  /// detail view.
+  final VoidCallback? onActions;
 
   static const medalColors = {
     1: GameColors.primary,
@@ -197,7 +239,14 @@ class HallTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final medal = medalColors[entry.rank] ?? GameColors.textMuted;
     return GestureDetector(
-      onTap: () => showHallDetail(context, entry, prompt, isMe: isMe),
+      onTap: () => showHallDetail(
+        context,
+        entry,
+        prompt,
+        isMe: isMe,
+        onActions: onActions,
+      ),
+      onLongPress: onActions,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -283,6 +332,7 @@ void showHallDetail(
   String prompt, {
   bool isMe = false,
   bool anonymous = false,
+  VoidCallback? onActions,
 }) {
   final d = entry.date;
   final rank = entry.rank;
@@ -402,6 +452,17 @@ void showHallDetail(
                   height: 1.35,
                 ),
               ),
+              if (onActions != null) ...[
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    onActions();
+                  },
+                  icon: const Icon(Icons.more_horiz_rounded, size: 18),
+                  label: Text(isMe ? 'SAVE OR SHARE' : 'SAVE · SHARE · REPORT'),
+                ),
+              ],
             ],
           ),
         ),

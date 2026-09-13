@@ -305,6 +305,26 @@ is not worth points, the drawings are judged by other players, and a two-colour
 drawing competes on equal terms. A competitive ladder where money buys an
 advantage is a dead ladder.
 
+### Player tools: save, share, report, hide
+
+Every drawing the game shows can be long-pressed (or tapped, in the reveal
+and the detail views) for four things. **Save** renders it as a picture —
+paper, pens, title, prompt and a "Grand Canvas" mark — into a "Grand Canvas"
+album in the phone's gallery. **Share** does the same and opens the share
+sheet with a caption that ends in the store link; that picture in a group
+chat is the entire marketing plan. Both happen on the phone
+(`services/drawing_export.dart`); no server, no account.
+
+**Report** sends a note about someone else's drawing to the server's
+`reports` table, where a person reads it (`deploy/reports.sh` on the VM).
+**Hide this artist** stops their Daily drawings and hall entries from
+showing on this one account (`hidden_artists`, filtered server-side). Neither
+touches what anyone else sees, and nothing is ever removed automatically: the
+game's rule that what people draw is theirs stands. The first time someone
+submits to the Daily they see a one-line terms notice. Google Play requires
+all three for anything that shows one user's content to another, and would
+reject the app without them.
+
 ### How it's wired
 
 `app/lib/services/entitlements.dart` owns what's unlocked and persists it.

@@ -225,6 +225,13 @@ class GameConnection {
           entryId: json['entryId'] as int,
           hearts: json['hearts'] as int,
         );
+      case 'reported':
+        return const ReportedEvent();
+      case 'artist_hidden':
+        return ArtistHiddenEvent(
+          artistId: json['artistId'] as String,
+          entryId: json['entryId'] as int?,
+        );
       case 'daily_history':
         return DailyHistoryEvent(
           days: (json['days'] as List)
@@ -345,6 +352,31 @@ class GameConnection {
   /// design, so the button should make that clear before it is pressed.
   void heartDaily(int entryId) =>
       _send({'type': 'daily_heart', 'entryId': entryId});
+
+  /// A note about a drawing, for a person to read. Daily and hall drawings
+  /// by [entryId]; round drawings by [artistId] and [title], since rounds
+  /// have no entry ids. Never removes anything by itself.
+  void reportDrawing({
+    int? entryId,
+    String? artistId,
+    String? title,
+    required String reason,
+  }) => _send({
+    'type': 'report_drawing',
+    'entryId': ?entryId,
+    'artistId': ?artistId,
+    'title': ?title,
+    'reason': reason,
+  });
+
+  /// Stop seeing an artist's Daily drawings and hall entries, on this
+  /// account only. By [entryId] (the Daily is blind, so the artist is
+  /// unknown to the app) or by [artistId].
+  void hideArtist({int? entryId, String? artistId}) => _send({
+    'type': 'hide_artist',
+    'entryId': ?entryId,
+    'artistId': ?artistId,
+  });
 
   /// The Hall of Fame, newest day first. Pass the last day shown as
   /// [beforeDay] for the next page.

@@ -8,3 +8,4 @@ that uses them is `GOING-LIVE.md` at the repo root.
   Safe to re-run.
 - `update.sh` — pull the latest code, rebuild, restart.
 - `backup.sh` — consistent copy of the database into `~/backups`.
+- `reports.sh [n]` — the latest player reports about drawings, for a human to read.

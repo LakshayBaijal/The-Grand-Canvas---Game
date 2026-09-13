@@ -711,7 +711,7 @@ wss.on("connection", (ws) => {
         let yesterday: HallDay | null = null;
         if (beforeId === null) {
           freezeFinishedDays();
-          yesterday = store.hallOfFame(day, 1).days.find((d) => d.day === day - 1) ?? null;
+          yesterday = store.hallOfFame(day, 1, playerId).days.find((d) => d.day === day - 1) ?? null;
         }
         send(ws, {
           type: "daily_gallery",
@@ -750,8 +750,47 @@ wss.on("connection", (ws) => {
         // does the work, and it is a few rows.
         freezeFinishedDays();
         const beforeDay = asInt(message.beforeDay);
-        const page = store.hallOfFame(beforeDay, 14);
+        const page = store.hallOfFame(beforeDay, 14, playerId);
         send(ws, { type: "daily_history", days: page.days, hasMore: page.hasMore });
+        break;
+      }
+
+      case "report_drawing": {
+        const reason = cleanText(message.reason, 200);
+        if (!reason) return sendError(ws, "Say what's wrong with it");
+        const entryId = asInt(message.entryId);
+        let artistId = typeof message.artistId === "string" ? cleanText(message.artistId, 64) : "";
+        let title = typeof message.title === "string" ? cleanText(message.title, 40) : "";
+        if (entryId !== null) {
+          const found = store.artistOfEntry(entryId);
+          if (!found) return sendError(ws, "That drawing is gone");
+          artistId = found.artistId;
+          title = found.title;
+        }
+        if (!artistId) return;
+        store.reportDrawing({ reporterId: playerId, artistId, entryId, title, reason });
+        console.log(`[report] ${identity.nickname} reported ${artistId} (${title}): ${reason}`);
+        send(ws, { type: "reported" });
+        break;
+      }
+
+      case "hide_artist": {
+        const entryId = asInt(message.entryId);
+        let artistId = typeof message.artistId === "string" ? cleanText(message.artistId, 64) : "";
+        if (entryId !== null) {
+          const found = store.artistOfEntry(entryId);
+          if (!found) return sendError(ws, "That drawing is gone");
+          artistId = found.artistId;
+        }
+        if (!artistId) return;
+        if (!store.hideArtist(playerId, artistId)) return sendError(ws, "That's you");
+        send(ws, { type: "artist_hidden", artistId, entryId });
+        break;
+      }
+
+      case "unhide_artist": {
+        const artistId = cleanText(message.artistId, 64);
+        if (artistId) store.unhideArtist(playerId, artistId);
         break;
       }
 

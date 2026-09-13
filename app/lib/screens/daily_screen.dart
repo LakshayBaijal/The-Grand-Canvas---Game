@@ -7,12 +7,15 @@ import '../models/game_event.dart';
 import '../models/stroke.dart';
 import '../models/styles.dart';
 import '../services/audio_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/daily_reminder.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
 import '../views/draw_view.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/celebration.dart';
+import '../widgets/drawing_actions.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/sketch_icons.dart';
 import 'hall_of_fame_screen.dart';
@@ -117,6 +120,22 @@ class _DailyScreenState extends State<DailyScreen> {
           if (event.yesterday != null) _yesterday = event.yesterday;
           _hasMore = event.hasMore;
           _loadingMore = false;
+        });
+      case ArtistHiddenEvent():
+        setState(() {
+          _entries.removeWhere(
+            (e) =>
+                e.id == event.entryId ||
+                (e.artistId.isNotEmpty && e.artistId == event.artistId),
+          );
+          final y = _yesterday;
+          if (y != null) {
+            _yesterday = HallDay(
+              day: y.day,
+              prompt: y.prompt,
+              top: y.top.where((e) => e.artistId != event.artistId).toList(),
+            );
+          }
         });
       case DailyHeartedEvent():
         // The tap already painted the heart; this just confirms it stuck.
@@ -235,9 +254,47 @@ class _DailyScreenState extends State<DailyScreen> {
     if (leave == true && mounted) Navigator.of(context).pop();
   }
 
-  void _submit(List<Stroke> strokes, String title, PaperStyle paper) {
+  static const _termsKey = 'daily_terms_accepted';
+
+  Future<void> _submit(
+    List<Stroke> strokes,
+    String title,
+    PaperStyle paper,
+  ) async {
+    // Once, before the first drawing goes where strangers can see it.
+    final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool(_termsKey) ?? false)) {
+      if (!mounted) return;
+      if (!await confirmDailyTerms(context)) return;
+      await prefs.setBool(_termsKey, true);
+    }
+    if (!mounted) return;
     setState(() => _stage = _Stage.sending);
     widget.connection.submitDaily(strokes, title, paper);
+  }
+
+  /// Save / share / report / hide for one drawing on the wall.
+  void _actions(DailyEntry entry) {
+    final mine = entry.artistId == widget.myId;
+    showDrawingActions(
+      context,
+      strokes: entry.strokes,
+      paper: entry.paper,
+      title: entry.title,
+      prompt: _info?.prompt ?? '',
+      isMine: mine,
+      // Blind while the day is open: no name to put on a shared picture.
+      artistLabel: entry.artistName.isEmpty ? null : entry.artistName,
+      onReport: mine
+          ? null
+          : (reason) async => widget.connection.reportDrawing(
+              entryId: entry.id,
+              reason: reason,
+            ),
+      onHide: mine
+          ? null
+          : () async => widget.connection.hideArtist(entryId: entry.id),
+    );
   }
 
   void _loadMore() {
@@ -294,6 +351,7 @@ class _DailyScreenState extends State<DailyScreen> {
           onDrawAgain: _startDrawing,
           onHeart: _heart,
           onHall: _openHall,
+          onActions: _actions,
           reminderOn: DailyReminder.instance.enabled,
           onToggleReminder: _toggleReminder,
         );
@@ -549,6 +607,7 @@ class _Gallery extends StatefulWidget {
     required this.yesterday,
     required this.onHeart,
     required this.onHall,
+    required this.onActions,
   });
 
   final DailyInfoEvent info;
@@ -563,6 +622,7 @@ class _Gallery extends StatefulWidget {
   final bool reminderOn;
   final ValueChanged<bool> onToggleReminder;
   final ValueChanged<DailyEntry> onHeart;
+  final ValueChanged<DailyEntry> onActions;
   final VoidCallback onHall;
 
   @override
@@ -637,6 +697,7 @@ class _GalleryState extends State<_Gallery> {
                         entry: mine,
                         prompt: widget.info.prompt,
                         onDrawAgain: widget.onDrawAgain,
+                        onActions: () => widget.onActions(mine),
                       ),
                     if (widget.yesterday case final y?) ...[
                       const SizedBox(height: 18),
@@ -699,6 +760,7 @@ class _GalleryState extends State<_Gallery> {
                           entry: others[i],
                           prompt: widget.info.prompt,
                           onHeart: () => widget.onHeart(others[i]),
+                          onActions: () => widget.onActions(others[i]),
                         ),
                       ),
                       childCount: others.length,
@@ -768,11 +830,13 @@ class _Mine extends StatelessWidget {
     required this.entry,
     required this.prompt,
     required this.onDrawAgain,
+    required this.onActions,
   });
 
   final DailyEntry entry;
   final String prompt;
   final VoidCallback onDrawAgain;
+  final VoidCallback onActions;
 
   @override
   Widget build(BuildContext context) {
@@ -782,7 +846,14 @@ class _Mine extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => showHallDetail(context, entry, prompt, isMe: true),
+            onTap: () => showHallDetail(
+              context,
+              entry,
+              prompt,
+              isMe: true,
+              onActions: onActions,
+            ),
+            onLongPress: onActions,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
@@ -870,16 +941,25 @@ class _Tile extends StatelessWidget {
     required this.entry,
     required this.prompt,
     required this.onHeart,
+    required this.onActions,
   });
 
   final DailyEntry entry;
   final String prompt;
   final VoidCallback onHeart;
+  final VoidCallback onActions;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => showHallDetail(context, entry, prompt, anonymous: true),
+      onTap: () => showHallDetail(
+        context,
+        entry,
+        prompt,
+        anonymous: true,
+        onActions: onActions,
+      ),
+      onLongPress: onActions,
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: GameDecor.panel(radius: 14),

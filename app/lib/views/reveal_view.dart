@@ -7,6 +7,7 @@ import '../models/round_models.dart';
 import '../theme.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/celebration.dart';
+import '../widgets/drawing_actions.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/backer_tally.dart';
 import '../widgets/money_showcase.dart';
@@ -25,12 +26,16 @@ import '../widgets/money_showcase.dart';
 /// to be, gets the same information on screen in a fifth of the time and none
 /// of it lands.
 class RevealView extends StatefulWidget {
-  const RevealView({super.key, required this.event, this.myId});
+  const RevealView({super.key, required this.event, this.myId, this.onReport});
 
   final RoundRevealEvent event;
 
   /// Used only to decide whose drawing makes a sound.
   final String? myId;
+
+  /// A report about someone's round drawing, for a person to read. Rounds
+  /// have no entry ids, so it goes by artist and title.
+  final void Function(String artistId, String title, String reason)? onReport;
 
   @override
   State<RevealView> createState() => _RevealViewState();
@@ -85,12 +90,17 @@ class _RevealViewState extends State<RevealView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('RESULTS — ROUND ${event.roundIndex + 1} OF ${event.totalRounds}'),
+        title: Text(
+          'RESULTS — ROUND ${event.roundIndex + 1} OF ${event.totalRounds}',
+        ),
         actions: [
           if (showcasing)
             TextButton(
               onPressed: _skip,
-              child: const Text('SKIP', style: TextStyle(fontSize: 12, letterSpacing: 1.5)),
+              child: const Text(
+                'SKIP',
+                style: TextStyle(fontSize: 12, letterSpacing: 1.5),
+              ),
             ),
         ],
       ),
@@ -99,9 +109,7 @@ class _RevealViewState extends State<RevealView> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
-            child: showcasing
-                ? _buildShowcase(event)
-                : _buildScoreboard(event),
+            child: showcasing ? _buildShowcase(event) : _buildScoreboard(event),
           ),
         ),
       ),
@@ -158,6 +166,23 @@ class _RevealViewState extends State<RevealView> {
                 // a summary rather than a second animation of the same thing.
                 startDelay: Duration(milliseconds: 320 + i * 90),
                 isMine: event.entries[i].artistId == widget.myId,
+                onActions: () {
+                  final e = event.entries[i];
+                  final mine = e.artistId == widget.myId;
+                  showDrawingActions(
+                    context,
+                    strokes: e.strokes,
+                    paper: e.paper,
+                    title: e.title,
+                    prompt: event.prompt,
+                    artistLabel: e.artistName,
+                    isMine: mine,
+                    onReport: mine || widget.onReport == null
+                        ? null
+                        : (reason) async =>
+                              widget.onReport!(e.artistId, e.title, reason),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 12),
@@ -166,7 +191,11 @@ class _RevealViewState extends State<RevealView> {
           const Text(
             'SCORES',
             textAlign: TextAlign.center,
-            style: TextStyle(color: GameColors.textMuted, letterSpacing: 3, fontSize: 12),
+            style: TextStyle(
+              color: GameColors.textMuted,
+              letterSpacing: 3,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 10),
           for (var i = 0; i < event.scores.length; i++)
@@ -188,6 +217,7 @@ class _EntryCard extends StatelessWidget {
     required this.scoring,
     required this.startDelay,
     required this.isMine,
+    required this.onActions,
   });
 
   final int rank;
@@ -195,6 +225,7 @@ class _EntryCard extends StatelessWidget {
   final Scoring scoring;
   final Duration startDelay;
   final bool isMine;
+  final VoidCallback onActions;
 
   @override
   Widget build(BuildContext context) {
@@ -212,12 +243,41 @@ class _EntryCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: 84,
-                  height: 84,
-                  child: StaticDrawing(strokes: entry.strokes, paper: entry.paper),
+              // Tap the drawing to keep it or send it (or, if it isn't
+              // yours, to say something's wrong with it). The reveal is the
+              // moment people want to share, so this is where the button is.
+              GestureDetector(
+                onTap: onActions,
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        width: 84,
+                        height: 84,
+                        child: StaticDrawing(
+                          strokes: entry.strokes,
+                          paper: entry.paper,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.ios_share_rounded,
+                          size: 13,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 14),
@@ -227,14 +287,22 @@ class _EntryCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        if (isTop) const Padding(
-                          padding: EdgeInsets.only(right: 6),
-                          child: SketchIcon(SketchGlyph.trophy, size: 16, color: GameColors.primary),
-                        ),
+                        if (isTop)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 6),
+                            child: SketchIcon(
+                              SketchGlyph.trophy,
+                              size: 16,
+                              color: GameColors.primary,
+                            ),
+                          ),
                         Expanded(
                           child: Text(
                             entry.title,
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                       ],
@@ -242,7 +310,10 @@ class _EntryCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       'by ${entry.artistName}',
-                      style: const TextStyle(color: GameColors.textMuted, fontSize: 12),
+                      style: const TextStyle(
+                        color: GameColors.textMuted,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     // Each backer's stack lands one at a time and the total
@@ -259,7 +330,6 @@ class _EntryCard extends StatelessWidget {
               ),
             ],
           ),
-
         ],
       ),
     );
@@ -283,8 +353,8 @@ class _ScoreLine extends StatelessWidget {
             if (row.penalty > 0) '-\$${row.penalty} unspent',
           ].join('  ·  ')
         : row.raised > 0
-            ? '${row.raised} point${row.raised == 1 ? '' : 's'} from the table'
-            : '';
+        ? '${row.raised} point${row.raised == 1 ? '' : 's'} from the table'
+        : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -297,12 +367,18 @@ class _ScoreLine extends StatelessWidget {
               children: [
                 Text(
                   row.nickname,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 if (breakdown.isNotEmpty)
                   Text(
                     breakdown,
-                    style: const TextStyle(color: GameColors.textMuted, fontSize: 11),
+                    style: const TextStyle(
+                      color: GameColors.textMuted,
+                      fontSize: 11,
+                    ),
                   ),
               ],
             ),
@@ -313,7 +389,9 @@ class _ScoreLine extends StatelessWidget {
               child: Text(
                 row.delta > 0 ? '+${row.delta}' : '${row.delta}',
                 style: TextStyle(
-                  color: row.delta > 0 ? GameColors.lime : const Color(0xFFFF6B6B),
+                  color: row.delta > 0
+                      ? GameColors.lime
+                      : const Color(0xFFFF6B6B),
                   fontWeight: FontWeight.w800,
                 ),
               ),

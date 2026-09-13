@@ -290,7 +290,15 @@ class _GameScreenState extends State<GameScreen> {
         onInvest: widget.connection.submitInvestment,
         onRank: widget.connection.submitRanking,
       ),
-      GamePhase.reveal => RevealView(event: _reveal!, myId: widget.myId),
+      GamePhase.reveal => RevealView(
+        event: _reveal!,
+        myId: widget.myId,
+        onReport: (artistId, title, reason) => widget.connection.reportDrawing(
+          artistId: artistId,
+          title: title,
+          reason: reason,
+        ),
+      ),
       GamePhase.results => ResultsView(
         mode: _results!.mode,
         scores: _results!.scores,

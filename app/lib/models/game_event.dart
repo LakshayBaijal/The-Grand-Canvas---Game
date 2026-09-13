@@ -255,6 +255,19 @@ class DailyHeartedEvent extends GameEvent {
   final int hearts;
 }
 
+/// The server took a report. Nothing else happens; a person reads it.
+class ReportedEvent extends GameEvent {
+  const ReportedEvent();
+}
+
+/// An artist is now hidden for this player. The app drops everything of
+/// theirs it is already showing; the server keeps them out from now on.
+class ArtistHiddenEvent extends GameEvent {
+  const ArtistHiddenEvent({required this.artistId, required this.entryId});
+  final String artistId;
+  final int? entryId;
+}
+
 /// A page of the Hall of Fame, newest day first.
 class DailyHistoryEvent extends GameEvent {
   const DailyHistoryEvent({required this.days, required this.hasMore});

@@ -17,6 +17,9 @@
          exact-alarm permission is needed; "around 9am" is the whole ask.
          (Mind the XML rule: no double hyphen inside a comment.) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Saving a drawing to the gallery. Android 10+ needs no permission for
+         this (it goes through MediaStore); older phones still ask. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
         android:label="Grand Canvas"

@@ -203,7 +203,15 @@ export type ClientMessage =
    *  never on your own, once per drawing, and it cannot be taken back. */
   | { type: "daily_heart"; entryId: number }
   /** The hall of fame: finished days, newest first, each with its top three. */
-  | { type: "daily_history"; beforeDay?: number };
+  | { type: "daily_history"; beforeDay?: number }
+  /** A note about a drawing, for a human to read. Either a Daily/hall entry
+   *  by id, or a round drawing by its artist (rounds have no entry ids). */
+  | { type: "report_drawing"; entryId?: number; artistId?: string; title?: string; reason: string }
+  /** Stop seeing an artist's Daily drawings and hall entries. By entry id
+   *  (the Daily is blind, so the client often doesn't know the artist) or by
+   *  artist id. */
+  | { type: "hide_artist"; entryId?: number; artistId?: string }
+  | { type: "unhide_artist"; artistId: string };
 
 export type ServerMessage =
   | { type: "pong"; serverTimeMs: number }
@@ -350,6 +358,11 @@ export type ServerMessage =
    *  gallery? No -- a refresh is enough; hearts are not a live feed. */
   | { type: "daily_hearted"; entryId: number; hearts: number }
   | { type: "daily_history"; days: HallDay[]; hasMore: boolean }
+  /** Acknowledges a report. */
+  | { type: "reported" }
+  /** Acknowledges a hide, naming the artist so the app can drop everything
+   *  of theirs it's already showing. */
+  | { type: "artist_hidden"; artistId: string; entryId: number | null }
   /** Today and the days after it, in order. `startsAtMs` is midnight UTC at
    *  the start of that day, which is when its prompt goes live. */
   | {

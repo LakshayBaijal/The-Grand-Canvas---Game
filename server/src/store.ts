@@ -167,6 +167,31 @@ export function openStore(path: string): void {
     )
   `);
 
+  // Player tools, not moderation. A report is a note from one player about
+  // one drawing that Lakshay reads (deploy/reports.sh); nothing is filtered
+  // or removed by the app. A hide is one player choosing not to see another
+  // player's Daily drawings, on their own phone only. Google Play requires
+  // both to exist for anything that shows one user's content to another.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      reporter_id  TEXT    NOT NULL,
+      artist_id    TEXT    NOT NULL,
+      entry_id     INTEGER,
+      title        TEXT    NOT NULL,
+      reason       TEXT    NOT NULL,
+      created_ms   INTEGER NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS hidden_artists (
+      player_id   TEXT    NOT NULL,
+      hidden_id   TEXT    NOT NULL,
+      created_ms  INTEGER NOT NULL,
+      PRIMARY KEY (player_id, hidden_id)
+    )
+  `);
+
   db.exec("DROP INDEX IF EXISTS idx_players_rank");
   db.exec("CREATE INDEX IF NOT EXISTS idx_players_rating ON players(rating DESC, created_ms ASC)");
 }
@@ -736,6 +761,78 @@ export function blindEntries(entries: DailyEntry[], viewerId: string): DailyEntr
   );
 }
 
+// --- reports and hides ---------------------------------------------------
+
+/** Who [playerId] has chosen not to see. Small, and read per request. */
+export function hiddenArtists(playerId: string): Set<string> {
+  const rows = db
+    .prepare("SELECT hidden_id FROM hidden_artists WHERE player_id = ?")
+    .all(playerId) as { hidden_id: string }[];
+  return new Set(rows.map((r) => r.hidden_id));
+}
+
+/** The artist behind a daily entry id: today's wall first, then the hall. */
+export function artistOfEntry(entryId: number): { artistId: string; title: string } | null {
+  const live = db
+    .prepare("SELECT player_id, title FROM daily_entries WHERE id = ?")
+    .get(entryId) as { player_id: string; title: string } | undefined;
+  if (live) return { artistId: live.player_id, title: live.title };
+  const hall = db
+    .prepare("SELECT player_id, title FROM daily_hall WHERE entry_id = ?")
+    .get(entryId) as { player_id: string; title: string } | undefined;
+  return hall ? { artistId: hall.player_id, title: hall.title } : null;
+}
+
+/** One player's note about one drawing. Never acted on automatically. */
+export function reportDrawing(input: {
+  reporterId: string;
+  artistId: string;
+  entryId: number | null;
+  title: string;
+  reason: string;
+}): void {
+  db.prepare(
+    `INSERT INTO reports (reporter_id, artist_id, entry_id, title, reason, created_ms)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(input.reporterId, input.artistId, input.entryId, input.title, input.reason, Date.now());
+}
+
+/** [playerId] stops seeing [hiddenId]'s Daily drawings. Idempotent. Can't hide yourself. */
+export function hideArtist(playerId: string, hiddenId: string): boolean {
+  if (playerId === hiddenId) return false;
+  db.prepare(
+    "INSERT OR IGNORE INTO hidden_artists (player_id, hidden_id, created_ms) VALUES (?, ?, ?)",
+  ).run(playerId, hiddenId, Date.now());
+  return true;
+}
+
+export function unhideArtist(playerId: string, hiddenId: string): void {
+  db.prepare("DELETE FROM hidden_artists WHERE player_id = ? AND hidden_id = ?").run(playerId, hiddenId);
+}
+
+/** Recent reports, newest first, for a human to read. */
+export function recentReports(limit = 50): {
+  id: number; reporterId: string; artistId: string; artistName: string; entryId: number | null;
+  title: string; reason: string; createdMs: number;
+}[] {
+  const rows = db
+    .prepare(
+      `SELECT r.id, r.reporter_id, r.artist_id, COALESCE(p.nickname, '?') AS artist_name,
+              r.entry_id, r.title, r.reason, r.created_ms
+         FROM reports r LEFT JOIN players p ON p.id = r.artist_id
+        ORDER BY r.id DESC LIMIT ?`,
+    )
+    .all(limit) as {
+      id: number; reporter_id: string; artist_id: string; artist_name: string;
+      entry_id: number | null; title: string; reason: string; created_ms: number;
+    }[];
+  return rows.map((r) => ({
+    id: Number(r.id), reporterId: r.reporter_id, artistId: r.artist_id, artistName: r.artist_name,
+    entryId: r.entry_id === null ? null : Number(r.entry_id), title: r.title, reason: r.reason,
+    createdMs: Number(r.created_ms),
+  }));
+}
+
 export type HallEntry = DailyEntry & { rank: number };
 export type HallDay = { day: number; prompt: string; top: HallEntry[] };
 
@@ -769,7 +866,12 @@ export function addTrophies(playerId: string, n: number): void {
 }
 
 /** The hall, newest day first. */
-export function hallOfFame(beforeDay: number | null, limit: number): { days: HallDay[]; hasMore: boolean } {
+export function hallOfFame(
+  beforeDay: number | null,
+  limit: number,
+  viewerId: string | null = null,
+): { days: HallDay[]; hasMore: boolean } {
+  const hidden = viewerId ? hiddenArtists(viewerId) : new Set<string>();
   const dayRows = (
     beforeDay === null
       ? db.prepare("SELECT DISTINCT day, prompt FROM daily_hall ORDER BY day DESC LIMIT ?").all(limit + 1)
@@ -786,7 +888,7 @@ export function hallOfFame(beforeDay: number | null, limit: number): { days: Hal
     return {
       day: Number(d.day),
       prompt: d.prompt,
-      top: rows.map((r) => ({
+      top: rows.filter((r) => !hidden.has(r.player_id)).map((r) => ({
         id: Number(r.entry_id),
         day: Number(r.day),
         rank: Number(r.rank),
@@ -845,5 +947,11 @@ export function dailyGalleryWithHearts(
       ? db.prepare(`${DAILY_SELECT_WITH_HEARTS} WHERE e.day = ? ORDER BY e.id DESC LIMIT ?`).all(viewerId, day, limit + 1)
       : db.prepare(`${DAILY_SELECT_WITH_HEARTS} WHERE e.day = ? AND e.id < ? ORDER BY e.id DESC LIMIT ?`).all(viewerId, day, beforeId, limit + 1)
   ) as DailyRowWithHearts[];
-  return { entries: rows.slice(0, limit).map(toDailyEntryH), hasMore: rows.length > limit };
+  const hidden = hiddenArtists(viewerId);
+  // Filtered after the page is cut so paging stays stable; a hidden artist
+  // just leaves a shorter page, which nobody notices.
+  return {
+    entries: rows.slice(0, limit).filter((r) => !hidden.has(r.player_id)).map(toDailyEntryH),
+    hasMore: rows.length > limit,
+  };
 }

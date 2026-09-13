@@ -102,14 +102,15 @@ On the server, later: `sudo systemctl status grandcanvas`,
 ## 5. A signing key (once, keep forever)
 
 ```
-keytool -genkey -v -keystore app\android\upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-Copy-Item app\android\key.properties.example app\android\key.properties   # then fill in the passwords
-```
+.\make-signing-key.ps1     # asks for a password, makes the key, writes key.properties
+.ackup-secrets.ps1       # zips .env + the key + its password into ..\GrandCanvas Secrets```
 
-Both files are ignored by git. Back up the `.jks` and its password to two
-places that aren't this laptop; lose it and the app can never be updated.
-Without `key.properties`, release builds silently use the debug key: fine for
-installing by hand, rejected by the Play Console.
+Put that zip in **two** places that aren't this laptop (Google Drive and a
+USB stick). Lose the key and the app can never be updated on the Play Store
+again; there is no recovery. Both files are ignored by git. Re-run
+`backup-secrets.ps1` whenever `.env` changes. Without `key.properties`,
+release builds silently use the debug key: fine for installing by hand,
+rejected by the Play Console.
 
 ## 6. Build for the store
 
