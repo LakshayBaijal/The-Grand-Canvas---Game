@@ -1,219 +1,153 @@
 # Going live — the manual steps, in plain words
 
 The game is finished. What's left is the handful of things only you can do,
-because they need your accounts and your passwords. Do them in this order; each
-one is short. Budget an evening for all of it.
+because they need your accounts and your passwords. The full walkthrough, with
+tick-boxes and copy buttons, is the "Grand Canvas Launch Checklist" artifact;
+this file is the same plan in short, so it lives with the code.
 
-Everything here assumes the code is pushed to your GitHub repo
-(`LakshayBaijal/The-Grand-Canvas---Game`).
+Monthly cost of the recommended path: **₹0**. One-time: **$25** for the Play
+Store account.
 
----
-
-## 1. Put the server on the internet
-
-Right now the server runs on your laptop, and phones can only reach it on the
-same Wi-Fi. For strangers to play Ranked, for the leaderboard to be one
-leaderboard, and for the Daily to be *global*, the server has to live on a
-computer that is always on and reachable from anywhere. You rent one.
-
-**Use Railway** (railway.app). It is the least fiddly option: it reads your
-repo, builds it, gives you a URL, and costs about $5 a month at this size.
-
-1. Go to railway.app and sign up with your GitHub account.
-2. **New Project → Deploy from GitHub repo** → pick the game's repo.
-3. It will try to build the whole repo. Tell it the server is in a folder:
-   open the service → **Settings** → **Root Directory** → type `server`.
-4. Still in Settings, check **Build** shows `npm install` and **Start** shows
-   `npm start`. If Start is empty, type `npm start`. (`server/package.json`
-   already tells it to build with `tsc` first and which Node version to use —
-   it needs Node 22 or newer, and that's pinned in the file.)
-5. **Give it a disk that survives restarts.** This is the step people miss.
-   Without it, every time Railway redeploys, the database is wiped: every
-   profile, every trophy, every Hall of Fame entry — gone.
-   - Right-click the service → **Add Volume**. Mount path: `/data`.
-   - Open **Variables** and add: `DB_PATH` = `/data/leaderboard.db`.
-6. Open **Settings → Networking → Generate Domain**. You get something like
-   `grandcanvas-production.up.railway.app`. **Copy it.** That's your server's
-   address from now on.
-7. Click **Deploy**. Wait for the log to say
-   `Grand Canvas server listening on ws://0.0.0.0:...`.
-
-That's it. The server is live. (Fly.io and Render work too, the steps are the
-same shape: root directory `server`, a persistent volume at `/data`, `DB_PATH`
-pointing into it.)
-
-**Two things to know about this server:**
-- Games in progress live in memory. When you redeploy, running games end.
-  Deploy at a quiet hour.
-- Profiles, trophies, drawings and the Hall of Fame live on the disk from
-  step 5. **Back it up** now and then: in Railway, open the volume and use
-  **Download**, or run `railway volume`… honestly, downloading the
-  `leaderboard.db` file once a week is enough. It's a single file.
+Everything you fill in goes in one file, `.env`, at the top of the repo
+(copy `.env.example` and fill it in; `.env` is ignored by git).
 
 ---
 
-## 2. Point the app at it
-
-No code to edit. The app's default server address is baked in at build time
-from a `SERVER` value, so you pass the domain you copied when you build — just
-the hostname, no `https://`, no port:
+## 0. How it fits together
 
 ```
-flutter build appbundle --release --dart-define=SERVER=grandcanvas-production.up.railway.app
+phone app ──wss──▶ grandcanvas.duckdns.org ──▶ Caddy (:443) ──▶ game server (:8090) ──▶ ~/data/leaderboard.db
+             (free name, DuckDNS)      (free HTTPS)     (Node 24, a service)     (SQLite: the whole database)
 ```
 
-(Same for an APK for friends: `flutter build apk --release --dart-define=SERVER=…`.
-Without `--dart-define` it defaults to `localhost:8090`, which is only right on
-an emulator. Put the full command in `commands.txt` once and copy it from there.)
+There is no separate database service to pay for. The SQLite file is the
+database; the VM's disk is where it lives; `deploy/backup.sh` copies it
+nightly.
 
-The app works out on its own that a hostname needs a secure connection
-(`wss://`) while a Wi-Fi address (`192.168…`) uses a plain one — see
-`serverUri()` in `game_connection.dart`. Players can still type a different
-address in the advanced box if they ever want to run their own.
+## 1. A free server: Oracle Cloud Always Free
 
----
+Checked September 2026: Render's free tier sleeps and can't keep a disk,
+Fly.io has no free tier, Railway is ~$5/month, Google Cloud's free VM is
+US-only (lag from India). Oracle still gives an always-on ARM VM for nothing,
+with Mumbai and Hyderabad regions.
 
-## 3. Google sign-in (optional, but do it)
+1. Sign up at oracle.com/cloud/free. Card required for identity, not charged.
+   Home region **Hyderabad** or **Mumbai** (can't change later). If sign-up is
+   refused, retry next day, no VPN, another card.
+2. Compute → Instances → Create. Image **Ubuntu 24.04**; shape **Ampere
+   VM.Standard.A1.Flex**, 2 OCPU / 12 GB (both "Always Free-eligible").
+   Generate an SSH key pair, **save the private key**. Note the public IP.
+   "Out of capacity" → other Availability Domain, retry later, or shape
+   **VM.Standard.E2.1.Micro** (also free, smaller, still fine).
+3. Subnet → Security Lists → Default → Add Ingress Rules: TCP **80** and TCP
+   **443** from `0.0.0.0/0`.
+4. `ssh -i D:\keys\grandcanvas.key ubuntu@YOUR.VM.IP` works → done.
 
-Without this, a player who loses their phone loses their trophies. With it,
-signing in on a new phone brings everything back. It takes ten minutes.
+`.env`: `VM_PUBLIC_IP`, `SSH_KEY_PATH`.
 
-1. Go to console.cloud.google.com → create a project called *Grand Canvas*.
-2. **APIs & Services → OAuth consent screen** → External → fill in the app
-   name, your email, and save.
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID**,
-   twice:
-   - Type **Web application**. Copy the **Client ID** it gives you. This is
-     the one the server checks tokens against.
-   - Type **Android**. Package name: `com.whosegames.grandcanvas`.
-     SHA-1: the fingerprint of your **signing key** from section 4 — get it
-     with the `keytool -list` command there. (Do section 4 first, then come
-     back for this one.)
-4. Give the server the Web client ID: in Railway → **Variables** → add
-   `GOOGLE_CLIENT_ID` = the ID from step 3. Redeploy.
+## 2. A free name: DuckDNS
 
-If you skip this, nothing breaks — the sign-in button simply doesn't appear.
+Sign in at duckdns.org, add `grandcanvas` (or another), set it to the VM's
+IP. `nslookup grandcanvas.duckdns.org` should print the IP.
 
----
+`.env`: `SERVER=grandcanvas.duckdns.org`, `DUCKDNS_DOMAIN`, `DUCKDNS_TOKEN`.
 
-## 4. A signing key (do this once, keep it forever)
+## 3. Install the game server
 
-Android apps are signed with a key. The Play Store ties your app to that key
-**permanently**: lose it and you can never update the app again. So: make it
-once, back it up in two places, never regenerate it.
-
-In a terminal:
+Needs the latest code pushed to GitHub first. Then, on the VM:
 
 ```
-keytool -genkey -v -keystore grandcanvas-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+curl -fsSL https://raw.githubusercontent.com/LakshayBaijal/The-Grand-Canvas---Game/main/deploy/setup-vm.sh | bash -s -- grandcanvas.duckdns.org
 ```
 
-It asks for a password (choose one, write it down) and some name fields (put
-anything sensible). You get a file `grandcanvas-upload.jks`. **Copy it
-somewhere safe — a password manager, a USB stick, your email to yourself.**
-Do not commit it to git.
+Installs Node 24 and Caddy, runs the server as a service that restarts
+itself, gets the HTTPS certificate, sets up nightly backups to `~/backups`.
+Safe to re-run. Then `https://grandcanvas.duckdns.org` in a browser: a
+padlock and "Upgrade Required" means it works (the server only speaks the
+game's protocol).
 
-Then tell the build about it. Create `app/android/key.properties`:
+Build the app against it: `.\build-app.ps1` → `GrandCanvas.apk`. Test from
+two phones on different networks.
 
-```
-storePassword=THE_PASSWORD_YOU_CHOSE
-keyPassword=THE_PASSWORD_YOU_CHOSE
-keyAlias=upload
-storeFile=C:/path/to/grandcanvas-upload.jks
-```
+On the VM, later: `sudo systemctl status grandcanvas`,
+`journalctl -u grandcanvas -f`, `~/grandcanvas/deploy/update.sh`.
 
-And in `app/android/app/build.gradle.kts`, replace the release block that
-currently says `signingConfig = signingConfigs.getByName("debug")` with a real
-one — the Flutter docs page "Build and release an Android app" has the exact
-twelve lines under *Configure signing in gradle*; paste them in. (I left the
-debug signing in place deliberately: a signing config needs *your* key file,
-and I can't make that for you.)
+## 4. Google sign-in (optional; keeps trophies across phones)
 
-To get the SHA-1 for Google sign-in (section 3):
+1. console.cloud.google.com → new project "Grand Canvas".
+2. OAuth consent screen: External, app name, your email. **Publish app**
+   (basic profile needs no review; "Testing" caps sign-ins at 100 people).
+3. Credentials → OAuth client ID → **Web application** → copy the client id.
+   This one value goes in both `GOOGLE_CLIENT_ID` (server) and
+   `GOOGLE_SERVER_CLIENT_ID` (app build).
+4. Credentials → OAuth client ID → **Android**, package
+   `com.whosegames.grandcanvas`, one per SHA-1: the debug key, the upload key
+   (step 5), and Play's app-signing key (step 7). Get a SHA-1 with
+   `keytool -list -v -keystore <file> -alias <alias> | Select-String SHA1`
+   (debug: `%USERPROFILE%\.android\debug.keystore`, alias `androiddebugkey`,
+   password `android`).
+5. On the VM: `nano ~/grandcanvas/.env`, set `GOOGLE_CLIENT_ID`, then
+   `sudo systemctl restart grandcanvas`.
+6. Rebuild the app; test "Link Google account".
 
-```
-keytool -list -v -keystore grandcanvas-upload.jks -alias upload
-```
-
-Add `key.properties` and `*.jks` to `.gitignore` if they aren't already.
-
----
-
-## 5. Build the thing you upload
-
-Play wants an **app bundle** (`.aab`), not an APK. From the repo root:
+## 5. A signing key (once, keep forever)
 
 ```
-cd app
-flutter build appbundle --release
+keytool -genkey -v -keystore app\android\upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+Copy-Item app\android\key.properties.example app\android\key.properties   # then fill in the passwords
 ```
 
-The file is at `app/build/app/outputs/bundle/release/app-release.aab`.
+Both files are ignored by git. Back up the `.jks` and its password to two
+places that aren't this laptop; lose it and the app can never be updated.
+Without `key.properties`, release builds silently use the debug key: fine for
+installing by hand, rejected by the Play Console.
 
-(APKs are still what you hand to friends directly — `commands.txt` has that
-command. Both come from the same code.)
+## 6. Build for the store
 
----
+`.\build-app.ps1 -Bundle` → `GrandCanvas.aab`. Before each later release,
+raise the `+N` in `version:` in `app/pubspec.yaml`.
 
-## 6. The Play Console
+## 7. Play Console ($25 once; new personal accounts wait 14 days)
 
-play.google.com/console. There is a **one-time $25 fee** for a developer
-account. Then:
+1. play.google.com/console, personal account, pay, verify identity.
+2. Privacy policy URL is required (Google sign-in). `docs/privacy.html` is
+   ready; put your contact email in it, then GitHub → Settings → Pages →
+   main, `/docs`.
+3. Create app "Grand Canvas", Game, Free. Fill the Dashboard questionnaires
+   (no ads; user-generated drawings shared with other users; 13+; data
+   safety: nickname, user id, drawings; nothing shared; deletion on request).
+4. Store listing: 512×512 icon, 1024×500 feature graphic, 2+ screenshots,
+   descriptions. (Ask; I'll make these.)
+5. App integrity → App signing → copy the **app signing key's SHA-1** → add an
+   Android client for it in step 4. Skip this and sign-in fails only in the
+   store build.
+6. Closed testing: upload the `.aab`, 12 testers opted in for 14 continuous
+   days (required for personal accounts created after Nov 2023).
+7. Apply for production access, then promote to Production.
 
-1. **Create app** → name *Grand Canvas*, free, game.
-2. It gives you a checklist called **Set up your app**. Work down it; the
-   ones that need actual thought are:
-   - **Privacy policy.** You need a public web page with one. Write it
-     plainly: the app stores a name and an id on the device; drawings people
-     make and the prompts they write are stored on the server and shown to
-     other players; the Daily's drawings are public to everyone who took
-     part; hearts are public; if you plan to use drawings for anything else
-     (you mentioned training), say so here. Host it anywhere — a GitHub
-     Pages page is free.
-   - **Data safety.** It asks what you collect. Be honest: user-generated
-     content (drawings, text), a device id, optionally a Google account id.
-     Not sold, not shared with third parties.
-   - **Content rating.** A questionnaire. Answer it straight; it's a drawing
-     game, you'll land on Everyone or Teen depending on the UGC answers.
-   - **Store listing.** Icon (512×512 — render `icon_full.png` from
-     `app/assets/icon/` at that size), a feature graphic (1024×500 — the
-     brand kit's lockup works), at least two phone screenshots (take them on
-     your phone), and a short description. "Draw badly. Win anyway." is the
-     tagline.
-3. **Release → Testing → Internal testing** first. Upload the `.aab`, add
-   your own email as a tester, install it from the link it gives you, and
-   play a full game against the internet server. Only then:
-4. **Release → Production → Create release**, upload the same `.aab`, and
-   send it for review. First review takes a few days; updates are usually
-   hours.
+## 8. Routine
 
----
+| When | What |
+|---|---|
+| Code changed | on the VM: `~/grandcanvas/deploy/update.sh` |
+| App changed | bump `+N`, `.\build-app.ps1 -Bundle`, upload |
+| Monthly | `scp -i <key> ubuntu@<ip>:backups/*.db D:\backups\` |
+| Every month or two | log into the Oracle console (they reclaim idle free VMs; a live server isn't idle) |
 
-## 7. After launch — the routine
+## If something breaks
 
-- **Updating the game:** change code → push to GitHub. Railway redeploys the
-  server by itself. For the app, bump `version:` in `app/pubspec.yaml` (the
-  number after `+` must go up every upload), build the `.aab`, upload a new
-  release. Players get it from the store.
-- **The database** is the one thing to protect. Download `leaderboard.db`
-  from the Railway volume weekly. That file *is* the game's memory.
-- **The Daily** runs itself: prompts are scheduled for over a year, old
-  galleries are pruned after 30 days, the Hall of Fame is frozen and paid at
-  midnight UTC automatically. Nothing to do.
-- **Logs:** Railway → your service → Logs. A line starting `[stall]` or
-  `[fatal-averted]` is worth reading; everything else is normal chatter.
-- **Costs:** Railway ~$5/month, Play $25 once, a domain (optional) ~$10/year.
+| You see | Do |
+|---|---|
+| "Can't reach the server" | `sudo systemctl status grandcanvas`; `journalctl -u grandcanvas -n 50`; check `SERVER=` |
+| Certificate warning | port 80 open? name → this IP? `sudo journalctl -u caddy -n 30` |
+| Sign-in fails only in store build | step 7.5 |
+| Sign-in fails everywhere | `GOOGLE_CLIENT_ID` on VM ≠ `GOOGLE_SERVER_CLIENT_ID` in build; restart after editing |
+| VM IP changed | update DuckDNS |
+| Oracle refused sign-up | retry; or Google Cloud e2-micro (US, more lag); or Railway (~$5/mo, root dir `server`, volume at `/data`, `DB_PATH=/data/leaderboard.db`) |
+| Play Console rejects bundle | signed with debug key: `app\android\key.properties` missing |
 
----
+## Never share
 
-## If something goes wrong
-
-| Symptom | Almost always |
-| --- | --- |
-| App says "Can't reach the server" | `_defaultServer` still points at the Wi-Fi address, or the Railway service is asleep/crashed — check its Logs. |
-| Leaderboard reset to nothing after a deploy | No volume, or `DB_PATH` not pointing into it (section 1, step 5). |
-| Google sign-in button missing | `GOOGLE_CLIENT_ID` not set on the server. |
-| Google sign-in fails on the phone | The Android OAuth client's SHA-1 doesn't match the key that signed the build. |
-| Play rejects the upload | Version code not bumped, or the bundle was signed with a different key than last time. |
-
-You built the game. This list is just the paperwork.
+The SSH private key, the keystore or its password, the DuckDNS token, any
+account password. The DuckDNS name, the Web client id and the VM's IP are
+fine to share.

@@ -3,8 +3,10 @@
 
 # (macOS / Linux: ./start-server.sh)
 
-# Build the phone app:
-cd app
-flutter build apk --release
-Copy-Item buildpp\outputslutter-apkpp-release.apk ..\GrandCanvas.apk
-cd ..
+# Build the phone app. Reads the server address and Google client id from
+# .env (copy .env.example to .env first). Without .env it builds for
+# localhost, which is fine for playing on your own Wi-Fi.
+.uild-app.ps1              # -> GrandCanvas.apk  (install directly)
+.uild-app.ps1 -Bundle      # -> GrandCanvas.aab  (upload to the Play Store)
+
+# The full launch walkthrough: GOING-LIVE.md

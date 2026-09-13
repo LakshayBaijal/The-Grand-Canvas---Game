@@ -12,6 +12,9 @@ app/android/.gradle/
 app/android/local.properties
 app/**/GeneratedPluginRegistrant.*
 
+# Real settings and secrets live in .env; only .env.example is committed.
+.env
+
 .DS_Store
 *.log
 *.apk

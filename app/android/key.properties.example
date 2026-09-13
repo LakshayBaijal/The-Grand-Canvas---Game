@@ -1,0 +1,7 @@
+# Copy to key.properties (same folder) and fill in. key.properties is ignored
+# by git. storeFile is relative to android/app, so "../upload-keystore.jks"
+# means android/upload-keystore.jks (also ignored by git).
+storePassword=
+keyPassword=
+keyAlias=upload
+storeFile=../upload-keystore.jks

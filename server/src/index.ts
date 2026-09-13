@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { WebSocket, WebSocketServer } from "ws";
 import { advertiseOnLocalNetwork } from "./discovery.js";
 import { googleEnabled, verifyGoogle } from "./google.js";
@@ -72,6 +73,17 @@ import {
   type Member,
   stalledLobbies,
 } from "./rooms.js";
+
+// Settings come from a .env file at the repo root (see .env.example there),
+// or from the process environment, which wins when both set the same name.
+// Looked for in the server folder first, then one level up, so it works
+// both from `server/` (the start scripts) and from a deployed checkout.
+for (const candidate of [".env", "../.env"]) {
+  if (existsSync(candidate)) {
+    process.loadEnvFile(candidate);
+    break;
+  }
+}
 
 const PORT = Number(process.env.PORT ?? 8090);
 const DB_PATH = process.env.DB_PATH ?? "data/leaderboard.db";
