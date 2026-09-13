@@ -136,6 +136,37 @@ export function openStore(path: string): void {
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_daily_day ON daily_entries(day, id DESC)");
 
+  // Hearts on daily drawings: one per person per drawing, never removed.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_hearts (
+      day         INTEGER NOT NULL,
+      entry_id    INTEGER NOT NULL,
+      player_id   TEXT    NOT NULL,
+      created_ms  INTEGER NOT NULL,
+      UNIQUE(entry_id, player_id)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_hearts_entry ON daily_hearts(entry_id)");
+
+  // The hall of fame: each finished day's top three, frozen with the prompt.
+  // Kept forever -- daily_entries is pruned after a month, this is not.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_hall (
+      day         INTEGER NOT NULL,
+      rank        INTEGER NOT NULL,
+      prompt      TEXT    NOT NULL,
+      entry_id    INTEGER NOT NULL,
+      player_id   TEXT    NOT NULL,
+      nickname    TEXT    NOT NULL,
+      title       TEXT    NOT NULL,
+      paper       TEXT,
+      strokes     BLOB    NOT NULL,
+      hearts      INTEGER NOT NULL,
+      created_ms  INTEGER NOT NULL,
+      PRIMARY KEY (day, rank)
+    )
+  `);
+
   db.exec("DROP INDEX IF EXISTS idx_players_rank");
   db.exec("CREATE INDEX IF NOT EXISTS idx_players_rating ON players(rating DESC, created_ms ASC)");
 }
@@ -537,6 +568,12 @@ export type DailyEntry = {
   paper?: string;
   strokes: Stroke[];
   createdMs: number;
+  /** How many people have given this drawing a heart. */
+  hearts: number;
+  /** Whether the viewer already has. */
+  heartedByMe: boolean;
+  /** 1..3 when this is one of the day's top three. */
+  rank?: number;
 };
 
 /** Records today's drawing. Drawing again the same day replaces the earlier
@@ -599,6 +636,7 @@ export function dailyGallery(
 export function pruneDaily(opts: { maxAgeDays?: number } = {}): number {
   const days = opts.maxAgeDays ?? DAILY_RETENTION_DAYS;
   const cutoffDay = Math.floor(Date.now() / (24 * 60 * 60 * 1000)) - days;
+  db.prepare("DELETE FROM daily_hearts WHERE day < ?").run(cutoffDay);
   const result = db.prepare("DELETE FROM daily_entries WHERE day < ?").run(cutoffDay);
   return Number(result.changes ?? 0);
 }
@@ -627,5 +665,173 @@ function toDailyEntry(r: DailyRow): DailyEntry {
     paper: r.paper ?? undefined,
     strokes: JSON.parse(brotliDecompressSync(Buffer.from(r.strokes)).toString("utf8")) as Stroke[],
     createdMs: Number(r.created_ms),
+    hearts: 0,
+    heartedByMe: false,
   };
+}
+
+// --- hearts, the day's top three, and the hall of fame -----------------------
+// The daily has no voting on purpose -- but it can have *hearts*: anyone who
+// drew that day can give one to any drawing that isn't theirs, once, and it
+// can never be taken back. That is engagement without a ballot. The three
+// most-hearted drawings of a day are its top three; at the end of the day
+// they are frozen into the hall of fame with the prompt, and their artists
+// are paid trophies. Frozen, because daily entries are pruned after a month
+// and the hall is meant to be forever.
+
+/** Trophies for the day's top three. Bigger than a ranked win (30): a day's
+ *  top drawing beat everyone in the world who drew that prompt. */
+export const DAILY_TROPHIES = [60, 40, 25] as const;
+
+export type HeartResult =
+  | { ok: true; hearts: number }
+  | { ok: false; reason: "own" | "already" | "missing" };
+
+/** One heart, permanent. */
+export function heartDaily(day: number, entryId: number, playerId: string): HeartResult {
+  const entry = db
+    .prepare("SELECT player_id FROM daily_entries WHERE id = ? AND day = ?")
+    .get(entryId, day) as { player_id: string } | undefined;
+  if (!entry) return { ok: false, reason: "missing" };
+  if (entry.player_id === playerId) return { ok: false, reason: "own" };
+  const inserted = db
+    .prepare(
+      "INSERT OR IGNORE INTO daily_hearts (day, entry_id, player_id, created_ms) VALUES (?, ?, ?, ?)",
+    )
+    .run(day, entryId, playerId, Date.now());
+  const hearts = heartCount(entryId);
+  if (Number(inserted.changes ?? 0) === 0) return { ok: false, reason: "already" };
+  return { ok: true, hearts };
+}
+
+function heartCount(entryId: number): number {
+  const row = db
+    .prepare("SELECT COUNT(*) AS n FROM daily_hearts WHERE entry_id = ?")
+    .get(entryId) as { n: number };
+  return Number(row.n);
+}
+
+/** The day's most-hearted drawings, best first. Ties go to the earlier
+ *  submission -- it was there to be hearted for longer, and a stable order
+ *  matters more than any other tiebreak. */
+export function dailyTop(day: number, viewerId: string | null, limit = 3): DailyEntry[] {
+  const rows = db
+    .prepare(
+      `${DAILY_SELECT_WITH_HEARTS} WHERE e.day = ?
+        ORDER BY hearts DESC, e.id ASC LIMIT ?`,
+    )
+    .all(viewerId ?? "", day, limit) as DailyRowWithHearts[];
+  return rows.filter((r) => Number(r.hearts) > 0).map((r, i) => ({ ...toDailyEntryH(r), rank: i + 1 }));
+}
+
+export type HallEntry = DailyEntry & { rank: number };
+export type HallDay = { day: number; prompt: string; top: HallEntry[] };
+
+/**
+ * Freezes a finished day into the hall of fame and pays its trophies.
+ * Idempotent: a day is frozen at most once, however many times this runs,
+ * and the trophies go out exactly once with it.
+ */
+export function freezeDay(day: number, prompt: string): boolean {
+  const done = db.prepare("SELECT 1 AS yes FROM daily_hall WHERE day = ? LIMIT 1").get(day);
+  if (done) return false;
+  const top = dailyTop(day, null, DAILY_TROPHIES.length);
+  if (top.length === 0) return false;
+  const insert = db.prepare(
+    `INSERT INTO daily_hall (day, rank, prompt, entry_id, player_id, nickname, title, paper, strokes, hearts, created_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const e of top) {
+    const blob = brotliCompressSync(Buffer.from(JSON.stringify(e.strokes)), {
+      params: { [constants.BROTLI_PARAM_QUALITY]: 9 },
+    });
+    insert.run(day, e.rank!, prompt, e.id, e.artistId, e.artistName, e.title, e.paper ?? null, blob, e.hearts, e.createdMs);
+    addTrophies(e.artistId, DAILY_TROPHIES[e.rank! - 1] ?? 0);
+  }
+  return true;
+}
+
+/** Career trophies only ever go up; this is the one other way they do. */
+export function addTrophies(playerId: string, n: number): void {
+  db.prepare("UPDATE players SET trophies = trophies + ? WHERE id = ?").run(n, playerId);
+}
+
+/** The hall, newest day first. */
+export function hallOfFame(beforeDay: number | null, limit: number): { days: HallDay[]; hasMore: boolean } {
+  const dayRows = (
+    beforeDay === null
+      ? db.prepare("SELECT DISTINCT day, prompt FROM daily_hall ORDER BY day DESC LIMIT ?").all(limit + 1)
+      : db.prepare("SELECT DISTINCT day, prompt FROM daily_hall WHERE day < ? ORDER BY day DESC LIMIT ?").all(beforeDay, limit + 1)
+  ) as { day: number; prompt: string }[];
+  const hasMore = dayRows.length > limit;
+  const days = dayRows.slice(0, limit).map((d) => {
+    const rows = db
+      .prepare(
+        `SELECT entry_id, day, rank, player_id, nickname, title, paper, strokes, hearts, created_ms
+           FROM daily_hall WHERE day = ? ORDER BY rank ASC`,
+      )
+      .all(d.day) as HallRow[];
+    return {
+      day: Number(d.day),
+      prompt: d.prompt,
+      top: rows.map((r) => ({
+        id: Number(r.entry_id),
+        day: Number(r.day),
+        rank: Number(r.rank),
+        artistId: r.player_id,
+        artistName: r.nickname,
+        title: r.title,
+        paper: r.paper ?? undefined,
+        strokes: JSON.parse(brotliDecompressSync(Buffer.from(r.strokes)).toString("utf8")) as Stroke[],
+        hearts: Number(r.hearts),
+        heartedByMe: false,
+        createdMs: Number(r.created_ms),
+      })),
+    };
+  });
+  return { days, hasMore };
+}
+
+/** Days with entries that ended and were never frozen -- the hall's backlog. */
+export function unfrozenDays(today: number): number[] {
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT e.day AS day FROM daily_entries e
+        WHERE e.day < ? AND NOT EXISTS (SELECT 1 FROM daily_hall h WHERE h.day = e.day)
+        ORDER BY e.day ASC`,
+    )
+    .all(today) as { day: number }[];
+  return rows.map((r) => Number(r.day));
+}
+
+const DAILY_SELECT_WITH_HEARTS = `
+  SELECT e.id, e.day, e.player_id, e.nickname, e.title, e.paper, e.strokes, e.created_ms,
+         (SELECT COUNT(*) FROM daily_hearts h WHERE h.entry_id = e.id) AS hearts,
+         EXISTS(SELECT 1 FROM daily_hearts h WHERE h.entry_id = e.id AND h.player_id = ?) AS hearted
+    FROM daily_entries e`;
+
+type DailyRowWithHearts = DailyRow & { hearts: number; hearted: number };
+type HallRow = {
+  entry_id: number; day: number; rank: number; player_id: string; nickname: string;
+  title: string; paper: string | null; strokes: Uint8Array; hearts: number; created_ms: number;
+};
+
+function toDailyEntryH(r: DailyRowWithHearts): DailyEntry {
+  return { ...toDailyEntry(r), hearts: Number(r.hearts), heartedByMe: Number(r.hearted) === 1 };
+}
+
+/** A page of the day's gallery, newest first, with each drawing's hearts and
+ *  whether [viewerId] has already given one. */
+export function dailyGalleryWithHearts(
+  day: number,
+  viewerId: string,
+  beforeId: number | null,
+  limit: number,
+): { entries: DailyEntry[]; hasMore: boolean } {
+  const rows = (
+    beforeId === null
+      ? db.prepare(`${DAILY_SELECT_WITH_HEARTS} WHERE e.day = ? ORDER BY e.id DESC LIMIT ?`).all(viewerId, day, limit + 1)
+      : db.prepare(`${DAILY_SELECT_WITH_HEARTS} WHERE e.day = ? AND e.id < ? ORDER BY e.id DESC LIMIT ?`).all(viewerId, day, beforeId, limit + 1)
+  ) as DailyRowWithHearts[];
+  return { entries: rows.slice(0, limit).map(toDailyEntryH), hasMore: rows.length > limit };
 }

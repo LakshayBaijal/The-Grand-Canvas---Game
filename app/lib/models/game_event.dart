@@ -228,13 +228,32 @@ class DailyGalleryEvent extends GameEvent {
   const DailyGalleryEvent({
     required this.day,
     required this.prompt,
+    required this.top,
     required this.entries,
     required this.hasMore,
   });
 
   final int day;
   final String prompt;
+
+  /// The day's most-hearted drawings so far, best first. Only sent with the
+  /// first page; empty on later pages.
+  final List<DailyEntry> top;
   final List<DailyEntry> entries;
+  final bool hasMore;
+}
+
+/// A heart landed: the drawing's new count.
+class DailyHeartedEvent extends GameEvent {
+  const DailyHeartedEvent({required this.entryId, required this.hearts});
+  final int entryId;
+  final int hearts;
+}
+
+/// A page of the Hall of Fame, newest day first.
+class DailyHistoryEvent extends GameEvent {
+  const DailyHistoryEvent({required this.days, required this.hasMore});
+  final List<HallDay> days;
   final bool hasMore;
 }
 

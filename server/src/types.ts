@@ -36,7 +36,19 @@ export type DrawingEntry = {
 };
 
 /** One drawing in a day's gallery. */
-export type DailyEntry = DrawingEntry & { id: number; day: number; createdMs: number };
+export type DailyEntry = DrawingEntry & {
+  id: number;
+  day: number;
+  createdMs: number;
+  /** Hearts given by other players. One each, never taken back. */
+  hearts: number;
+  heartedByMe: boolean;
+  /** 1..3 when this is one of the day's top three. */
+  rank?: number;
+};
+
+/** One finished day in the hall of fame: its prompt and its top three. */
+export type HallDay = { day: number; prompt: string; top: DailyEntry[] };
 
 /** Who backed a drawing and by how much — money in ranked games, vote points
  *  in friendly ones. */
@@ -186,7 +198,12 @@ export type ClientMessage =
   /** The next fortnight of prompts, so the phone can schedule a local
    *  "today's prompt" reminder without the server having to push anything
    *  (no Firebase, no tokens, works offline once fetched). */
-  | { type: "daily_upcoming" };
+  | { type: "daily_upcoming" }
+  /** A heart on one of today's drawings. Only for someone who drew today,
+   *  never on your own, once per drawing, and it cannot be taken back. */
+  | { type: "daily_heart"; entryId: number }
+  /** The hall of fame: finished days, newest first, each with its top three. */
+  | { type: "daily_history"; beforeDay?: number };
 
 export type ServerMessage =
   | { type: "pong"; serverTimeMs: number }
@@ -313,9 +330,15 @@ export type ServerMessage =
       type: "daily_gallery";
       day: number;
       prompt: string;
+      /** The day's most-hearted drawings so far, best first, with `rank`. */
+      top: DailyEntry[];
       entries: DailyEntry[];
       hasMore: boolean;
     }
+  /** Answer to `daily_heart`: the drawing's new count. Also broadcast to the
+   *  gallery? No -- a refresh is enough; hearts are not a live feed. */
+  | { type: "daily_hearted"; entryId: number; hearts: number }
+  | { type: "daily_history"; days: HallDay[]; hasMore: boolean }
   /** Today and the days after it, in order. `startsAtMs` is midnight UTC at
    *  the start of that day, which is when its prompt goes live. */
   | {

@@ -18,6 +18,7 @@ import '../services/audio_service.dart';
 import 'game_screen.dart';
 import '../services/daily_reminder.dart';
 import 'daily_screen.dart';
+import 'hall_of_fame_screen.dart';
 import 'leaderboard_screen.dart';
 import 'queue_screen.dart';
 import 'title_screen.dart';
@@ -239,7 +240,10 @@ class _HomeScreenState extends State<HomeScreen> {
         // old device account and the trophies appear to vanish.
         if (_identity != null && playerId != _identity!.playerId) {
           savePlayerId(playerId);
-          _identity = Identity(playerId: playerId, nickname: _identity!.nickname);
+          _identity = Identity(
+            playerId: playerId,
+            nickname: _identity!.nickname,
+          );
         }
         setState(() {
           _linked = linked;
@@ -464,6 +468,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted && _connected) widget.connection.requestDoodle();
   }
 
+  Future<void> _openHall() async {
+    if (!await _ensureConnected()) return;
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HallOfFameScreen(connection: widget.connection),
+      ),
+    );
+    if (mounted && _connected) widget.connection.requestDoodle();
+  }
+
   Future<void> _openDaily() async {
     if (!await _ensureConnected()) return;
     if (!mounted) return;
@@ -616,7 +631,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _ModeCard(
                         title: 'QUICK\nMATCH',
                         subtitle: 'Play strangers.\nClimb the board.',
-                        badge: const SketchIcon(SketchGlyph.trophy, size: 22, color: GameColors.onPrimary),
+                        badge: const SketchIcon(
+                          SketchGlyph.trophy,
+                          size: 22,
+                          color: GameColors.onPrimary,
+                        ),
                         accent: GameColors.primary,
                         filled: true,
                         onPressed: _busy ? null : _playRanked,
@@ -641,17 +660,40 @@ class _HomeScreenState extends State<HomeScreen> {
               // two that have, and in the calmer colour.
               _ModeCard(
                 title: 'THE DAILY',
-                subtitle: 'One prompt for the whole world. No clock, everything unlocked.',
-                badge: const SketchIcon(SketchGlyph.pencil, size: 22, color: GameColors.cyan),
+                subtitle:
+                    'One prompt for the whole world. No clock, everything unlocked.',
+                badge: const SketchIcon(
+                  SketchGlyph.pencil,
+                  size: 22,
+                  color: GameColors.cyan,
+                ),
                 accent: GameColors.cyan,
                 filled: false,
                 onPressed: _busy ? null : _openDaily,
               ),
               const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: _openLeaderboard,
-                icon: const Icon(Icons.leaderboard_rounded, size: 18),
-                label: const Text('LEADERBOARD'),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _openLeaderboard,
+                      icon: const Icon(Icons.leaderboard_rounded, size: 18),
+                      label: const Text('LEADERBOARD'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _openHall,
+                      icon: const SketchIcon(
+                        SketchGlyph.trophy,
+                        size: 16,
+                        color: GameColors.primary,
+                      ),
+                      label: const Text('HALL OF FAME'),
+                    ),
+                  ),
+                ],
               ),
               if (_busy) ...[
                 const SizedBox(height: 20),
@@ -827,7 +869,11 @@ class _ProfileBar extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SketchIcon(SketchGlyph.trophy, size: 15, color: GameColors.primary),
+                  const SketchIcon(
+                    SketchGlyph.trophy,
+                    size: 15,
+                    color: GameColors.primary,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '${profile?.trophies ?? 0}',
@@ -1277,10 +1323,7 @@ class _FriendsSheetState extends State<_FriendsSheet> {
                   : 'OPEN GAMES  ·  ${_open!.length}',
             ),
             const SizedBox(height: 10),
-            _LobbyBrowser(
-              lobbies: _open,
-              onJoin: widget.onJoin,
-            ),
+            _LobbyBrowser(lobbies: _open, onJoin: widget.onJoin),
             const SizedBox(height: 18),
 
             _SheetDivider(label: 'OR START YOUR OWN'),
@@ -1365,7 +1408,6 @@ class _FriendsSheetState extends State<_FriendsSheet> {
     );
   }
 }
-
 
 /// A labelled rule, used to break the friends sheet into its three routes in:
 /// pick a game, start one, or type a code.
@@ -1455,10 +1497,8 @@ class _LobbyBrowser extends StatelessWidget {
         padding: EdgeInsets.zero,
         itemCount: list.length,
         separatorBuilder: (_, _) => const SizedBox(height: 8),
-        itemBuilder: (context, i) => _LobbyRow(
-          lobby: list[i],
-          onJoin: () => onJoin(list[i].code),
-        ),
+        itemBuilder: (context, i) =>
+            _LobbyRow(lobby: list[i], onJoin: () => onJoin(list[i].code)),
       ),
     );
   }
@@ -1518,11 +1558,16 @@ class _LobbyRow extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: GameColors.lime.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: GameColors.lime.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: GameColors.lime.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: const Text(
                   'JOIN',
@@ -1623,7 +1668,6 @@ class _VisibilityOption extends StatelessWidget {
   }
 }
 
-
 /// Sign in with Google, or sign out again.
 ///
 /// Framed as what it buys the player — trophies that survive losing the phone
@@ -1657,7 +1701,11 @@ class _AccountRow extends StatelessWidget {
     if (linked) {
       return TextButton.icon(
         onPressed: onUnlink,
-        icon: const SketchIcon(SketchGlyph.lockOpen, size: 14, color: GameColors.lime),
+        icon: const SketchIcon(
+          SketchGlyph.lockOpen,
+          size: 14,
+          color: GameColors.lime,
+        ),
         label: const Text(
           'Trophies saved to your Google account',
           style: TextStyle(color: GameColors.lime, fontSize: 12.5),
@@ -1666,7 +1714,11 @@ class _AccountRow extends StatelessWidget {
     }
     return TextButton.icon(
       onPressed: onLink,
-      icon: const SketchIcon(SketchGlyph.lock, size: 14, color: GameColors.textMuted),
+      icon: const SketchIcon(
+        SketchGlyph.lock,
+        size: 14,
+        color: GameColors.textMuted,
+      ),
       label: const Text(
         'Save trophies to a Google account',
         style: TextStyle(color: GameColors.textMuted, fontSize: 12.5),
@@ -1678,7 +1730,11 @@ class _AccountRow extends StatelessWidget {
 /// A small pill that reads as on or off at a glance — colour and label both,
 /// so it doesn't rely on noticing a subtle tint.
 class _AudioToggle extends StatelessWidget {
-  const _AudioToggle({required this.label, required this.on, required this.onTap});
+  const _AudioToggle({
+    required this.label,
+    required this.on,
+    required this.onTap,
+  });
 
   final String label;
   final bool on;
@@ -1696,9 +1752,13 @@ class _AudioToggle extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            color: on ? GameColors.primary.withValues(alpha: 0.12) : Colors.transparent,
+            color: on
+                ? GameColors.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
             border: Border.all(
-              color: on ? GameColors.primary.withValues(alpha: 0.5) : GameColors.border,
+              color: on
+                  ? GameColors.primary.withValues(alpha: 0.5)
+                  : GameColors.border,
               width: 1.1,
             ),
           ),

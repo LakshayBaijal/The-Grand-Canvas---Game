@@ -14,13 +14,18 @@ import '../views/draw_view.dart';
 import '../widgets/celebration.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/sketch_icons.dart';
+import 'hall_of_fame_screen.dart';
 
 /// The Daily: one prompt for the whole world, a drawing with no clock and
 /// nothing locked, and then everyone else's take on the same idea.
 ///
-/// Nobody votes and nothing is scored. The gallery is the reward, and it is
-/// only open to people who drew — the server refuses it otherwise, and this
-/// screen never even asks until it knows the player has submitted.
+/// Nobody votes and nothing is scored — but anyone who drew can give a heart
+/// to any drawing that isn't theirs, once, and it can never be taken back.
+/// The three most-hearted drawings of the day are the day's top three; at
+/// midnight they go into the Hall of Fame and their artists win trophies.
+/// The gallery is only open to people who drew — the server refuses it
+/// otherwise, and this screen never even asks until it knows the player has
+/// submitted.
 class DailyScreen extends StatefulWidget {
   const DailyScreen({super.key, required this.connection, required this.myId});
 
@@ -47,6 +52,9 @@ class _DailyScreenState extends State<DailyScreen> {
   /// midnight doesn't get mixed into the new day's wall.
   int? _galleryDay;
   final List<DailyEntry> _entries = [];
+
+  /// The day's most-hearted, best first. Comes with the gallery's first page.
+  List<DailyEntry> _top = [];
   bool _hasMore = false;
   bool _loadingMore = false;
 
@@ -58,7 +66,8 @@ class _DailyScreenState extends State<DailyScreen> {
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted) return;
       final info = _info;
-      if (info != null && DateTime.now().millisecondsSinceEpoch >= info.endsAtMs) {
+      if (info != null &&
+          DateTime.now().millisecondsSinceEpoch >= info.endsAtMs) {
         widget.connection.dailyInfo();
       }
       setState(() {});
@@ -103,11 +112,28 @@ class _DailyScreenState extends State<DailyScreen> {
           final seen = _entries.map((e) => e.id).toSet();
           _entries.addAll(event.entries.where((e) => !seen.contains(e.id)));
           _entries.sort((a, b) => b.id.compareTo(a.id));
+          // Only the first page carries the top three; later pages send none.
+          if (event.top.isNotEmpty || _entries.length == event.entries.length) {
+            _top = event.top;
+          }
           _hasMore = event.hasMore;
           _loadingMore = false;
         });
+      case DailyHeartedEvent():
+        // The server's count is the truth; the tap already painted the heart.
+        setState(() {
+          DailyEntry bump(DailyEntry e) => e.id == event.entryId
+              ? e.copyWith(hearts: event.hearts, heartedByMe: true)
+              : e;
+          for (var i = 0; i < _entries.length; i++) {
+            _entries[i] = bump(_entries[i]);
+          }
+          _top = _top.map(bump).toList();
+        });
       case ErrorEvent():
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(event.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(event.message)));
         if (_stage == _Stage.sending) setState(() => _stage = _Stage.intro);
         _loadingMore = false;
       case DisconnectedEvent():
@@ -121,6 +147,30 @@ class _DailyScreenState extends State<DailyScreen> {
 
   void _startDrawing() => setState(() => _stage = _Stage.drawing);
 
+  /// One heart, and it stays. Painted immediately so the tap feels like it
+  /// landed; the server's reply then sets the real count.
+  void _heart(DailyEntry entry) {
+    if (entry.heartedByMe || entry.artistId == widget.myId) return;
+    setState(() {
+      DailyEntry bump(DailyEntry e) => e.id == entry.id
+          ? e.copyWith(hearts: e.hearts + 1, heartedByMe: true)
+          : e;
+      for (var i = 0; i < _entries.length; i++) {
+        _entries[i] = bump(_entries[i]);
+      }
+      _top = _top.map(bump).toList();
+    });
+    widget.connection.heartDaily(entry.id);
+  }
+
+  void _openHall() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HallOfFameScreen(connection: widget.connection),
+      ),
+    );
+  }
+
   Future<void> _offerReminder() async {
     final yes = await showDialog<bool>(
       context: context,
@@ -131,8 +181,14 @@ class _DailyScreenState extends State<DailyScreen> {
           'You can switch it off from the gallery.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('NO THANKS')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('REMIND ME')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('NO THANKS'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('REMIND ME'),
+          ),
         ],
       ),
     );
@@ -172,7 +228,10 @@ class _DailyScreenState extends State<DailyScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialog).pop(true),
-            child: const Text('LEAVE', style: TextStyle(color: GameColors.pink)),
+            child: const Text(
+              'LEAVE',
+              style: TextStyle(color: GameColors.pink),
+            ),
           ),
         ],
       ),
@@ -198,7 +257,9 @@ class _DailyScreenState extends State<DailyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    AudioService.instance.play(_stage == _Stage.drawing ? Music.drawing : Music.presentation);
+    AudioService.instance.play(
+      _stage == _Stage.drawing ? Music.drawing : Music.presentation,
+    );
     final info = _info;
 
     switch (_stage) {
@@ -223,17 +284,20 @@ class _DailyScreenState extends State<DailyScreen> {
           ),
         );
       case _Stage.intro:
-        return _Intro(info: info!, onDraw: _startDrawing);
+        return _Intro(info: info!, onDraw: _startDrawing, onHall: _openHall);
       case _Stage.gallery:
         return _Gallery(
           info: info!,
           entries: _entries,
+          top: _top,
           hasMore: _hasMore,
           loadingMore: _loadingMore,
           myId: widget.myId,
           onLoadMore: _loadMore,
           onRefresh: _refresh,
           onDrawAgain: _startDrawing,
+          onHeart: _heart,
+          onHall: _openHall,
           reminderOn: DailyReminder.instance.enabled,
           onToggleReminder: _toggleReminder,
         );
@@ -254,10 +318,10 @@ String _timeLeft(int endsAtMs) {
 }
 
 String _crowd(int n) => switch (n) {
-      0 => 'Nobody has drawn it yet — you could be first',
-      1 => '1 person has drawn it so far',
-      _ => '$n people have drawn it so far',
-    };
+  0 => 'Nobody has drawn it yet — you could be first',
+  1 => '1 person has drawn it so far',
+  _ => '$n people have drawn it so far',
+};
 
 class _Holding extends StatelessWidget {
   const _Holding({required this.label});
@@ -309,7 +373,11 @@ class _PromptCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const SketchIcon(SketchGlyph.clock, size: 13, color: GameColors.textMuted),
+              const SketchIcon(
+                SketchGlyph.clock,
+                size: 13,
+                color: GameColors.textMuted,
+              ),
               const SizedBox(width: 5),
               Text(
                 _timeLeft(info.endsAtMs),
@@ -334,7 +402,11 @@ class _PromptCard extends StatelessWidget {
           SizedBox(height: big ? 12 : 6),
           Text(
             _crowd(info.submissions),
-            style: const TextStyle(color: GameColors.cyan, fontSize: 12, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              color: GameColors.cyan,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -344,10 +416,15 @@ class _PromptCard extends StatelessWidget {
 
 /// The front page: the prompt, the terms, and one button.
 class _Intro extends StatelessWidget {
-  const _Intro({required this.info, required this.onDraw});
+  const _Intro({
+    required this.info,
+    required this.onDraw,
+    required this.onHall,
+  });
 
   final DailyInfoEvent info;
   final VoidCallback onDraw;
+  final VoidCallback onHall;
 
   @override
   Widget build(BuildContext context) {
@@ -381,19 +458,43 @@ class _Intro extends StatelessWidget {
                   onPressed: onDraw,
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 18),
-                    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: 1),
+                    textStyle: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
                   ),
                   child: const Text('DRAW IT'),
                 ),
               ),
               const SizedBox(height: 14),
-              const PopIn(
+              PopIn(
                 index: 3,
                 child: Text(
                   'Take as long as you like. Once you send it in, you get to see '
-                  "everyone else's — from all over the world, all drawing this.",
+                  "everyone else's — from all over the world, all drawing this — "
+                  'and give a heart to the ones you love. The three most-hearted '
+                  'of the day go into the Hall of Fame and win '
+                  '${dailyTrophies[0]} / ${dailyTrophies[1]} / ${dailyTrophies[2]} trophies.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: GameColors.textMuted, fontSize: 13, height: 1.45),
+                  style: const TextStyle(
+                    color: GameColors.textMuted,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              PopIn(
+                index: 4,
+                child: OutlinedButton.icon(
+                  onPressed: onHall,
+                  icon: const SketchIcon(
+                    SketchGlyph.trophy,
+                    size: 16,
+                    color: GameColors.primary,
+                  ),
+                  label: const Text('HALL OF FAME'),
                 ),
               ),
             ],
@@ -415,7 +516,10 @@ class _Perk extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: GameColors.lime.withValues(alpha: 0.7), width: 1.4),
+        border: Border.all(
+          color: GameColors.lime.withValues(alpha: 0.7),
+          width: 1.4,
+        ),
       ),
       child: Text(
         label,
@@ -444,10 +548,14 @@ class _Gallery extends StatefulWidget {
     required this.onDrawAgain,
     required this.reminderOn,
     required this.onToggleReminder,
+    required this.top,
+    required this.onHeart,
+    required this.onHall,
   });
 
   final DailyInfoEvent info;
   final List<DailyEntry> entries;
+  final List<DailyEntry> top;
   final bool hasMore;
   final bool loadingMore;
   final String myId;
@@ -456,6 +564,8 @@ class _Gallery extends StatefulWidget {
   final VoidCallback onDrawAgain;
   final bool reminderOn;
   final ValueChanged<bool> onToggleReminder;
+  final ValueChanged<DailyEntry> onHeart;
+  final VoidCallback onHall;
 
   @override
   State<_Gallery> createState() => _GalleryState();
@@ -481,12 +591,23 @@ class _GalleryState extends State<_Gallery> {
   @override
   Widget build(BuildContext context) {
     final mine = widget.info.mine;
-    final others = widget.entries.where((e) => e.artistId != widget.myId).toList();
+    final others = widget.entries
+        .where((e) => e.artistId != widget.myId)
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('THE DAILY'),
         actions: [
+          IconButton(
+            tooltip: 'Hall of Fame',
+            onPressed: widget.onHall,
+            icon: const SketchIcon(
+              SketchGlyph.trophy,
+              size: 20,
+              color: GameColors.primary,
+            ),
+          ),
           IconButton(
             tooltip: 'Refresh',
             onPressed: widget.onRefresh,
@@ -507,9 +628,25 @@ class _GalleryState extends State<_Gallery> {
                   delegate: SliverChildListDelegate([
                     _PromptCard(info: widget.info, big: false),
                     const SizedBox(height: 10),
-                    _ReminderRow(on: widget.reminderOn, onChanged: widget.onToggleReminder),
+                    _ReminderRow(
+                      on: widget.reminderOn,
+                      onChanged: widget.onToggleReminder,
+                    ),
                     const SizedBox(height: 10),
-                    if (mine != null) _Mine(entry: mine, onDrawAgain: widget.onDrawAgain),
+                    if (mine != null)
+                      _Mine(
+                        entry: mine,
+                        prompt: widget.info.prompt,
+                        onDrawAgain: widget.onDrawAgain,
+                      ),
+                    if (widget.top.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      _TopThree(
+                        top: widget.top,
+                        prompt: widget.info.prompt,
+                        myId: widget.myId,
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Row(
                       children: [
@@ -543,16 +680,21 @@ class _GalleryState extends State<_Gallery> {
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.8,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.72,
+                        ),
                     delegate: SliverChildBuilderDelegate(
                       (context, i) => PopIn(
                         index: i < 8 ? i : 8,
-                        child: _Tile(entry: others[i]),
+                        child: _Tile(
+                          entry: others[i],
+                          prompt: widget.info.prompt,
+                          onHeart: () => widget.onHeart(others[i]),
+                        ),
                       ),
                       childCount: others.length,
                     ),
@@ -563,14 +705,16 @@ class _GalleryState extends State<_Gallery> {
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
                   child: widget.loadingMore
                       ? const Center(
-                          child: CircularProgressIndicator(color: GameColors.primary),
+                          child: CircularProgressIndicator(
+                            color: GameColors.primary,
+                          ),
                         )
                       : widget.hasMore
-                          ? OutlinedButton(
-                              onPressed: widget.onLoadMore,
-                              child: const Text('SHOW MORE'),
-                            )
-                          : const SizedBox.shrink(),
+                      ? OutlinedButton(
+                          onPressed: widget.onLoadMore,
+                          child: const Text('SHOW MORE'),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ),
             ],
@@ -603,7 +747,11 @@ class _ReminderRow extends StatelessWidget {
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
-          Switch(value: on, onChanged: onChanged, activeThumbColor: GameColors.lime),
+          Switch(
+            value: on,
+            onChanged: onChanged,
+            activeThumbColor: GameColors.lime,
+          ),
         ],
       ),
     );
@@ -611,9 +759,14 @@ class _ReminderRow extends StatelessWidget {
 }
 
 class _Mine extends StatelessWidget {
-  const _Mine({required this.entry, required this.onDrawAgain});
+  const _Mine({
+    required this.entry,
+    required this.prompt,
+    required this.onDrawAgain,
+  });
 
   final DailyEntry entry;
+  final String prompt;
   final VoidCallback onDrawAgain;
 
   @override
@@ -624,13 +777,16 @@ class _Mine extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => _showFull(context, entry, isMe: true),
+            onTap: () => showHallDetail(context, entry, prompt, isMe: true),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
                 width: 88,
                 height: 88,
-                child: StaticDrawing(strokes: entry.strokes, paper: entry.paper),
+                child: StaticDrawing(
+                  strokes: entry.strokes,
+                  paper: entry.paper,
+                ),
               ),
             ),
           ),
@@ -653,9 +809,31 @@ class _Mine extends StatelessWidget {
                   entry.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.favorite,
+                      size: 13,
+                      color: GameColors.pink,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      entry.hearts == 1 ? '1 heart' : '${entry.hearts} hearts',
+                      style: const TextStyle(
+                        color: GameColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 // Drawing again replaces today's entry, so it is offered as a
                 // second go rather than a second entry.
                 TextButton(
@@ -667,7 +845,10 @@ class _Mine extends StatelessWidget {
                   ),
                   child: const Text(
                     'Have another go →',
-                    style: TextStyle(color: GameColors.primary, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      color: GameColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -680,14 +861,20 @@ class _Mine extends StatelessWidget {
 }
 
 class _Tile extends StatelessWidget {
-  const _Tile({required this.entry});
+  const _Tile({
+    required this.entry,
+    required this.prompt,
+    required this.onHeart,
+  });
 
   final DailyEntry entry;
+  final String prompt;
+  final VoidCallback onHeart;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showFull(context, entry),
+      onTap: () => showHallDetail(context, entry, prompt),
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: GameDecor.panel(radius: 14),
@@ -699,7 +886,10 @@ class _Tile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 child: SizedBox(
                   width: double.infinity,
-                  child: StaticDrawing(strokes: entry.strokes, paper: entry.paper),
+                  child: StaticDrawing(
+                    strokes: entry.strokes,
+                    paper: entry.paper,
+                  ),
                 ),
               ),
             ),
@@ -711,14 +901,151 @@ class _Tile extends StatelessWidget {
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 2),
-            Text(
-              entry.artistName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: GameColors.cyan, fontSize: 11, fontWeight: FontWeight.w700),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    entry.artistName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: GameColors.cyan,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                _HeartButton(
+                  hearts: entry.hearts,
+                  given: entry.heartedByMe,
+                  onTap: onHeart,
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The heart, and how many. Once given it stays lit and stops responding —
+/// there is no taking it back, and the button should look like it.
+class _HeartButton extends StatelessWidget {
+  const _HeartButton({
+    required this.hearts,
+    required this.given,
+    required this.onTap,
+  });
+
+  final int hearts;
+  final bool given;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: given ? null : onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 2, 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: given ? 1.15 : 1,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutBack,
+              child: Icon(
+                given ? Icons.favorite : Icons.favorite_border,
+                size: 18,
+                color: given ? GameColors.pink : GameColors.textMuted,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '$hearts',
+              style: TextStyle(
+                color: given ? GameColors.pink : GameColors.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The day's three most-hearted so far, medalled. This is what the hearts
+/// are competing for: at midnight these three go into the Hall of Fame.
+class _TopThree extends StatelessWidget {
+  const _TopThree({
+    required this.top,
+    required this.prompt,
+    required this.myId,
+  });
+
+  final List<DailyEntry> top;
+  final String prompt;
+  final String myId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: GameDecor.panel(accent: GameColors.primary),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SketchIcon(
+                SketchGlyph.medal,
+                size: 14,
+                color: GameColors.primary,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                "TODAY'S TOP THREE",
+                style: TextStyle(
+                  color: GameColors.textMuted,
+                  fontSize: 10,
+                  letterSpacing: 2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Hall of Fame at midnight',
+                style: TextStyle(
+                  color: GameColors.primary.withValues(alpha: 0.85),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < 3; i++) ...[
+                if (i > 0) const SizedBox(width: 10),
+                Expanded(
+                  child: i < top.length
+                      ? HallTile(
+                          entry: top[i],
+                          prompt: prompt,
+                          isMe: top[i].artistId == myId,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -744,48 +1071,14 @@ class _EmptyWall extends StatelessWidget {
           Text(
             'Everyone who draws this prompt shows up here. Pull down to check back.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: GameColors.textMuted, fontSize: 13, height: 1.4),
+            style: TextStyle(
+              color: GameColors.textMuted,
+              fontSize: 13,
+              height: 1.4,
+            ),
           ),
         ],
       ),
     );
   }
-}
-
-/// The drawing at full size, with its title and who drew it.
-void _showFull(BuildContext context, DailyEntry entry, {bool isMe = false}) {
-  showDialog<void>(
-    context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.8),
-    builder: (context) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(18),
-      child: GestureDetector(
-        onTap: () => Navigator.of(context).pop(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: StaticDrawing(strokes: entry.strokes, paper: entry.paper),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              entry.title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              isMe ? 'by you' : 'by ${entry.artistName}',
-              style: const TextStyle(color: GameColors.cyan, fontSize: 13, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }

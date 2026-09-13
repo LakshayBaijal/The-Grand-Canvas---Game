@@ -1,6 +1,6 @@
-# 🖼 The Grand Canvas
+# 🖼 Grand Canvas
 
-*A WhoseGames game.*
+*A Whose?Games game.* Just "Grand Canvas" — the "The" was dropped on purpose: nobody searches for an article, and a name people can't find is a name they forget.
 
 A Jackbox-style party drawing game for **3–5 players**, built for Android and iOS.
 Everyone plays on their own phone — no shared TV screen needed.
@@ -383,8 +383,22 @@ It is deliberately the opposite of a round:
   locked colour would be protecting nothing. This never touches the player's
   purchases: the styles picked here live for that one drawing
   (`StyleSelection` in `customize_sheet.dart`) and are never saved.
-- **Nobody votes.** Nothing is scored, ranked, or funded. The gallery is the
-  reward.
+- **Nobody votes — but everyone can heart.** Anyone who drew that day can
+  give a heart to any drawing that isn't theirs: one per drawing, and it can
+  never be taken back (`daily_hearts`, unique on entry + player; there is no
+  API to remove one, by design). Hearts are the only thing in the Daily one
+  player gives another, so that permanence is the whole rule.
+- **The day's top three, and the Hall of Fame.** The three most-hearted
+  drawings of the day (ties to the earlier submission) are shown medalled at
+  the top of the gallery. At midnight the day is *frozen*: those three are
+  copied — prompt, strokes, hearts and all — into `daily_hall`, which is kept
+  forever (the gallery itself is pruned after 30 days), and their artists are
+  paid **60 / 40 / 25 trophies** (`DAILY_TROPHIES` in `store.ts` — more than
+  a ranked win, because they beat everyone in the world who drew that
+  prompt). Freezing is lazy and idempotent: the first hall request or daily
+  prune after midnight does it, and a day is paid exactly once. The Hall of
+  Fame screen lists finished days newest first, prompt above the three
+  drawings; tap one for its hearts, place, trophies and date.
 - **The gallery is for participants.** The server only answers `daily_gallery`
   for a day the player has submitted a drawing for. Otherwise the app never
   even asks.
@@ -711,7 +725,7 @@ need this computer's Terminal, `adb`, or Claude to "launch" it each time.
    - On Windows: double-click `start-server.bat`, or run it from a terminal.
 
    Both print the address to enter on your phone.
-2. On your phone, open **The Grand Canvas** and tap **RANKED** or
+2. On your phone, open **Grand Canvas** and tap **RANKED** or
    **PLAY WITH FRIENDS**.
 
 That's it — the app looks for the server automatically on whatever Wi-Fi
@@ -903,6 +917,11 @@ picture?") aren't assertable. Two throwaway techniques worth reusing:
   to change.
 
 ## Before shipping to the Play Store
+
+> **The step-by-step version of this section, in plain words, is
+> [GOING-LIVE.md](GOING-LIVE.md).** Hosting on Railway, the persistent disk,
+> pointing the app at it with `--dart-define=SERVER=…`, Google sign-in, the
+> signing key, the Play Console checklist, and the weekly routine after launch.
 
 The game is fully playable, but these are needed for a public release:
 

@@ -43,7 +43,7 @@ class GameConnection {
   /// live connection before sending their first action.
   Future<void> connect(String address) async {
     await disconnect();
-    final channel = WebSocketChannel.connect(Uri.parse('ws://$address'));
+    final channel = WebSocketChannel.connect(serverUri(address));
     _channel = channel;
 
     final ready = Completer<void>();
@@ -109,7 +109,9 @@ class GameConnection {
               .toList(),
         );
       case 'profile':
-        return ProfileEvent(Profile.fromJson(json['profile'] as Map<String, dynamic>));
+        return ProfileEvent(
+          Profile.fromJson(json['profile'] as Map<String, dynamic>),
+        );
       case 'leaderboard':
         return LeaderboardEvent(
           entries: (json['entries'] as List)
@@ -143,7 +145,10 @@ class GameConnection {
           totalRounds: json['totalRounds'] as int,
         );
       case 'waiting_update':
-        return WaitingUpdateEvent(json['submitted'] as int, json['total'] as int);
+        return WaitingUpdateEvent(
+          json['submitted'] as int,
+          json['total'] as int,
+        );
       case 'voting_phase':
         return VotingPhaseEvent(
           scoring: Scoring.fromJson(json['scoring'] as String),
@@ -178,8 +183,9 @@ class GameConnection {
           scores: (json['scores'] as List)
               .map((s) => ScoreRow.fromJson(s as Map<String, dynamic>))
               .toList(),
-          trophies: (json['trophies'] as Map<String, dynamic>)
-              .map((k, v) => MapEntry(k, v as int)),
+          trophies: (json['trophies'] as Map<String, dynamic>).map(
+            (k, v) => MapEntry(k, v as int),
+          ),
         );
       case 'doodle':
         return DoodleEvent(
@@ -205,8 +211,23 @@ class GameConnection {
         return DailyGalleryEvent(
           day: json['day'] as int,
           prompt: json['prompt'] as String,
+          top: ((json['top'] as List?) ?? const [])
+              .map((e) => DailyEntry.fromJson(e as Map<String, dynamic>))
+              .toList(),
           entries: (json['entries'] as List)
               .map((e) => DailyEntry.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          hasMore: json['hasMore'] as bool,
+        );
+      case 'daily_hearted':
+        return DailyHeartedEvent(
+          entryId: json['entryId'] as int,
+          hearts: json['hearts'] as int,
+        );
+      case 'daily_history':
+        return DailyHistoryEvent(
+          days: (json['days'] as List)
+              .map((d) => HallDay.fromJson(d as Map<String, dynamic>))
               .toList(),
           hasMore: json['hasMore'] as bool,
         );
@@ -227,12 +248,13 @@ class GameConnection {
 
   /// Identity handshake. Must be sent before anything except `request_doodle`.
   void hello(Identity identity) => _send({
-        'type': 'hello',
-        'playerId': identity.playerId,
-        'nickname': identity.nickname,
-      });
+    'type': 'hello',
+    'playerId': identity.playerId,
+    'nickname': identity.nickname,
+  });
 
-  void setNickname(String nickname) => _send({'type': 'set_nickname', 'nickname': nickname});
+  void setNickname(String nickname) =>
+      _send({'type': 'set_nickname', 'nickname': nickname});
 
   void getLeaderboard() => _send({'type': 'get_leaderboard'});
 
@@ -240,8 +262,10 @@ class GameConnection {
 
   void cancelMatch() => _send({'type': 'cancel_match'});
 
-  void createLobby({bool isPublic = true}) =>
-      _send({'type': 'create_lobby', 'visibility': isPublic ? 'public' : 'private'});
+  void createLobby({bool isPublic = true}) => _send({
+    'type': 'create_lobby',
+    'visibility': isPublic ? 'public' : 'private',
+  });
 
   /// Opens the lobby browser. The server keeps pushing `lobby_list` until
   /// [stopBrowsing], so there is nothing to poll.
@@ -258,8 +282,10 @@ class GameConnection {
   void unlinkGoogle() => _send({'type': 'unlink_google'});
 
   /// Host-only, from inside the lobby.
-  void setVisibility({required bool isPublic}) =>
-      _send({'type': 'set_visibility', 'visibility': isPublic ? 'public' : 'private'});
+  void setVisibility({required bool isPublic}) => _send({
+    'type': 'set_visibility',
+    'visibility': isPublic ? 'public' : 'private',
+  });
 
   void joinLobby(String code) => _send({'type': 'join_lobby', 'code': code});
 
@@ -275,9 +301,11 @@ class GameConnection {
 
   void removeBot() => _send({'type': 'remove_bot'});
 
-  void submitPrompt(String text) => _send({'type': 'submit_prompt', 'text': text});
+  void submitPrompt(String text) =>
+      _send({'type': 'submit_prompt', 'text': text});
 
-  void submitDrawing(List<Stroke> strokes, String title, PaperStyle paper) => _send({
+  void submitDrawing(List<Stroke> strokes, String title, PaperStyle paper) =>
+      _send({
         'type': 'submit_drawing',
         'strokes': strokes.map((s) => s.toJson()).toList(),
         'title': title,
@@ -288,7 +316,8 @@ class GameConnection {
       _send({'type': 'submit_investment', 'allocations': allocations});
 
   /// Ordered artistIds, best first. Friendly games only.
-  void submitRanking(List<String> order) => _send({'type': 'submit_ranking', 'order': order});
+  void submitRanking(List<String> order) =>
+      _send({'type': 'submit_ranking', 'order': order});
 
   void playAgain() => _send({'type': 'play_again'});
 
@@ -300,7 +329,8 @@ class GameConnection {
 
   /// Submits today's drawing. The server answers with a fresh `daily_info`,
   /// so the screen never has to guess what state it's in afterwards.
-  void submitDaily(List<Stroke> strokes, String title, PaperStyle paper) => _send({
+  void submitDaily(List<Stroke> strokes, String title, PaperStyle paper) =>
+      _send({
         'type': 'daily_submit',
         'strokes': strokes.map((s) => s.toJson()).toList(),
         'title': title,
@@ -310,15 +340,23 @@ class GameConnection {
   /// The next fortnight of prompts, for the local reminder schedule.
   void dailyUpcoming() => _send({'type': 'daily_upcoming'});
 
+  /// A heart on one of today's drawings. Permanent — there is no undo, by
+  /// design, so the button should make that clear before it is pressed.
+  void heartDaily(int entryId) =>
+      _send({'type': 'daily_heart', 'entryId': entryId});
+
+  /// The Hall of Fame, newest day first. Pass the last day shown as
+  /// [beforeDay] for the next page.
+  void dailyHistory({int? beforeDay}) =>
+      _send({'type': 'daily_history', 'beforeDay': ?beforeDay});
+
   /// A page of a day's gallery (today when [day] is omitted), newest first.
   /// Pass the last entry's id as [beforeId] to get the next page.
-  void dailyGallery({int? day, int? beforeId}) => _send({
-        'type': 'daily_gallery',
-        'day': ?day,
-        'beforeId': ?beforeId,
-      });
+  void dailyGallery({int? day, int? beforeId}) =>
+      _send({'type': 'daily_gallery', 'day': ?day, 'beforeId': ?beforeId});
 
-  void _send(Map<String, dynamic> message) => _channel?.sink.add(jsonEncode(message));
+  void _send(Map<String, dynamic> message) =>
+      _channel?.sink.add(jsonEncode(message));
 
   void dispose() {
     _channel?.sink.close();
@@ -329,4 +367,25 @@ class GameConnection {
 String _friendlyError(Object error) {
   if (error is TimeoutException) return 'Could not reach the server';
   return 'Connection problem — check the server address';
+}
+
+/// Turns what the player typed into the URL to dial.
+///
+/// A LAN server is an IP and a port (`192.168.1.20:8090`) and speaks plain
+/// `ws://`; a hosted one is a hostname (`grandcanvas.up.railway.app`) behind
+/// TLS and needs `wss://`. Deciding here — anything that isn't a bare IP or a
+/// `.local` name is treated as hosted — means going live is a matter of typing
+/// the hostname, not editing this file. An explicit `ws://` or `wss://` prefix
+/// is always respected.
+Uri serverUri(String address) {
+  final a = address.trim();
+  if (a.startsWith('ws://') || a.startsWith('wss://')) return Uri.parse(a);
+  final host = a.split(':').first.split('/').first;
+  final isIp = RegExp(r'^\d{1,3}(\.\d{1,3}){3}$').hasMatch(host);
+  final isLocal =
+      isIp ||
+      host == 'localhost' ||
+      host.endsWith('.local') ||
+      !host.contains('.');
+  return Uri.parse('${isLocal ? 'ws' : 'wss'}://$a');
 }

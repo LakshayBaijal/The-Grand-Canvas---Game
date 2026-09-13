@@ -86,6 +86,9 @@ function prune(): void {
   if (byAge + byCount > 0) {
     console.log(`[archive] pruned ${byAge} expired, ${byCount} over cap (${store.countDrawings()} kept)`);
   }
+  // Freeze before pruning, or a day could be pruned unfrozen and its top
+  // three lost -- the order of these two lines is the whole hall of fame.
+  freezeFinishedDays();
   const daily = store.pruneDaily();
   if (daily > 0) console.log(`[daily] pruned ${daily} entries from old galleries`);
 }
@@ -150,6 +153,17 @@ process.on("unhandledRejection", (reason) => {
 /** Gallery page size. A human drawing is a few KB, so this is a few hundred
  *  KB a page — fine on a phone, and the client asks for more as you scroll. */
 const DAILY_PAGE = 20;
+
+/** Every finished day with entries gets its top three frozen and paid,
+ *  exactly once. Called when the hall is opened and on the daily prune. */
+function freezeFinishedDays(): void {
+  const today = dayOf(Date.now());
+  for (const day of store.unfrozenDays(today)) {
+    if (store.freezeDay(day, promptForDay(day))) {
+      console.log(`[daily] froze day ${day} into the hall of fame`);
+    }
+  }
+}
 
 function sendDailyInfo(ws: WebSocket, playerId: string): void {
   const { day, prompt, endsAtMs } = dailyFor();
@@ -675,14 +689,45 @@ wss.on("connection", (ws) => {
           return sendError(ws, "Draw the prompt first, then you can see everyone else's");
         }
         const beforeId = asInt(message.beforeId);
-        const page = store.dailyGallery(day, beforeId, DAILY_PAGE);
+        const page = store.dailyGalleryWithHearts(day, playerId, beforeId, DAILY_PAGE);
         send(ws, {
           type: "daily_gallery",
           day,
           prompt: promptForDay(day),
+          // Only with the first page: the top three are the same on every page.
+          top: beforeId === null ? store.dailyTop(day, playerId) : [],
           entries: page.entries,
           hasMore: page.hasMore,
         });
+        break;
+      }
+
+      case "daily_heart": {
+        const today = dayOf(Date.now());
+        // The gallery is for people who drew; so are its hearts.
+        if (!store.hasSubmittedDaily(today, playerId)) {
+          return sendError(ws, "Draw today's prompt first");
+        }
+        const entryId = asInt(message.entryId);
+        if (entryId === null) return;
+        const result = store.heartDaily(today, entryId, playerId);
+        if (!result.ok) {
+          if (result.reason === "own") return sendError(ws, "You can't heart your own drawing");
+          if (result.reason === "already") return; // idempotent: the button just stays lit
+          return sendError(ws, "That drawing isn't in today's gallery");
+        }
+        send(ws, { type: "daily_hearted", entryId, hearts: result.hearts });
+        break;
+      }
+
+      case "daily_history": {
+        // Freeze any day that has ended and never been frozen. Lazy rather
+        // than scheduled: the first person to open the hall after midnight
+        // does the work, and it is a few rows.
+        freezeFinishedDays();
+        const beforeDay = asInt(message.beforeDay);
+        const page = store.hallOfFame(beforeDay, 14);
+        send(ws, { type: "daily_history", days: page.days, hasMore: page.hasMore });
         break;
       }
 
@@ -958,6 +1003,6 @@ wss.on("connection", (ws) => {
   });
 });
 
-console.log(`The Grand Canvas server listening on ws://0.0.0.0:${PORT}`);
+console.log(`Grand Canvas server listening on ws://0.0.0.0:${PORT}`);
 console.log(`Leaderboard stored at ${DB_PATH}`);
 advertiseOnLocalNetwork(PORT);
