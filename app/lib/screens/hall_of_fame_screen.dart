@@ -127,6 +127,8 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
                             .reportDrawing(entryId: entry.id, reason: reason),
                         onHide: () async =>
                             widget.connection.hideArtist(entryId: entry.id),
+                        onAddFriend: () async =>
+                            widget.connection.requestFriend(entry.artistId),
                       ),
                     ),
                   );

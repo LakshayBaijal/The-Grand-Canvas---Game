@@ -25,6 +25,7 @@ Future<void> showDrawingActions(
   bool isMine = false,
   Future<void> Function(String reason)? onReport,
   Future<void> Function()? onHide,
+  Future<void> Function()? onAddFriend,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -38,6 +39,7 @@ Future<void> showDrawingActions(
       isMine: isMine,
       onReport: onReport,
       onHide: onHide,
+      onAddFriend: onAddFriend,
     ),
   );
 }
@@ -52,6 +54,7 @@ class _ActionsSheet extends StatefulWidget {
     required this.isMine,
     required this.onReport,
     required this.onHide,
+    required this.onAddFriend,
   });
 
   final List<Stroke> strokes;
@@ -62,6 +65,7 @@ class _ActionsSheet extends StatefulWidget {
   final bool isMine;
   final Future<void> Function(String reason)? onReport;
   final Future<void> Function()? onHide;
+  final Future<void> Function()? onAddFriend;
 
   @override
   State<_ActionsSheet> createState() => _ActionsSheetState();
@@ -169,8 +173,26 @@ class _ActionsSheetState extends State<_ActionsSheet> {
               hint: 'WhatsApp, Instagram, anywhere',
               onTap: _busy ? null : () => _do(_share),
             ),
-            if (!widget.isMine && widget.onReport != null) ...[
+            if (!widget.isMine && widget.onAddFriend != null) ...[
               const Divider(color: GameColors.border, height: 12),
+              _Action(
+                icon: const Icon(
+                  Icons.person_add_alt_1_rounded,
+                  color: GameColors.primary,
+                ),
+                label: 'Add ${widget.artistLabel ?? 'them'} as a friend',
+                hint: 'Play together any time. They have to say yes.',
+                onTap: _busy
+                    ? null
+                    : () => _do(() async {
+                        await widget.onAddFriend!();
+                        return null;
+                      }),
+              ),
+            ],
+            if (!widget.isMine && widget.onReport != null) ...[
+              if (widget.onAddFriend == null)
+                const Divider(color: GameColors.border, height: 12),
               _Action(
                 icon: const Icon(
                   Icons.flag_outlined,

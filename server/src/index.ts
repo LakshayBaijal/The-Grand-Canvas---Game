@@ -14,6 +14,7 @@ import {
   randomBotName,
 } from "./bots.js";
 import { pickDemoPrompt } from "./prompts.js";
+import { isBotId } from "./bots.js";
 import { dailyFor, dayOf, promptForDay } from "./daily.js";
 import { asInt, cleanText, RateLimit, sanitizeStrokes } from "./validate.js";
 import { hasProfanity, maskProfanity } from "./profanity.js";
@@ -240,6 +241,33 @@ function broadcastWaiting(lobby: Lobby, submitted: number, total: number) {
 
 type Identity = { playerId: string; nickname: string };
 const identities = new Map<WebSocket, Identity>();
+
+/** The live socket for a player, if they're connected right now. A scan;
+ *  the map is the size of the online population, which is small. */
+function socketOf(playerId: string): WebSocket | null {
+  for (const [ws, id] of identities) {
+    if (id.playerId === playerId && ws.readyState === WebSocket.OPEN) return ws;
+  }
+  return null;
+}
+
+/** What the friends list says about one friend right now. */
+function friendEntry(row: store.FriendRow): import("./types.js").FriendEntry {
+  const online = socketOf(row.id) !== null;
+  const lobby = getLobbyByPlayer(row.id);
+  const joinable = lobby && lobby.mode === "friendly" && lobby.phase === "lobby";
+  return { ...row, online, roomCode: joinable ? lobby.code : null };
+}
+
+function sendFriends(ws: WebSocket, playerId: string): void {
+  const f = store.friendsOf(playerId);
+  send(ws, {
+    type: "friends",
+    friends: f.friends.map(friendEntry),
+    incoming: f.incoming,
+    outgoing: f.outgoing,
+  });
+}
 
 function profileFor(playerId: string): Profile | null {
   const p = store.getProfile(playerId);
@@ -785,6 +813,66 @@ wss.on("connection", (ws) => {
         if (!artistId) return;
         if (!store.hideArtist(playerId, artistId)) return sendError(ws, "That's you");
         send(ws, { type: "artist_hidden", artistId, entryId });
+        break;
+      }
+
+      case "friend_request": {
+        const target = cleanText(message.playerId, 64);
+        if (!target) return;
+        if (isBotId(target)) return sendError(ws, "Bots don't have friends. Yet.");
+        const result = store.requestFriend(playerId, target);
+        const nickname = store.getProfile(target)?.nickname ?? "?";
+        send(ws, { type: "friend_result", playerId: target, nickname, result });
+        const theirs = socketOf(target);
+        if (theirs) {
+          if (result === "sent") {
+            send(theirs, { type: "friend_request_received", from: { id: playerId, nickname: identity.nickname } });
+          } else if (result === "accepted") {
+            send(theirs, { type: "friend_accepted", by: { id: playerId, nickname: identity.nickname } });
+            sendFriends(theirs, target);
+          }
+        }
+        if (result === "accepted") sendFriends(ws, playerId);
+        break;
+      }
+
+      case "friend_accept": {
+        const target = cleanText(message.playerId, 64);
+        if (!target || !store.acceptFriend(playerId, target)) return;
+        sendFriends(ws, playerId);
+        const theirs = socketOf(target);
+        if (theirs) {
+          send(theirs, { type: "friend_accepted", by: { id: playerId, nickname: identity.nickname } });
+          sendFriends(theirs, target);
+        }
+        break;
+      }
+
+      case "friend_remove": {
+        const target = cleanText(message.playerId, 64);
+        if (!target) return;
+        store.removeFriend(playerId, target);
+        sendFriends(ws, playerId);
+        const theirs = socketOf(target);
+        if (theirs) sendFriends(theirs, target);
+        break;
+      }
+
+      case "friends_list": {
+        sendFriends(ws, playerId);
+        break;
+      }
+
+      case "friend_invite": {
+        const target = cleanText(message.playerId, 64);
+        if (!target || !store.areFriends(playerId, target)) return;
+        const lobby = getLobbyByPlayer(playerId);
+        if (!lobby || lobby.mode !== "friendly" || lobby.phase !== "lobby") {
+          return sendError(ws, "Open a friendly room first, then invite");
+        }
+        const theirs = socketOf(target);
+        if (!theirs) return sendError(ws, "They're not online right now");
+        send(theirs, { type: "friend_invited", from: { id: playerId, nickname: identity.nickname }, code: lobby.code });
         break;
       }
 

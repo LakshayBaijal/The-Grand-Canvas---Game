@@ -21,7 +21,11 @@ import {
   type RatingChange,
 } from "./ranking.js";
 
+/** Ranked tables are five: matchmaking has to fill them from strangers, and
+ *  five is what fills in a minute. Friendly rooms are ten: a party is as big
+ *  as the group chat, and nobody should be told to wait outside. */
 export const MAX_PLAYERS = 5;
+export const FRIENDLY_MAX_PLAYERS = 10;
 export const MIN_PLAYERS_TO_START = 1;
 
 /** Places a friendly-game voter picks, best first, and what each is worth. */
@@ -223,7 +227,7 @@ export function openLobbies(): OpenLobby[] {
     if (lobby.mode !== "friendly") continue;
     if (lobby.visibility !== "public") continue;
     if (lobby.phase !== "lobby") continue;
-    if (lobby.players.size >= MAX_PLAYERS) continue;
+    if (lobby.players.size >= FRIENDLY_MAX_PLAYERS) continue;
     const host = lobby.players.get(lobby.hostId);
     let bots = 0;
     for (const p of lobby.players.values()) if (p.isBot) bots++;
@@ -231,7 +235,7 @@ export function openLobbies(): OpenLobby[] {
       code: lobby.code,
       hostName: host?.nickname ?? "Someone",
       players: lobby.players.size,
-      maxPlayers: MAX_PLAYERS,
+      maxPlayers: FRIENDLY_MAX_PLAYERS,
       bots,
       createdAtMs: lobby.createdAtMs,
     });
@@ -255,7 +259,7 @@ export function joinLobby(rawCode: string, member: Member): Lobby {
   // Note: no visibility check. "Private" hides a lobby from the browser; it
   // does not revoke codes already shared with friends.
   if (lobby.phase !== "lobby") throw new Error("That game already started");
-  if (lobby.players.size >= MAX_PLAYERS) throw new Error("That lobby is full");
+  if (lobby.players.size >= FRIENDLY_MAX_PLAYERS) throw new Error("That lobby is full");
   seat(lobby, member);
   return lobby;
 }
@@ -270,7 +274,7 @@ export function getLobbyByPlayer(playerId: string): Lobby | undefined {
 /** Adds a bot to the lobby. Returns null when there's no room for one. */
 export function addBot(lobby: Lobby): Player | null {
   if (lobby.phase !== "lobby") return null;
-  if (lobby.players.size >= MAX_PLAYERS) return null;
+  if (lobby.players.size >= (lobby.mode === "friendly" ? FRIENDLY_MAX_PLAYERS : MAX_PLAYERS)) return null;
   const taken = new Set(Array.from(lobby.players.values(), (p) => p.nickname));
   const { id, nickname } = createBot(taken);
   const bot: Player = { id, nickname, ws: null, isBot: true };

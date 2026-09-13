@@ -255,6 +255,77 @@ class DailyHeartedEvent extends GameEvent {
   final int hearts;
 }
 
+/// Someone on the friends list, or a request either way.
+class FriendRow {
+  const FriendRow({required this.id, required this.nickname});
+  final String id;
+  final String nickname;
+  factory FriendRow.fromJson(Map<String, dynamic> j) =>
+      FriendRow(id: j['id'] as String, nickname: j['nickname'] as String);
+}
+
+/// A friend as the list shows them: connected right now, and the code of
+/// the friendly room they're sitting in if it can still be joined.
+class FriendEntry extends FriendRow {
+  const FriendEntry({
+    required super.id,
+    required super.nickname,
+    required this.online,
+    this.roomCode,
+  });
+  final bool online;
+  final String? roomCode;
+  factory FriendEntry.fromJson(Map<String, dynamic> j) => FriendEntry(
+    id: j['id'] as String,
+    nickname: j['nickname'] as String,
+    online: j['online'] as bool? ?? false,
+    roomCode: j['roomCode'] as String?,
+  );
+}
+
+/// The whole friends picture, sent whenever it changes.
+class FriendsEvent extends GameEvent {
+  const FriendsEvent({
+    required this.friends,
+    required this.incoming,
+    required this.outgoing,
+  });
+  final List<FriendEntry> friends;
+  final List<FriendRow> incoming;
+  final List<FriendRow> outgoing;
+}
+
+/// What happened to a friend request you sent.
+class FriendResultEvent extends GameEvent {
+  const FriendResultEvent({
+    required this.playerId,
+    required this.nickname,
+    required this.result,
+  });
+  final String playerId;
+  final String nickname;
+
+  /// sent · accepted · already · pending · self · unknown
+  final String result;
+}
+
+class FriendRequestReceivedEvent extends GameEvent {
+  const FriendRequestReceivedEvent(this.from);
+  final FriendRow from;
+}
+
+class FriendAcceptedEvent extends GameEvent {
+  const FriendAcceptedEvent(this.by);
+  final FriendRow by;
+}
+
+/// A friend wants you in their room.
+class FriendInvitedEvent extends GameEvent {
+  const FriendInvitedEvent({required this.from, required this.code});
+  final FriendRow from;
+  final String code;
+}
+
 /// The server took a report. Nothing else happens; a person reads it.
 class ReportedEvent extends GameEvent {
   const ReportedEvent();

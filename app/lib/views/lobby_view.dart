@@ -14,7 +14,11 @@ import '../widgets/doodle_stage.dart';
 // solo testing — bump back to 3 for real games).
 const _minPlayers = 1;
 
-const _maxPlayers = 5;
+/// Ranked tables seat five; a friendly room seats ten, because a party is
+/// as big as the group chat. Mirrors MAX_PLAYERS / FRIENDLY_MAX_PLAYERS on
+/// the server, which is what actually enforces it.
+const _rankedMaxPlayers = 5;
+const _friendlyMaxPlayers = 10;
 
 class LobbyView extends StatelessWidget {
   const LobbyView({
@@ -27,6 +31,8 @@ class LobbyView extends StatelessWidget {
     required this.doodle,
     required this.onNextDoodle,
     required this.onSetVisibility,
+    required this.onAddFriend,
+    required this.onInviteFriends,
   });
 
   final LobbyState lobby;
@@ -42,13 +48,78 @@ class LobbyView extends StatelessWidget {
   /// Host-only: list this room in the browser, or hide it.
   final void Function({required bool isPublic}) onSetVisibility;
 
+  /// Tap a seat to ask its player to be your friend.
+  final void Function(String playerId) onAddFriend;
+
+  /// Friendly rooms only: pull online friends in by name.
+  final VoidCallback onInviteFriends;
+
   bool get _isFriendly => lobby.mode == GameMode.friendly;
   // Ranked lobbies fill themselves and start themselves; there's no host to
   // press anything, so none of the host controls apply.
   bool get _isHost => _isFriendly && lobby.hostId == myId;
   bool get _canStart => lobby.players.length >= _minPlayers;
   bool get _hasBots => lobby.players.any((p) => p.isBot);
+  int get _maxPlayers => _isFriendly ? _friendlyMaxPlayers : _rankedMaxPlayers;
   bool get _hasRoom => lobby.players.length < _maxPlayers;
+
+  /// Tap someone at the table: add them as a friend. Bots don't have
+  /// friends, and the server would say so; better not to offer.
+  void _playerMenu(BuildContext context, Player player) {
+    if (player.id == myId || player.isBot) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+          decoration: BoxDecoration(
+            color: GameColors.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: GameColors.border),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  player.nickname,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.person_add_alt_1_rounded,
+                  color: GameColors.primary,
+                ),
+                title: const Text(
+                  'Add as a friend',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Play together any time. They have to say yes.',
+                  style: TextStyle(color: GameColors.textMuted, fontSize: 12),
+                ),
+                dense: true,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  onAddFriend(player.id);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +155,20 @@ class LobbyView extends StatelessWidget {
                 child: DoodleStage(doodle: doodle, onNext: onNextDoodle),
               ),
               const SizedBox(height: 14),
-              _PlayerRow(lobby: lobby, myId: myId),
+              _PlayerRow(
+                lobby: lobby,
+                myId: myId,
+                maxPlayers: _maxPlayers,
+                onTapPlayer: (p) => _playerMenu(context, p),
+              ),
+              if (_isFriendly) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: onInviteFriends,
+                  icon: const Icon(Icons.group_add_rounded, size: 18),
+                  label: const Text('INVITE FRIENDS'),
+                ),
+              ],
               const SizedBox(height: 14),
               if (_isHost) ...[
                 Row(
@@ -156,12 +240,21 @@ class LobbyView extends StatelessWidget {
 }
 
 /// Everyone in the room as a single row of avatars, plus dimmed placeholders
-/// for the seats still open — compact enough to leave the canvas the space.
+/// for the seats still open. One row always: a ten-seat friendly room
+/// scrolls sideways rather than wrapping, so the table reads the same at
+/// any size and the canvas keeps its space.
 class _PlayerRow extends StatelessWidget {
-  const _PlayerRow({required this.lobby, required this.myId});
+  const _PlayerRow({
+    required this.lobby,
+    required this.myId,
+    required this.maxPlayers,
+    required this.onTapPlayer,
+  });
 
   final LobbyState lobby;
   final String myId;
+  final int maxPlayers;
+  final void Function(Player) onTapPlayer;
 
   @override
   Widget build(BuildContext context) {
@@ -181,26 +274,35 @@ class _PlayerRow extends StatelessWidget {
               ),
             ),
             Text(
-              '${lobby.players.length}/$_maxPlayers',
+              '${lobby.players.length}/$maxPlayers',
               style: const TextStyle(color: GameColors.textMuted, fontSize: 12),
             ),
           ],
         ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            for (var i = 0; i < _maxPlayers; i++)
-              Expanded(
-                child: i < lobby.players.length
-                    ? _PlayerChip(
+        SizedBox(
+          height: 72,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: maxPlayers,
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
+            itemBuilder: (context, i) => SizedBox(
+              width: 64,
+              child: i < lobby.players.length
+                  ? GestureDetector(
+                      onTap: () => onTapPlayer(lobby.players[i]),
+                      behavior: HitTestBehavior.opaque,
+                      child: _PlayerChip(
                         player: lobby.players[i],
                         color: GameColors.forIndex(i),
                         isMe: lobby.players[i].id == myId,
                         isHost: lobby.players[i].id == lobby.hostId,
-                      )
-                    : const _EmptySeat(),
-              ),
-          ],
+                      ),
+                    )
+                  : const _EmptySeat(),
+            ),
+          ),
         ),
       ],
     );

@@ -13,6 +13,7 @@ import '../views/results_view.dart';
 import '../views/reveal_view.dart';
 import '../views/voting_view.dart';
 import '../services/audio_service.dart';
+import '../widgets/friends_sheet.dart';
 
 enum GamePhase { lobby, promptWriting, drawing, voting, reveal, results }
 
@@ -262,6 +263,9 @@ class _GameScreenState extends State<GameScreen> {
         onRemoveBot: widget.connection.removeBot,
         doodle: _doodle,
         onNextDoodle: _requestDoodle,
+        onAddFriend: widget.connection.requestFriend,
+        onInviteFriends: () =>
+            showInviteFriendsSheet(context, widget.connection),
         onSetVisibility: ({required bool isPublic}) =>
             widget.connection.setVisibility(isPublic: isPublic),
       ),
@@ -298,6 +302,7 @@ class _GameScreenState extends State<GameScreen> {
           title: title,
           reason: reason,
         ),
+        onAddFriend: widget.connection.requestFriend,
       ),
       GamePhase.results => ResultsView(
         mode: _results!.mode,

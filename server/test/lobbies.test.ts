@@ -10,7 +10,7 @@ import {
   leaveLobby,
   openLobbies,
   setVisibility,
-  MAX_PLAYERS,
+  FRIENDLY_MAX_PLAYERS,
   type Member,
 } from "../src/rooms.js";
 
@@ -74,7 +74,7 @@ test("a full room drops out of the list", () => {
   const lobby = createFriendlyLobby(host);
   const joiners: Member[] = [];
 
-  while (lobby.players.size < MAX_PLAYERS) {
+  while (lobby.players.size < FRIENDLY_MAX_PLAYERS) {
     const m = member(`P${lobby.players.size}`);
     joinLobby(lobby.code, m);
     joiners.push(m);

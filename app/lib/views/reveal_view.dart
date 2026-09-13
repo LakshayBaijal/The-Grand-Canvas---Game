@@ -26,7 +26,13 @@ import '../widgets/money_showcase.dart';
 /// to be, gets the same information on screen in a fifth of the time and none
 /// of it lands.
 class RevealView extends StatefulWidget {
-  const RevealView({super.key, required this.event, this.myId, this.onReport});
+  const RevealView({
+    super.key,
+    required this.event,
+    this.myId,
+    this.onReport,
+    this.onAddFriend,
+  });
 
   final RoundRevealEvent event;
 
@@ -36,6 +42,9 @@ class RevealView extends StatefulWidget {
   /// A report about someone's round drawing, for a person to read. Rounds
   /// have no entry ids, so it goes by artist and title.
   final void Function(String artistId, String title, String reason)? onReport;
+
+  /// Ask to be friends with the artist. The server says no for bots.
+  final void Function(String artistId)? onAddFriend;
 
   @override
   State<RevealView> createState() => _RevealViewState();
@@ -181,6 +190,9 @@ class _RevealViewState extends State<RevealView> {
                         ? null
                         : (reason) async =>
                               widget.onReport!(e.artistId, e.title, reason),
+                    onAddFriend: mine || widget.onAddFriend == null
+                        ? null
+                        : () async => widget.onAddFriend!(e.artistId),
                   );
                 },
               ),

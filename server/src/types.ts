@@ -211,7 +211,25 @@ export type ClientMessage =
    *  (the Daily is blind, so the client often doesn't know the artist) or by
    *  artist id. */
   | { type: "hide_artist"; entryId?: number; artistId?: string }
-  | { type: "unhide_artist"; artistId: string };
+  | { type: "unhide_artist"; artistId: string }
+  /** Friends. A request to someone you've played with or seen in the hall;
+   *  if they'd already asked you, it's an acceptance. */
+  | { type: "friend_request"; playerId: string }
+  | { type: "friend_accept"; playerId: string }
+  /** Unfriend, decline, or withdraw. */
+  | { type: "friend_remove"; playerId: string }
+  /** Everyone: friends (with whether they're online and which room they're
+   *  in, if joinable), requests waiting on you, requests you sent. */
+  | { type: "friends_list" }
+  /** Pull a friend into the friendly room you're in. They get a
+   *  `friend_invited` if online. */
+  | { type: "friend_invite"; playerId: string };
+
+export type FriendRequestResult = "sent" | "accepted" | "already" | "pending" | "self" | "unknown";
+export type FriendRow = { id: string; nickname: string };
+/** A friend as the list shows them: whether they're connected right now,
+ *  and the code of the friendly room they're in if it can still be joined. */
+export type FriendEntry = FriendRow & { online: boolean; roomCode: string | null };
 
 export type ServerMessage =
   | { type: "pong"; serverTimeMs: number }
@@ -360,6 +378,20 @@ export type ServerMessage =
   | { type: "daily_history"; days: HallDay[]; hasMore: boolean }
   /** Acknowledges a report. */
   | { type: "reported" }
+  /** Answer to `friend_request`. */
+  | { type: "friend_result"; playerId: string; nickname: string; result: FriendRequestResult }
+  | {
+      type: "friends";
+      friends: FriendEntry[];
+      incoming: FriendRow[];
+      outgoing: FriendRow[];
+    }
+  /** Someone wants to be your friend. Pushed when it happens, if you're online. */
+  | { type: "friend_request_received"; from: FriendRow }
+  /** They said yes. */
+  | { type: "friend_accepted"; by: FriendRow }
+  /** A friend wants you in their room. */
+  | { type: "friend_invited"; from: FriendRow; code: string }
   /** Acknowledges a hide, naming the artist so the app can drop everything
    *  of theirs it's already showing. */
   | { type: "artist_hidden"; artistId: string; entryId: number | null }

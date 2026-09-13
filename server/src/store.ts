@@ -192,6 +192,20 @@ export function openStore(path: string): void {
     )
   `);
 
+  // Friends. A row per direction: a pending request is one row (from -> to);
+  // an accepted friendship is two rows, both "accepted". Symmetric on
+  // purpose so "friends of X" is one indexed read.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS friends (
+      player_id   TEXT    NOT NULL,
+      friend_id   TEXT    NOT NULL,
+      status      TEXT    NOT NULL,
+      created_ms  INTEGER NOT NULL,
+      PRIMARY KEY (player_id, friend_id)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_friends_of ON friends(friend_id, status)");
+
   db.exec("DROP INDEX IF EXISTS idx_players_rank");
   db.exec("CREATE INDEX IF NOT EXISTS idx_players_rating ON players(rating DESC, created_ms ASC)");
 }
@@ -759,6 +773,77 @@ export function blindEntries(entries: DailyEntry[], viewerId: string): DailyEntr
   return entries.map((e) =>
     e.artistId === viewerId ? e : { ...e, artistId: "", artistName: "", hearts: 0 },
   );
+}
+
+// --- friends -------------------------------------------------------------
+
+export type FriendRequestResult = "sent" | "accepted" | "already" | "pending" | "self" | "unknown";
+
+/** [from] asks [to]. If [to] had already asked [from], that's a yes. */
+export function requestFriend(from: string, to: string): FriendRequestResult {
+  if (from === to) return "self";
+  if (!db.prepare("SELECT 1 FROM players WHERE id = ?").get(to)) return "unknown";
+  const existing = db
+    .prepare("SELECT status FROM friends WHERE player_id = ? AND friend_id = ?")
+    .get(from, to) as { status: string } | undefined;
+  if (existing?.status === "accepted") return "already";
+  if (existing?.status === "pending") return "pending";
+  const reverse = db
+    .prepare("SELECT status FROM friends WHERE player_id = ? AND friend_id = ?")
+    .get(to, from) as { status: string } | undefined;
+  const now = Date.now();
+  if (reverse?.status === "pending") {
+    acceptFriend(from, to);
+    return "accepted";
+  }
+  db.prepare(
+    "INSERT OR REPLACE INTO friends (player_id, friend_id, status, created_ms) VALUES (?, ?, 'pending', ?)",
+  ).run(from, to, now);
+  return "sent";
+}
+
+/** [me] accepts [them]'s request. Both directions become accepted. */
+export function acceptFriend(me: string, them: string): boolean {
+  const pending = db
+    .prepare("SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ? AND status = 'pending'")
+    .get(them, me);
+  if (!pending) return false;
+  const now = Date.now();
+  const up = db.prepare(
+    "INSERT OR REPLACE INTO friends (player_id, friend_id, status, created_ms) VALUES (?, ?, 'accepted', ?)",
+  );
+  up.run(them, me, now);
+  up.run(me, them, now);
+  return true;
+}
+
+/** Unfriend, or decline / withdraw a request. Both directions go. */
+export function removeFriend(me: string, them: string): void {
+  const del = db.prepare("DELETE FROM friends WHERE player_id = ? AND friend_id = ?");
+  del.run(me, them);
+  del.run(them, me);
+}
+
+export type FriendRow = { id: string; nickname: string };
+
+/** Everyone in [me]'s friend life: friends, requests waiting on me, requests I sent. */
+export function friendsOf(me: string): { friends: FriendRow[]; incoming: FriendRow[]; outgoing: FriendRow[] } {
+  const q = (sql: string) =>
+    (db.prepare(sql).all(me) as { id: string; nickname: string }[]).map((r) => ({ id: r.id, nickname: r.nickname }));
+  return {
+    friends: q(`SELECT p.id, p.nickname FROM friends f JOIN players p ON p.id = f.friend_id
+                 WHERE f.player_id = ? AND f.status = 'accepted' ORDER BY p.nickname`),
+    incoming: q(`SELECT p.id, p.nickname FROM friends f JOIN players p ON p.id = f.player_id
+                  WHERE f.friend_id = ? AND f.status = 'pending' ORDER BY f.created_ms DESC`),
+    outgoing: q(`SELECT p.id, p.nickname FROM friends f JOIN players p ON p.id = f.friend_id
+                  WHERE f.player_id = ? AND f.status = 'pending' ORDER BY f.created_ms DESC`),
+  };
+}
+
+export function areFriends(a: string, b: string): boolean {
+  return !!db
+    .prepare("SELECT 1 FROM friends WHERE player_id = ? AND friend_id = ? AND status = 'accepted'")
+    .get(a, b);
 }
 
 // --- reports and hides ---------------------------------------------------

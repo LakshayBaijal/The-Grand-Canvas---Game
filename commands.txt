@@ -10,3 +10,10 @@
 .uild-app.ps1 -Bundle      # -> GrandCanvas.aab  (upload to the Play Store)
 
 # The full launch walkthrough: GOING-LIVE.md
+
+
+- Update the server after a push (in the Google Cloud SSH window)
+~/grandcanvas/deploy/update.sh
+
+- Read player reports (on the server)
+~/grandcanvas/deploy/reports.sh

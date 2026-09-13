@@ -14,6 +14,7 @@ import '../theme.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/doodle_stage.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/friends_sheet.dart';
 import '../widgets/logo.dart';
 import '../widgets/pass_button.dart';
 import '../services/audio_service.dart';
@@ -257,6 +258,35 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleEvent(GameEvent event) {
     if (!mounted) return;
     switch (event) {
+      case FriendInvitedEvent(:final from, :final code):
+        if (_inGame || _queued) break;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 12),
+            content: Text('${from.nickname} invited you to their room'),
+            action: SnackBarAction(
+              label: 'JOIN',
+              onPressed: () => _friendly(code: code),
+            ),
+          ),
+        );
+      case FriendRequestReceivedEvent(:final from):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 10),
+            content: Text('${from.nickname} wants to be friends'),
+            action: SnackBarAction(
+              label: 'ACCEPT',
+              onPressed: () => widget.connection.acceptFriend(from.id),
+            ),
+          ),
+        );
+      case FriendAcceptedEvent(:final by):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${by.nickname} accepted. You\'re friends now.'),
+          ),
+        );
       case AccountEvent(:final playerId, :final linked, :final googleAvailable):
         // The id can change: linking an account that already had a profile
         // moves us onto it. Persist it, or the next launch signs in as the
@@ -646,6 +676,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTapName: _promptRename,
                 onTapTrophies: _openLeaderboard,
               ),
+              // Google, right under your name where it can't be missed. The
+              // build has a client id; if the server doesn't yet, the button
+              // still shows and the tap explains, rather than the feature
+              // silently not existing.
+              if (GoogleAccount.configured) ...[
+                const SizedBox(height: 8),
+                _GoogleRow(
+                  linked: _linked,
+                  serverReady: _googleAvailable,
+                  busy: _linking,
+                  onLink: _linkGoogle,
+                  onUnlink: _unlinkGoogle,
+                ),
+              ],
               if (_doodle != null) ...[
                 const SizedBox(height: 14),
                 DoodleStage(
@@ -1132,19 +1176,6 @@ class _ServerSettings extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Only shown when it could actually work: the server needs a client
-        // id configured, and the build needs one compiled in. On a LAN server
-        // with no internet neither is true, and an account button that always
-        // fails is worse than no button.
-        if (googleAvailable && GoogleAccount.configured) ...[
-          _AccountRow(
-            linked: linked,
-            busy: linking,
-            onLink: onLink,
-            onUnlink: onUnlink,
-          ),
-          const SizedBox(height: 4),
-        ],
         // Sound sits next to the server settings rather than behind a menu:
         // a music toggle nobody can find is the same as no toggle at all.
         ListenableBuilder(
@@ -1355,6 +1386,16 @@ class _FriendsSheetState extends State<_FriendsSheet> {
               'Nothing here counts towards the leaderboard.',
               textAlign: TextAlign.center,
               style: TextStyle(color: GameColors.textMuted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 18),
+
+            // --- your friends -------------------------------------------
+            _SheetDivider(label: 'FRIENDS'),
+            const SizedBox(height: 6),
+            FriendsList(
+              connection: widget.connection,
+              compact: true,
+              onJoin: widget.onJoin,
             ),
             const SizedBox(height: 18),
 
@@ -1712,58 +1753,126 @@ class _VisibilityOption extends StatelessWidget {
 
 /// Sign in with Google, or sign out again.
 ///
-/// Framed as what it buys the player — trophies that survive losing the phone
-/// — rather than as "account management", because on a party game nobody signs
-/// in for its own sake.
-class _AccountRow extends StatelessWidget {
-  const _AccountRow({
+/// Google sign-in, framed as what it buys: trophies, rank and the pass
+/// that follow you to any phone. A full-width row rather than a footnote,
+/// because it's the one thing worth doing on the home screen after
+/// picking a name.
+class _GoogleRow extends StatelessWidget {
+  const _GoogleRow({
     required this.linked,
+    required this.serverReady,
     required this.busy,
     required this.onLink,
     required this.onUnlink,
   });
 
   final bool linked;
+  final bool serverReady;
   final bool busy;
   final VoidCallback onLink;
   final VoidCallback onUnlink;
 
   @override
   Widget build(BuildContext context) {
-    if (busy) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 10),
-        child: SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    }
-    if (linked) {
-      return TextButton.icon(
-        onPressed: onUnlink,
-        icon: const SketchIcon(
-          SketchGlyph.lockOpen,
-          size: 14,
-          color: GameColors.lime,
-        ),
-        label: const Text(
-          'Trophies saved to your Google account',
-          style: TextStyle(color: GameColors.lime, fontSize: 12.5),
-        ),
-      );
-    }
-    return TextButton.icon(
-      onPressed: onLink,
-      icon: const SketchIcon(
-        SketchGlyph.lock,
-        size: 14,
-        color: GameColors.textMuted,
+    final Widget leading = Container(
+      width: 30,
+      height: 30,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
       ),
-      label: const Text(
-        'Save trophies to a Google account',
-        style: TextStyle(color: GameColors.textMuted, fontSize: 12.5),
+      child: const Text(
+        'G',
+        style: TextStyle(
+          color: Color(0xFF4285F4),
+          fontSize: 18,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
+      ),
+    );
+    if (linked) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: GameDecor.panel(radius: 16, accent: GameColors.lime),
+        child: Row(
+          children: [
+            leading,
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Signed in with Google. Your trophies and pass follow you to any phone.',
+                style: TextStyle(fontSize: 12.5, height: 1.3),
+              ),
+            ),
+            TextButton(
+              onPressed: onUnlink,
+              child: const Text('SIGN OUT', style: TextStyle(fontSize: 11)),
+            ),
+          ],
+        ),
+      );
+    }
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: busy
+            ? null
+            : serverReady
+            ? onLink
+            : () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    "The server isn't set up for Google sign-in yet. "
+                    'Try again in a bit.',
+                  ),
+                ),
+              ),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: GameDecor.panel(radius: 16),
+          child: Row(
+            children: [
+              leading,
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sign in with Google',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Keep your trophies, rank and pass on any phone',
+                      style: TextStyle(
+                        color: GameColors.textMuted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (busy)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: GameColors.textMuted,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

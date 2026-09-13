@@ -225,6 +225,37 @@ class GameConnection {
           entryId: json['entryId'] as int,
           hearts: json['hearts'] as int,
         );
+      case 'friends':
+        return FriendsEvent(
+          friends: (json['friends'] as List)
+              .map((e) => FriendEntry.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          incoming: (json['incoming'] as List)
+              .map((e) => FriendRow.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          outgoing: (json['outgoing'] as List)
+              .map((e) => FriendRow.fromJson(e as Map<String, dynamic>))
+              .toList(),
+        );
+      case 'friend_result':
+        return FriendResultEvent(
+          playerId: json['playerId'] as String,
+          nickname: json['nickname'] as String,
+          result: json['result'] as String,
+        );
+      case 'friend_request_received':
+        return FriendRequestReceivedEvent(
+          FriendRow.fromJson(json['from'] as Map<String, dynamic>),
+        );
+      case 'friend_accepted':
+        return FriendAcceptedEvent(
+          FriendRow.fromJson(json['by'] as Map<String, dynamic>),
+        );
+      case 'friend_invited':
+        return FriendInvitedEvent(
+          from: FriendRow.fromJson(json['from'] as Map<String, dynamic>),
+          code: json['code'] as String,
+        );
       case 'reported':
         return const ReportedEvent();
       case 'artist_hidden':
@@ -352,6 +383,20 @@ class GameConnection {
   /// design, so the button should make that clear before it is pressed.
   void heartDaily(int entryId) =>
       _send({'type': 'daily_heart', 'entryId': entryId});
+
+  // --- friends -----------------------------------------------------------
+
+  void requestFriend(String playerId) =>
+      _send({'type': 'friend_request', 'playerId': playerId});
+  void acceptFriend(String playerId) =>
+      _send({'type': 'friend_accept', 'playerId': playerId});
+  void removeFriend(String playerId) =>
+      _send({'type': 'friend_remove', 'playerId': playerId});
+  void listFriends() => _send({'type': 'friends_list'});
+
+  /// Pull a friend into the friendly room you're in.
+  void inviteFriend(String playerId) =>
+      _send({'type': 'friend_invite', 'playerId': playerId});
 
   /// A note about a drawing, for a person to read. Daily and hall drawings
   /// by [entryId]; round drawings by [artistId] and [title], since rounds
