@@ -43,7 +43,7 @@ if "%LOCALIP%"=="" set "LOCALIP=<no wifi found>"
 
 echo.
 echo ==================================================
-echo  The Grand Canvas server starting (Windows)...
+echo  Grand Canvas server starting (Windows)...
 echo.
 echo  On your phone (same Wi-Fi), open the app, tap
 echo  'Server settings', and enter:

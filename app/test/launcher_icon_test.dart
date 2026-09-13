@@ -14,8 +14,8 @@ import 'package:bad_mental_canvas/widgets/logo.dart';
 /// this is the only way to get the *same* mark onto the home screen as the
 /// one that draws itself on the title screen. Two files:
 ///
-///  * `icon_full.png` — the logo on the game's own background. The legacy
-///    icon for launchers that don't do adaptive icons.
+///  * `icon_full.png` — the logo on its own paper colour. The legacy icon
+///    for launchers that don't do adaptive icons.
 ///  * `icon_fg.png` — the logo alone on transparency, sized for the safe zone
 ///    of an adaptive icon (the mark fills the middle ~62%, which is what
 ///    survives every launcher's mask: circle, squircle, rounded square).
@@ -50,12 +50,15 @@ void main() {
     });
   }
 
-  testWidgets('legacy icon: logo on the game background', (tester) async {
+  // Paper, not the night-sky background: on a dark phone wallpaper the dark
+  // tile read as a black box with a logo stuck on it. The cream is the
+  // logo's own sheet, so the icon is the framed drawing and nothing else.
+  testWidgets('legacy icon: logo on paper', (tester) async {
     await shoot(
       tester,
       'icon_full',
       const GrandCanvasLogo(size: 760),
-      background: GameColors.background,
+      background: const Color(0xFFFAF3E3),
     );
   });
 

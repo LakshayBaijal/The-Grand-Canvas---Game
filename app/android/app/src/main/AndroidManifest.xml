@@ -19,7 +19,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
-        android:label="The Grand Canvas"
+        android:label="Grand Canvas"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

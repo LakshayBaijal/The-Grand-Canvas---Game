@@ -68,7 +68,7 @@ const WIN_A = [
 
 export const ARRANGED = [
   {
-    name: "The Grand Canvas (full)",
+    name: "Grand Canvas (full)",
     file: "v3_theme_full",
     role: "Title screen & menu",
     blurb:

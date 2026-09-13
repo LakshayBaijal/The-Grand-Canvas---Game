@@ -9,6 +9,6 @@ const SERVICE_TYPE = "grand-canvas";
  *  since that address changes every time you move to a different Wi-Fi. */
 export function advertiseOnLocalNetwork(port: number): void {
   const bonjour = new Bonjour();
-  bonjour.publish({ name: "The Grand Canvas", type: SERVICE_TYPE, port });
+  bonjour.publish({ name: "Grand Canvas", type: SERVICE_TYPE, port });
   console.log(`Advertising on local network as _${SERVICE_TYPE}._tcp`);
 }

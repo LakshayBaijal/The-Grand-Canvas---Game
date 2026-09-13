@@ -2,5 +2,5 @@
 
 cd app
 flutter build apk --release
-Copy-Item build\app\outputs\flutter-apk\app-release.apk ..\TheGrandCanvas.apk
+Copy-Item build\app\outputs\flutter-apk\app-release.apk ..\GrandCanvas.apk
 cd ..

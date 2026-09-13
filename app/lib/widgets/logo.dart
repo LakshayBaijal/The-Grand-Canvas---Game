@@ -191,19 +191,12 @@ class GrandCanvasWordmark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Just the two words. There used to be a small "THE" above them; it went
+    // with the rename — nobody searches for an article, and a name people
+    // can't find is a name they forget.
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'THE',
-          style: TextStyle(
-            fontSize: 13 * scale,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 9 * scale,
-            color: GameColors.textMuted,
-          ),
-        ),
-        SizedBox(height: 4 * scale),
         Text(
           'GRAND CANVAS',
           textAlign: TextAlign.center,
