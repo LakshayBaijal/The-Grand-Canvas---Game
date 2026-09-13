@@ -724,6 +724,18 @@ export function dailyTop(day: number, viewerId: string | null, limit = 3): Daily
   return rows.filter((r) => Number(r.hearts) > 0).map((r, i) => ({ ...toDailyEntryH(r), rank: i + 1 }));
 }
 
+/**
+ * The wall as it is shown while the day is still open: no artist and no
+ * count on anything that isn't the viewer's own. Whether you hearted it is
+ * kept, so the button stays lit. Applied on the server so no client can ask
+ * for the unblinded version.
+ */
+export function blindEntries(entries: DailyEntry[], viewerId: string): DailyEntry[] {
+  return entries.map((e) =>
+    e.artistId === viewerId ? e : { ...e, artistId: "", artistName: "", hearts: 0 },
+  );
+}
+
 export type HallEntry = DailyEntry & { rank: number };
 export type HallDay = { day: number; prompt: string; top: HallEntry[] };
 

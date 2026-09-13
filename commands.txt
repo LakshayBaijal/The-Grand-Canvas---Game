@@ -1,6 +1,10 @@
-./start-server.sh
+# Start the game server (Windows). Double-click it, or from PowerShell:
+.\start-server.bat
 
+# (macOS / Linux: ./start-server.sh)
+
+# Build the phone app:
 cd app
 flutter build apk --release
-Copy-Item build\app\outputs\flutter-apk\app-release.apk ..\GrandCanvas.apk
+Copy-Item buildpp\outputslutter-apkpp-release.apk ..\GrandCanvas.apk
 cd ..

@@ -330,12 +330,23 @@ export type ServerMessage =
       type: "daily_gallery";
       day: number;
       prompt: string;
-      /** The day's most-hearted drawings so far, best first, with `rank`. */
-      top: DailyEntry[];
+      /**
+       * While the day is open, the wall is blind: every entry that isn't the
+       * viewer's own comes with no artist and a heart count of 0 (only
+       * `heartedByMe` survives), so a drawing is judged as a drawing. Once
+       * the day is over the same request returns everything.
+       */
+      blind: boolean;
+      /** Yesterday, frozen: prompt and top three with names and counts. The
+       *  results moment, delivered with the first page. Null on the first
+       *  day, or if nobody was hearted yesterday. */
+      yesterday: HallDay | null;
       entries: DailyEntry[];
       hasMore: boolean;
     }
-  /** Answer to `daily_heart`: the drawing's new count. Also broadcast to the
+  /** Answer to `daily_heart`. The count is always 0 while the day is open
+   *  (the wall is blind, see `daily_gallery`); the entry id is what the app
+   *  needs to keep the heart lit. Also broadcast to the
    *  gallery? No -- a refresh is enough; hearts are not a live feed. */
   | { type: "daily_hearted"; entryId: number; hearts: number }
   | { type: "daily_history"; days: HallDay[]; hasMore: boolean }

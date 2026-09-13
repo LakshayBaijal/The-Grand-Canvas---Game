@@ -6,24 +6,29 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bad_mental_canvas/theme.dart';
-import 'package:bad_mental_canvas/widgets/logo.dart';
+import 'package:bad_mental_canvas/widgets/launcher_mark.dart';
 
-/// Renders the real logo widget to the PNGs the launcher icon is built from.
+/// Renders the launcher mark to the PNGs the app icon is built from.
 ///
-/// The logo is drawn in code (`GrandCanvasLogo`), not stored as an image, so
-/// this is the only way to get the *same* mark onto the home screen as the
-/// one that draws itself on the title screen. Two files:
+/// The mark is drawn in code (`LauncherMark`), not stored as an image, so
+/// this is how it becomes a file. Two of them:
 ///
-///  * `icon_full.png` — the logo on its own paper colour. The legacy icon
-///    for launchers that don't do adaptive icons.
-///  * `icon_fg.png` — the logo alone on transparency, sized for the safe zone
-///    of an adaptive icon (the mark fills the middle ~62%, which is what
-///    survives every launcher's mask: circle, squircle, rounded square).
+///  * `icon_full.png` — the mark on its yellow. The legacy icon for
+///    launchers that don't do adaptive icons.
+///  * `icon_fg.png` — ink and paint on transparency, for the foreground
+///    layer of an adaptive icon (everything sits inside the middle ~66%,
+///    which is what survives every launcher's mask: circle, squircle,
+///    rounded square).
 ///
 /// Then `dart run flutter_launcher_icons` turns them into every mipmap. Not
 /// a test of anything; a build step that happens to need a widget tester.
 void main() {
-  Future<void> shoot(WidgetTester tester, String name, Widget child, {Color? background}) async {
+  Future<void> shoot(
+    WidgetTester tester,
+    String name,
+    Widget child, {
+    Color? background,
+  }) async {
     tester.view.physicalSize = const Size(1024, 1024);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -41,28 +46,31 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.runAsync(() async {
-      final boundary =
-          tester.firstRenderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary));
+      final boundary = tester.firstRenderObject<RenderRepaintBoundary>(
+        find.byType(RepaintBoundary),
+      );
       final image = await boundary.toImage(pixelRatio: 1);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
       final out = Directory('assets/icon')..createSync(recursive: true);
-      File('${out.path}/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+      File(
+        '${out.path}/$name.png',
+      ).writeAsBytesSync(bytes!.buffer.asUint8List());
     });
   }
 
-  // Paper, not the night-sky background: on a dark phone wallpaper the dark
-  // tile read as a black box with a logo stuck on it. The cream is the
-  // logo's own sheet, so the icon is the framed drawing and nothing else.
-  testWidgets('legacy icon: logo on paper', (tester) async {
-    await shoot(
-      tester,
-      'icon_full',
-      const GrandCanvasLogo(size: 760),
-      background: const Color(0xFFFAF3E3),
-    );
+  // The launcher mark, not the in-app logo: see LauncherMark for why. The
+  // legacy icon carries its own yellow; the adaptive foreground is the ink
+  // and paint alone, and the yellow comes from adaptive_icon_background in
+  // pubspec.yaml (kept the same colour so both routes match).
+  testWidgets('legacy icon: the mark on its yellow', (tester) async {
+    await shoot(tester, 'icon_full', const LauncherMark(size: 1024));
   });
 
-  testWidgets('adaptive foreground: logo alone, inside the safe zone', (tester) async {
-    await shoot(tester, 'icon_fg', const GrandCanvasLogo(size: 640));
+  testWidgets('adaptive foreground: ink and paint alone', (tester) async {
+    await shoot(
+      tester,
+      'icon_fg',
+      const LauncherMark(size: 1024, withBackground: false),
+    );
   });
 }

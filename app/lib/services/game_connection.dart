@@ -211,9 +211,10 @@ class GameConnection {
         return DailyGalleryEvent(
           day: json['day'] as int,
           prompt: json['prompt'] as String,
-          top: ((json['top'] as List?) ?? const [])
-              .map((e) => DailyEntry.fromJson(e as Map<String, dynamic>))
-              .toList(),
+          blind: (json['blind'] as bool?) ?? true,
+          yesterday: json['yesterday'] == null
+              ? null
+              : HallDay.fromJson(json['yesterday'] as Map<String, dynamic>),
           entries: (json['entries'] as List)
               .map((e) => DailyEntry.fromJson(e as Map<String, dynamic>))
               .toList(),

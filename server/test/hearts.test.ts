@@ -141,3 +141,35 @@ test("a day with drawings but no hearts is not frozen, and the backlog finds end
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("while the day is open the wall is blind: no names, no counts, except your own", () => {
+  const dir = freshStore();
+  try {
+    const { ids, entry } = day(300, 3);
+    store.heartDaily(300, entry(ids[1]).id, ids[0]);
+    store.heartDaily(300, entry(ids[1]).id, ids[2]);
+    store.heartDaily(300, entry(ids[0]).id, ids[1]);
+
+    const asP1 = store.dailyGalleryWithHearts(300, ids[1], null, 50).entries;
+    const blind = store.blindEntries(asP1, ids[1]);
+    const mine = blind.find((e) => e.id === entry(ids[1]).id)!;
+    const theirs = blind.find((e) => e.id === entry(ids[0]).id)!;
+
+    // Your own drawing keeps everything: it's yours, and the hearts on it are the day's reward.
+    assert.equal(mine.artistName, "Player 1");
+    assert.equal(mine.hearts, 2);
+    // Everyone else's: a drawing, a title, and whether you hearted it. Nothing to herd on.
+    assert.equal(theirs.artistName, "");
+    assert.equal(theirs.artistId, "");
+    assert.equal(theirs.hearts, 0);
+    assert.equal(theirs.heartedByMe, true);
+    assert.equal(theirs.title, "t0");
+    assert.ok(theirs.strokes.length > 0);
+    // And a drawing you haven't hearted says so.
+    const untouched = blind.find((e) => e.id === entry(ids[2]).id)!;
+    assert.equal(untouched.heartedByMe, false);
+  } finally {
+    store.closeStore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -388,9 +388,19 @@ It is deliberately the opposite of a round:
   never be taken back (`daily_hearts`, unique on entry + player; there is no
   API to remove one, by design). Hearts are the only thing in the Daily one
   player gives another, so that permanence is the whole rule.
-- **The day's top three, and the Hall of Fame.** The three most-hearted
-  drawings of the day (ties to the earlier submission) are shown medalled at
-  the top of the gallery. At midnight the day is *frozen*: those three are
+- **Blind while the day is open.** The gallery shows other people's
+  drawings with no name and no heart count (the server strips both in
+  `blindEntries`; only `heartedByMe` and your own entry survive), and no
+  running top three. Seeing a name or an early tally is how the leader
+  snowballs — people heart what is already winning — so nothing is shown
+  that could be hearted for a reason other than the drawing. The button
+  says HEART / HEARTED, never a number. Your own drawing still shows its
+  hearts: that is the day's reward.
+- **The results, and the Hall of Fame.** The three most-hearted drawings
+  of the day (ties to the earlier submission) are revealed, names and
+  counts and all, once the day is over: the gallery's first page carries
+  yesterday's winners, and the Hall of Fame keeps every day. At midnight
+  the day is *frozen*: those three are
   copied — prompt, strokes, hearts and all — into `daily_hall`, which is kept
   forever (the gallery itself is pruned after 30 days), and their artists are
   paid **60 / 40 / 25 trophies** (`DAILY_TROPHIES` in `store.ts` — more than

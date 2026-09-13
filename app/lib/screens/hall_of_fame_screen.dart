@@ -273,12 +273,14 @@ class HallTile extends StatelessWidget {
   }
 }
 
-/// The drawing large, with everything known about it.
+/// The drawing large, with everything known about it. [anonymous] is the
+/// open-day gallery: no artist, no count, and a line saying when they come.
 void showHallDetail(
   BuildContext context,
   DailyEntry entry,
   String prompt, {
   bool isMe = false,
+  bool anonymous = false,
 }) {
   final d = entry.date;
   final rank = entry.rank;
@@ -315,9 +317,15 @@ void showHallDetail(
               ),
               const SizedBox(height: 4),
               Text(
-                isMe ? 'by you' : 'by ${entry.artistName}',
-                style: const TextStyle(
-                  color: GameColors.cyan,
+                isMe
+                    ? 'by you'
+                    : anonymous
+                    ? 'Artist revealed at midnight'
+                    : 'by ${entry.artistName}',
+                style: TextStyle(
+                  color: anonymous && !isMe
+                      ? GameColors.textMuted
+                      : GameColors.cyan,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
@@ -328,14 +336,28 @@ void showHallDetail(
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: [
-                  _Chip(
-                    icon: const Icon(
-                      Icons.favorite,
-                      size: 13,
-                      color: GameColors.pink,
+                  if (anonymous && !isMe)
+                    _Chip(
+                      icon: Icon(
+                        entry.heartedByMe
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        size: 13,
+                        color: GameColors.pink,
+                      ),
+                      text: entry.heartedByMe
+                          ? 'You hearted this'
+                          : 'Not hearted yet',
+                    )
+                  else
+                    _Chip(
+                      icon: const Icon(
+                        Icons.favorite,
+                        size: 13,
+                        color: GameColors.pink,
+                      ),
+                      text: '${entry.hearts} hearts',
                     ),
-                    text: '${entry.hearts} hearts',
-                  ),
                   if (rank != null)
                     _Chip(
                       icon: SketchIcon(

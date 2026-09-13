@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { advertiseOnLocalNetwork } from "./discovery.js";
 import { googleEnabled, verifyGoogle } from "./google.js";
-import type { ClientMessage, LeagueInfo, Profile, ServerMessage } from "./types.js";
+import type { ClientMessage, HallDay, LeagueInfo, Profile, ServerMessage } from "./types.js";
 import { leagueFor, PLACEMENT_GAMES, seasonEndsAt } from "./ranking.js";
 import {
   botDelayMs,
@@ -690,13 +690,24 @@ wss.on("connection", (ws) => {
         }
         const beforeId = asInt(message.beforeId);
         const page = store.dailyGalleryWithHearts(day, playerId, beforeId, DAILY_PAGE);
+        // Blind while the day is open. Seeing a name or a running count
+        // before you've looked at the drawing is how the early leader
+        // snowballs (people heart what is already winning); stripping both
+        // here, not in the app, means no client can peek.
+        const blind = day === dayOf(Date.now());
+        const entries = blind ? store.blindEntries(page.entries, playerId) : page.entries;
+        let yesterday: HallDay | null = null;
+        if (beforeId === null) {
+          freezeFinishedDays();
+          yesterday = store.hallOfFame(day, 1).days.find((d) => d.day === day - 1) ?? null;
+        }
         send(ws, {
           type: "daily_gallery",
           day,
           prompt: promptForDay(day),
-          // Only with the first page: the top three are the same on every page.
-          top: beforeId === null ? store.dailyTop(day, playerId) : [],
-          entries: page.entries,
+          blind,
+          yesterday,
+          entries,
           hasMore: page.hasMore,
         });
         break;
@@ -716,7 +727,8 @@ wss.on("connection", (ws) => {
           if (result.reason === "already") return; // idempotent: the button just stays lit
           return sendError(ws, "That drawing isn't in today's gallery");
         }
-        send(ws, { type: "daily_hearted", entryId, hearts: result.hearts });
+        // The count stays hidden while the day is open, like the wall.
+        send(ws, { type: "daily_hearted", entryId, hearts: 0 });
         break;
       }
 

@@ -53,8 +53,8 @@ class _DailyScreenState extends State<DailyScreen> {
   int? _galleryDay;
   final List<DailyEntry> _entries = [];
 
-  /// The day's most-hearted, best first. Comes with the gallery's first page.
-  List<DailyEntry> _top = [];
+  /// Yesterday's winners, names and all. Comes with the gallery's first page.
+  HallDay? _yesterday;
   bool _hasMore = false;
   bool _loadingMore = false;
 
@@ -112,23 +112,20 @@ class _DailyScreenState extends State<DailyScreen> {
           final seen = _entries.map((e) => e.id).toSet();
           _entries.addAll(event.entries.where((e) => !seen.contains(e.id)));
           _entries.sort((a, b) => b.id.compareTo(a.id));
-          // Only the first page carries the top three; later pages send none.
-          if (event.top.isNotEmpty || _entries.length == event.entries.length) {
-            _top = event.top;
-          }
+          // Only the first page carries yesterday; later pages send null.
+          if (event.yesterday != null) _yesterday = event.yesterday;
           _hasMore = event.hasMore;
           _loadingMore = false;
         });
       case DailyHeartedEvent():
-        // The server's count is the truth; the tap already painted the heart.
+        // The tap already painted the heart; this just confirms it stuck.
+        // (No count comes back while the day is open: the wall is blind.)
         setState(() {
-          DailyEntry bump(DailyEntry e) => e.id == event.entryId
-              ? e.copyWith(hearts: event.hearts, heartedByMe: true)
-              : e;
           for (var i = 0; i < _entries.length; i++) {
-            _entries[i] = bump(_entries[i]);
+            if (_entries[i].id == event.entryId) {
+              _entries[i] = _entries[i].copyWith(heartedByMe: true);
+            }
           }
-          _top = _top.map(bump).toList();
         });
       case ErrorEvent():
         ScaffoldMessenger.of(
@@ -148,17 +145,15 @@ class _DailyScreenState extends State<DailyScreen> {
   void _startDrawing() => setState(() => _stage = _Stage.drawing);
 
   /// One heart, and it stays. Painted immediately so the tap feels like it
-  /// landed; the server's reply then sets the real count.
+  /// landed; the server's reply confirms it.
   void _heart(DailyEntry entry) {
     if (entry.heartedByMe || entry.artistId == widget.myId) return;
     setState(() {
-      DailyEntry bump(DailyEntry e) => e.id == entry.id
-          ? e.copyWith(hearts: e.hearts + 1, heartedByMe: true)
-          : e;
       for (var i = 0; i < _entries.length; i++) {
-        _entries[i] = bump(_entries[i]);
+        if (_entries[i].id == entry.id) {
+          _entries[i] = _entries[i].copyWith(heartedByMe: true);
+        }
       }
-      _top = _top.map(bump).toList();
     });
     widget.connection.heartDaily(entry.id);
   }
@@ -289,7 +284,7 @@ class _DailyScreenState extends State<DailyScreen> {
         return _Gallery(
           info: info!,
           entries: _entries,
-          top: _top,
+          yesterday: _yesterday,
           hasMore: _hasMore,
           loadingMore: _loadingMore,
           myId: widget.myId,
@@ -473,8 +468,9 @@ class _Intro extends StatelessWidget {
                 child: Text(
                   'Take as long as you like. Once you send it in, you get to see '
                   "everyone else's — from all over the world, all drawing this — "
-                  'and give a heart to the ones you love. The three most-hearted '
-                  'of the day go into the Hall of Fame and win '
+                  'and give a heart to the ones you love. No names and no counts '
+                  'until midnight, so it is the drawing that gets judged. Then the '
+                  'three most-hearted are revealed in the Hall of Fame and win '
                   '${dailyTrophies[0]} / ${dailyTrophies[1]} / ${dailyTrophies[2]} trophies.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -548,14 +544,14 @@ class _Gallery extends StatefulWidget {
     required this.onDrawAgain,
     required this.reminderOn,
     required this.onToggleReminder,
-    required this.top,
+    required this.yesterday,
     required this.onHeart,
     required this.onHall,
   });
 
   final DailyInfoEvent info;
   final List<DailyEntry> entries;
-  final List<DailyEntry> top;
+  final HallDay? yesterday;
   final bool hasMore;
   final bool loadingMore;
   final String myId;
@@ -639,13 +635,9 @@ class _GalleryState extends State<_Gallery> {
                         prompt: widget.info.prompt,
                         onDrawAgain: widget.onDrawAgain,
                       ),
-                    if (widget.top.isNotEmpty) ...[
+                    if (widget.yesterday case final y?) ...[
                       const SizedBox(height: 18),
-                      _TopThree(
-                        top: widget.top,
-                        prompt: widget.info.prompt,
-                        myId: widget.myId,
-                      ),
+                      _Yesterday(day: y, myId: widget.myId),
                     ],
                     const SizedBox(height: 18),
                     Row(
@@ -669,6 +661,16 @@ class _GalleryState extends State<_Gallery> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'No names, no counts until midnight. Just the drawings; '
+                      'heart the ones you love.',
+                      style: TextStyle(
+                        color: GameColors.textMuted,
+                        fontSize: 11,
+                        height: 1.35,
+                      ),
                     ),
                     const SizedBox(height: 10),
                   ]),
@@ -874,7 +876,7 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => showHallDetail(context, entry, prompt),
+      onTap: () => showHallDetail(context, entry, prompt, anonymous: true),
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: GameDecor.panel(radius: 14),
@@ -901,26 +903,11 @@ class _Tile extends StatelessWidget {
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 2),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    entry.artistName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: GameColors.cyan,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                _HeartButton(
-                  hearts: entry.hearts,
-                  given: entry.heartedByMe,
-                  onTap: onHeart,
-                ),
-              ],
+            // No artist line on purpose: while the day is open a drawing is
+            // judged as a drawing. The name comes out with the results.
+            Align(
+              alignment: Alignment.centerRight,
+              child: _HeartButton(given: entry.heartedByMe, onTap: onHeart),
             ),
           ],
         ),
@@ -929,16 +916,13 @@ class _Tile extends StatelessWidget {
   }
 }
 
-/// The heart, and how many. Once given it stays lit and stops responding —
-/// there is no taking it back, and the button should look like it.
+/// The heart. Once given it stays lit and stops responding — there is no
+/// taking it back, and the button should look like it. No count next to it:
+/// nobody's tally shows until the day is over, so a heart is a judgement of
+/// the drawing and not of the number beside it.
 class _HeartButton extends StatelessWidget {
-  const _HeartButton({
-    required this.hearts,
-    required this.given,
-    required this.onTap,
-  });
+  const _HeartButton({required this.given, required this.onTap});
 
-  final int hearts;
   final bool given;
   final VoidCallback onTap;
 
@@ -964,10 +948,11 @@ class _HeartButton extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              '$hearts',
+              given ? 'HEARTED' : 'HEART',
               style: TextStyle(
                 color: given ? GameColors.pink : GameColors.textMuted,
-                fontSize: 12,
+                fontSize: 10,
+                letterSpacing: 1,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -978,21 +963,17 @@ class _HeartButton extends StatelessWidget {
   }
 }
 
-/// The day's three most-hearted so far, medalled. This is what the hearts
-/// are competing for: at midnight these three go into the Hall of Fame.
-class _TopThree extends StatelessWidget {
-  const _TopThree({
-    required this.top,
-    required this.prompt,
-    required this.myId,
-  });
+/// Yesterday's result: the three most-hearted, revealed with names and
+/// counts now that the day is over. This is what today's hearts are for.
+class _Yesterday extends StatelessWidget {
+  const _Yesterday({required this.day, required this.myId});
 
-  final List<DailyEntry> top;
-  final String prompt;
+  final HallDay day;
   final String myId;
 
   @override
   Widget build(BuildContext context) {
+    final top = day.top;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: GameDecor.panel(accent: GameColors.primary),
@@ -1008,7 +989,7 @@ class _TopThree extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               const Text(
-                "TODAY'S TOP THREE",
+                "YESTERDAY'S WINNERS",
                 style: TextStyle(
                   color: GameColors.textMuted,
                   fontSize: 10,
@@ -1018,7 +999,7 @@ class _TopThree extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                'Hall of Fame at midnight',
+                'Names revealed',
                 style: TextStyle(
                   color: GameColors.primary.withValues(alpha: 0.85),
                   fontSize: 10,
@@ -1026,6 +1007,18 @@ class _TopThree extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            day.prompt,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: GameColors.textMuted,
+              fontSize: 12,
+              height: 1.3,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 10),
           Row(
@@ -1037,7 +1030,7 @@ class _TopThree extends StatelessWidget {
                   child: i < top.length
                       ? HallTile(
                           entry: top[i],
-                          prompt: prompt,
+                          prompt: day.prompt,
                           isMe: top[i].artistId == myId,
                         )
                       : const SizedBox.shrink(),

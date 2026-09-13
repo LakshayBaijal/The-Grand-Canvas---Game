@@ -228,7 +228,8 @@ class DailyGalleryEvent extends GameEvent {
   const DailyGalleryEvent({
     required this.day,
     required this.prompt,
-    required this.top,
+    required this.blind,
+    required this.yesterday,
     required this.entries,
     required this.hasMore,
   });
@@ -236,9 +237,13 @@ class DailyGalleryEvent extends GameEvent {
   final int day;
   final String prompt;
 
-  /// The day's most-hearted drawings so far, best first. Only sent with the
-  /// first page; empty on later pages.
-  final List<DailyEntry> top;
+  /// True while the day is open: other people's entries come without a
+  /// name or a heart count, so the drawing is all there is to judge.
+  final bool blind;
+
+  /// Yesterday's frozen result, with names and counts. Only with the first
+  /// page; null if there wasn't one.
+  final HallDay? yesterday;
   final List<DailyEntry> entries;
   final bool hasMore;
 }
