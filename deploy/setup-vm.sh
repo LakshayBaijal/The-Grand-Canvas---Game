@@ -59,10 +59,14 @@ fi
 
 echo "==> Code"
 if [ -d "$APP_DIR/.git" ]; then
+  # Nothing in the checkout is edited by hand (.env is untracked), so any
+  # local change is noise -- the chmod below, mostly -- and gets dropped.
+  git -C "$APP_DIR" checkout -- .
   git -C "$APP_DIR" pull --ff-only
 else
   git clone --depth 1 "$REPO_URL" "$APP_DIR"
 fi
+git -C "$APP_DIR" config core.fileMode false
 mkdir -p "$DB_DIR" "$HOME/backups"
 if [ ! -f "$APP_DIR/.env" ]; then
   cp "$APP_DIR/.env.example" "$APP_DIR/.env"
