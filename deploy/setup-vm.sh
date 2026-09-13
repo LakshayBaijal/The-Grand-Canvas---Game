@@ -110,7 +110,7 @@ sudo systemctl restart caddy
 
 echo "==> Nightly database backup (3 am, keeps 14 days)"
 chmod +x "$APP_DIR/deploy/"*.sh
-( crontab -l 2>/dev/null | grep -v grandcanvas-backup; echo "0 3 * * * $APP_DIR/deploy/backup.sh # grandcanvas-backup" ) | crontab -
+( crontab -l 2>/dev/null | grep -v grandcanvas-backup || true; echo "0 3 * * * $APP_DIR/deploy/backup.sh # grandcanvas-backup" ) | crontab -
 
 echo ""
 echo "================================================================"
