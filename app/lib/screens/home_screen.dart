@@ -36,6 +36,17 @@ const _defaultServer = String.fromEnvironment(
 );
 const _addressPrefsKey = 'server_address';
 
+/// Which build-time default the saved address was saved under. A build that
+/// points at a new server (the first public one, say) must win over an
+/// address remembered from Wi-Fi play with an older build, or every phone
+/// that ever played on a LAN keeps dialling a laptop that's no longer there
+/// and reports "no connection". The saved address survives only while the
+/// build's own default is unchanged.
+const _addressDefaultPrefsKey = 'server_address_default';
+
+/// A public build is one whose default isn't the developer's localhost.
+const _publicBuild = _defaultServer != 'localhost:8090';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.connection});
 
@@ -132,7 +143,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _bootStatus = 'FINDING A SERVER';
     });
     await _loadSavedAddress();
-    await _autoDiscover();
+    // Wi-Fi discovery is for playing against a laptop on the same network.
+    // A public build has a real server to talk to, and a stray dev server
+    // on the office Wi-Fi must not hijack it.
+    if (!_publicBuild) await _autoDiscover();
     // The menu opens as soon as we know who you are and where the server
     // probably is. Connecting continues behind it — waiting on an 8-second
     // socket timeout would strand anyone whose server isn't running.
@@ -158,6 +172,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_addressPrefsKey);
     if (saved == null || !mounted) return;
+    final savedUnder = prefs.getString(_addressDefaultPrefsKey);
+    if (savedUnder != _defaultServer) {
+      // Saved by a build with a different default: this build knows better.
+      await prefs.remove(_addressPrefsKey);
+      await prefs.remove(_addressDefaultPrefsKey);
+      return;
+    }
     setState(() {
       _addressController.text = saved;
       // Surface it up front if it's not just the out-of-the-box default —
@@ -216,10 +237,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (DailyReminder.instance.enabled) widget.connection.dailyUpcoming();
     }
     unawaited(
-      SharedPreferences.getInstance().then(
-        (prefs) =>
-            prefs.setString(_addressPrefsKey, _addressController.text.trim()),
-      ),
+      SharedPreferences.getInstance().then((prefs) async {
+        await prefs.setString(_addressPrefsKey, _addressController.text.trim());
+        await prefs.setString(_addressDefaultPrefsKey, _defaultServer);
+      }),
     );
     return true;
   }

@@ -251,50 +251,66 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               ),
 
               const SizedBox(height: 22),
-              Row(
-                children: [
-                  const Expanded(child: Divider(color: GameColors.border)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      'OR, JUST FOR TODAY',
-                      style: TextStyle(
-                        color: GameColors.textMuted.withValues(alpha: 0.9),
-                        fontSize: 10,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w800,
+              // The video is the free route to colours for a day. Once
+              // someone has taken it, it goes away for the rest of the day:
+              // the only thing left to offer is the pass, and the sheet
+              // shouldn't keep asking for the thing they already have.
+              if (dayLeft == null) ...[
+                Row(
+                  children: [
+                    const Expanded(child: Divider(color: GameColors.border)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'OR, JUST FOR TODAY',
+                        style: TextStyle(
+                          color: GameColors.textMuted.withValues(alpha: 0.9),
+                          fontSize: 10,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  const Expanded(child: Divider(color: GameColors.border)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _busy
-                    ? null
-                    : () => _run(
-                        store.showRewardedAd,
-                        entitlements.grantDayPass,
-                        'No video was available just now — try again in a bit.',
-                      ),
-                icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
-                label: const Text('WATCH A SHORT VIDEO — COLOURS FOR 24 HOURS'),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                dayLeft != null
-                    ? 'You have colours for another ${_hm(dayLeft)}. Watching '
-                          'again adds 24 hours on top.'
-                    : 'A video unlocks the colours only. Papers, pens and no '
-                          'ads are pass-only.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: GameColors.textMuted,
-                  fontSize: 11.5,
-                  height: 1.4,
+                    const Expanded(child: Divider(color: GameColors.border)),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () => _run(
+                          store.showRewardedAd,
+                          entitlements.grantDayPass,
+                          'No video was available just now — try again in a bit.',
+                        ),
+                  icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
+                  label: const Text(
+                    'WATCH A SHORT VIDEO — COLOURS FOR 24 HOURS',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'A video unlocks the colours only. Papers, pens and no '
+                  'ads are pass-only.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: GameColors.textMuted,
+                    fontSize: 11.5,
+                    height: 1.4,
+                  ),
+                ),
+              ] else
+                Text(
+                  'Your colours are unlocked for another ${_hm(dayLeft)}. '
+                  'The pass makes that permanent, and adds the papers, the '
+                  'pens and no ads.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: GameColors.textMuted,
+                    fontSize: 11.5,
+                    height: 1.4,
+                  ),
+                ),
               const SizedBox(height: 4),
               TextButton(
                 onPressed: _busy

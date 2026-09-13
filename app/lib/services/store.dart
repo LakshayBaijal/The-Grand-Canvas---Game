@@ -115,6 +115,13 @@ class PlayStore implements Store {
         if (response.productDetails.isNotEmpty) {
           _product = response.productDetails.first;
         }
+        // Ask Play what this Google account already owns, every launch.
+        // This is what makes the pass survive an app update, a reinstall,
+        // a cleared cache or a new phone: the purchase record lives with
+        // Google, not in this app's storage, and anything owned comes back
+        // through the stream as `restored` and is granted again. Nobody
+        // who paid ever has to tap "restore" themselves.
+        unawaited(_iap.restorePurchases());
       }
     } catch (_) {
       _billingAvailable = false;

@@ -20,6 +20,10 @@ class Entitlements extends ChangeNotifier {
   /// One instance for the app; [load] is called once at startup.
   static final instance = Entitlements._();
 
+  // Never rename these keys. They are what a paying player's pass is stored
+  // under on their phone; a rename would silently lock everyone out after an
+  // update. (Play also re-grants the pass on every launch, see PlayStore, so
+  // even a wipe is recoverable, but the local record is what works offline.)
   static const _lifetimeKey = 'palette_lifetime';
   static const _dayPassKey = 'palette_day_pass_until';
   static const _paperKey = 'style_paper';
