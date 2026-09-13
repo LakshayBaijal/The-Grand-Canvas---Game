@@ -5,8 +5,8 @@ because they need your accounts and your passwords. The full walkthrough, with
 tick-boxes and copy buttons, is the "Grand Canvas Launch Checklist" artifact;
 this file is the same plan in short, so it lives with the code.
 
-Monthly cost of the recommended path: **₹0**. One-time: **$25** for the Play
-Store account.
+Monthly cost: **~₹400** for one small server in Bangalore; nothing else
+recurs. One-time: **$25** for the Play Store account.
 
 Everything you fill in goes in one file, `.env`, at the top of the repo
 (copy `.env.example` and fill it in; `.env` is ignored by git).
@@ -21,40 +21,40 @@ phone app ──wss──▶ grandcanvas.duckdns.org ──▶ Caddy (:443) ─�
 ```
 
 There is no separate database service to pay for. The SQLite file is the
-database; the VM's disk is where it lives; `deploy/backup.sh` copies it
+database; the server's disk is where it lives; `deploy/backup.sh` copies it
 nightly.
 
-## 1. A free server: Oracle Cloud Always Free
+## 1. A server: DigitalOcean, Bangalore, $4/month
 
-Checked September 2026: Render's free tier sleeps and can't keep a disk,
-Fly.io has no free tier, Railway is ~$5/month, Google Cloud's free VM is
-US-only (lag from India). Oracle still gives an always-on ARM VM for nothing,
-with Mumbai and Hyderabad regions.
+Oracle's free VM rejected the cards (it does that to many Indian cards, and
+it has cut its free tier once without warning). Google Cloud's free VM is
+US-only. A plain rented Ubuntu server in India for ~₹400/month is the
+simplest thing that works, and nothing about the game is tied to who rents
+it: Vultr (Mumbai, from $2.50), Hostinger (takes UPI) or any Ubuntu 24.04
+box work with the same scripts.
 
-1. Sign up at oracle.com/cloud/free. Card required for identity, not charged.
-   Home region **Hyderabad** or **Mumbai** (can't change later). If sign-up is
-   refused, retry next day, no VPN, another card.
-2. Compute → Instances → Create. Image **Ubuntu 24.04**; shape **Ampere
-   VM.Standard.A1.Flex**, 2 OCPU / 12 GB (both "Always Free-eligible").
-   Generate an SSH key pair, **save the private key**. Note the public IP.
-   "Out of capacity" → other Availability Domain, retry later, or shape
-   **VM.Standard.E2.1.Micro** (also free, smaller, still fine).
-3. Subnet → Security Lists → Default → Add Ingress Rules: TCP **80** and TCP
-   **443** from `0.0.0.0/0`.
-4. `ssh -i D:\keys\grandcanvas.key ubuntu@YOUR.VM.IP` works → done.
+1. Sign up at digitalocean.com; card or PayPal.
+2. Make an SSH key on the laptop:
+   `ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\grandcanvas`, then
+   `Get-Content $env:USERPROFILE\.ssh\grandcanvas.pub` and copy the line.
+3. Create → Droplets: region **Bangalore**, image **Ubuntu 24.04**, size
+   Basic / Regular / **$4** (512 MB is plenty; $6 for 1 GB if you like),
+   authentication **SSH key** → paste the line, hostname `grandcanvas`.
+4. Copy the IPv4 address. `ssh -i $env:USERPROFILE\.ssh\grandcanvas root@<ip>`
+   works → done.
 
 `.env`: `VM_PUBLIC_IP`, `SSH_KEY_PATH`.
 
 ## 2. A free name: DuckDNS
 
-Sign in at duckdns.org, add `grandcanvas` (or another), set it to the VM's
+Sign in at duckdns.org, add `grandcanvas` (or another), set it to the server's
 IP. `nslookup grandcanvas.duckdns.org` should print the IP.
 
 `.env`: `SERVER=grandcanvas.duckdns.org`, `DUCKDNS_DOMAIN`, `DUCKDNS_TOKEN`.
 
 ## 3. Install the game server
 
-Needs the latest code pushed to GitHub first. Then, on the VM:
+Needs the latest code pushed to GitHub first. Then, on the server:
 
 ```
 curl -fsSL https://raw.githubusercontent.com/LakshayBaijal/The-Grand-Canvas---Game/main/deploy/setup-vm.sh | bash -s -- grandcanvas.duckdns.org
@@ -69,7 +69,7 @@ game's protocol).
 Build the app against it: `.\build-app.ps1` → `GrandCanvas.apk`. Test from
 two phones on different networks.
 
-On the VM, later: `sudo systemctl status grandcanvas`,
+On the server, later: `sudo systemctl status grandcanvas`,
 `journalctl -u grandcanvas -f`, `~/grandcanvas/deploy/update.sh`.
 
 ## 4. Google sign-in (optional; keeps trophies across phones)
@@ -86,7 +86,7 @@ On the VM, later: `sudo systemctl status grandcanvas`,
    `keytool -list -v -keystore <file> -alias <alias> | Select-String SHA1`
    (debug: `%USERPROFILE%\.android\debug.keystore`, alias `androiddebugkey`,
    password `android`).
-5. On the VM: `nano ~/grandcanvas/.env`, set `GOOGLE_CLIENT_ID`, then
+5. On the server: `nano ~/grandcanvas/.env`, set `GOOGLE_CLIENT_ID`, then
    `sudo systemctl restart grandcanvas`.
 6. Rebuild the app; test "Link Google account".
 
@@ -114,7 +114,7 @@ raise the `+N` in `version:` in `app/pubspec.yaml`.
    ready; put your contact email in it, then GitHub → Settings → Pages →
    main, `/docs`.
 3. Create app "Grand Canvas", Game, Free. Fill the Dashboard questionnaires
-   (no ads; user-generated drawings shared with other users; 13+; data
+   (has ads; user-generated drawings shared with other users; 13+; data
    safety: nickname, user id, drawings; nothing shared; deletion on request).
 4. Store listing: 512×512 icon, 1024×500 feature graphic, 2+ screenshots,
    descriptions. (Ask; I'll make these.)
@@ -129,25 +129,23 @@ raise the `+N` in `version:` in `app/pubspec.yaml`.
 
 | When | What |
 |---|---|
-| Code changed | on the VM: `~/grandcanvas/deploy/update.sh` |
+| Code changed | on the server: `~/grandcanvas/deploy/update.sh` |
 | App changed | bump `+N`, `.\build-app.ps1 -Bundle`, upload |
 | Monthly | `scp -i <key> ubuntu@<ip>:backups/*.db D:\backups\` |
-| Every month or two | log into the Oracle console (they reclaim idle free VMs; a live server isn't idle) |
 
 ## If something breaks
 
 | You see | Do |
 |---|---|
 | "Can't reach the server" | `sudo systemctl status grandcanvas`; `journalctl -u grandcanvas -n 50`; check `SERVER=` |
-| Certificate warning | port 80 open? name → this IP? `sudo journalctl -u caddy -n 30` |
+| Certificate warning | name → this IP? `sudo journalctl -u caddy -n 30` |
 | Sign-in fails only in store build | step 7.5 |
-| Sign-in fails everywhere | `GOOGLE_CLIENT_ID` on VM ≠ `GOOGLE_SERVER_CLIENT_ID` in build; restart after editing |
-| VM IP changed | update DuckDNS |
-| Oracle refused sign-up | retry; or Google Cloud e2-micro (US, more lag); or Railway (~$5/mo, root dir `server`, volume at `/data`, `DB_PATH=/data/leaderboard.db`) |
+| Sign-in fails everywhere | `GOOGLE_CLIENT_ID` on server ≠ `GOOGLE_SERVER_CLIENT_ID` in build; restart after editing |
+| Server IP changed | update DuckDNS |
 | Play Console rejects bundle | signed with debug key: `app\android\key.properties` missing |
 
 ## Never share
 
 The SSH private key, the keystore or its password, the DuckDNS token, any
-account password. The DuckDNS name, the Web client id and the VM's IP are
+account password. The DuckDNS name, the Web client id and the server's IP are
 fine to share.

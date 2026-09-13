@@ -1,11 +1,12 @@
 #!/bin/bash
-# One-time setup of a fresh Ubuntu VM (Oracle Cloud Always Free, or any other
-# Ubuntu box) as the Grand Canvas server. Run it ON the VM, as the normal
-# user (ubuntu), after you've SSH'd in:
+# One-time setup of a fresh Ubuntu server (a DigitalOcean droplet, a Vultr
+# instance, any Ubuntu 24.04 box) as the Grand Canvas server. Run it ON the
+# server after you've SSH'd in, as whichever user the provider gives you
+# (root on DigitalOcean, ubuntu on Oracle/AWS; both work):
 #
 #   curl -fsSL https://raw.githubusercontent.com/LakshayBaijal/The-Grand-Canvas---Game/main/deploy/setup-vm.sh | bash -s -- grandcanvas.duckdns.org
 #
-# The one argument is the domain name that points at this VM. When it's done:
+# The one argument is the domain name that points at this server. When it's done:
 #   * the server runs as a system service (restarts on crash and on reboot)
 #   * Caddy answers https://<domain> and wss://<domain> with a free certificate
 #     and hands everything to the game server
@@ -39,7 +40,7 @@ if ! command -v caddy >/dev/null 2>&1; then
 fi
 echo "    node $(node --version), caddy $(caddy version | cut -d' ' -f1)"
 
-echo "==> Firewall: let web traffic in (Oracle's Ubuntu image blocks it by default)"
+echo "==> Firewall: make sure web traffic can get in (some images block it by default)"
 sudo iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
 sudo iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -p tcp --dport 443 -j ACCEPT
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent >/dev/null 2>&1 || true
