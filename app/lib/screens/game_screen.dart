@@ -89,13 +89,13 @@ class _GameScreenState extends State<GameScreen> {
   /// four-note motif, so moving between them reads as one score following
   /// the player rather than six unrelated loops.
   Music get _musicForPhase => switch (_phase) {
-        GamePhase.lobby => Music.lobby,
-        GamePhase.promptWriting => Music.prompt,
-        GamePhase.drawing => Music.drawing,
-        GamePhase.voting => Music.voting,
-        GamePhase.reveal => Music.reveal,
-        GamePhase.results => Music.results,
-      };
+    GamePhase.lobby => Music.lobby,
+    GamePhase.promptWriting => Music.prompt,
+    GamePhase.drawing => Music.drawing,
+    GamePhase.voting => Music.voting,
+    GamePhase.reveal => Music.reveal,
+    GamePhase.results => Music.results,
+  };
 
   /// Idempotent, so calling it after every phase change is free.
   void _syncMusic() => AudioService.instance.play(_musicForPhase);
@@ -112,7 +112,9 @@ class _GameScreenState extends State<GameScreen> {
           _waitingTotal = total;
         });
       case ErrorEvent(:final message):
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
         setState(() => _rejections++);
       case DisconnectedEvent():
         setState(() => _disconnected = true);
@@ -129,7 +131,9 @@ class _GameScreenState extends State<GameScreen> {
       _syncMusic();
       // A short flourish over the top of the new loop, so a phase change
       // is felt as well as seen.
-      if (_phase == GamePhase.drawing) AudioService.instance.sfx(Sfx.roundStart);
+      if (_phase == GamePhase.drawing) {
+        AudioService.instance.sfx(Sfx.roundStart);
+      }
     }
     return handled;
   }
@@ -217,7 +221,11 @@ class _GameScreenState extends State<GameScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.wifi_off, size: 56, color: GameColors.textMuted),
+                const Icon(
+                  Icons.wifi_off,
+                  size: 56,
+                  color: GameColors.textMuted,
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'Lost connection to the game',
@@ -247,51 +255,51 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildPhase(BuildContext context) {
     return switch (_phase) {
       GamePhase.lobby => LobbyView(
-          lobby: _lobby,
-          myId: widget.myId,
-          onStart: widget.connection.startGame,
-          onAddBot: widget.connection.addBot,
-          onRemoveBot: widget.connection.removeBot,
-          doodle: _doodle,
-          onNextDoodle: _requestDoodle,
-          onSetVisibility: ({required bool isPublic}) =>
-              widget.connection.setVisibility(isPublic: isPublic),
-        ),
+        lobby: _lobby,
+        myId: widget.myId,
+        onStart: widget.connection.startGame,
+        onAddBot: widget.connection.addBot,
+        onRemoveBot: widget.connection.removeBot,
+        doodle: _doodle,
+        onNextDoodle: _requestDoodle,
+        onSetVisibility: ({required bool isPublic}) =>
+            widget.connection.setVisibility(isPublic: isPublic),
+      ),
       GamePhase.promptWriting => PromptWritingView(
-          key: ValueKey('prompt-${_promptWriting!.roundIndex}'),
-          event: _promptWriting!,
-          onSubmit: widget.connection.submitPrompt,
-          rejections: _rejections,
-        ),
+        key: ValueKey('prompt-${_promptWriting!.roundIndex}'),
+        event: _promptWriting!,
+        onSubmit: widget.connection.submitPrompt,
+        rejections: _rejections,
+      ),
       GamePhase.drawing => DrawView(
-          key: ValueKey('draw-${_round!.roundIndex}'),
-          prompt: _round!.prompt,
-          deadlineMs: _round!.deadlineMs,
-          roundIndex: _round!.roundIndex,
-          totalRounds: _round!.totalRounds,
-          submitted: _waitingSubmitted,
-          total: _waitingTotal,
-          onSubmit: widget.connection.submitDrawing,
-        ),
+        key: ValueKey('draw-${_round!.roundIndex}'),
+        prompt: _round!.prompt,
+        deadlineMs: _round!.deadlineMs,
+        roundIndex: _round!.roundIndex,
+        totalRounds: _round!.totalRounds,
+        submitted: _waitingSubmitted,
+        total: _waitingTotal,
+        onSubmit: widget.connection.submitDrawing,
+      ),
       GamePhase.voting => VotingView(
-          key: ValueKey('vote-${_voting!.roundIndex}'),
-          event: _voting!,
-          myId: widget.myId,
-          submitted: _waitingSubmitted,
-          total: _waitingTotal,
-          onInvest: widget.connection.submitInvestment,
-          onRank: widget.connection.submitRanking,
-        ),
+        key: ValueKey('vote-${_voting!.roundIndex}'),
+        event: _voting!,
+        myId: widget.myId,
+        submitted: _waitingSubmitted,
+        total: _waitingTotal,
+        onInvest: widget.connection.submitInvestment,
+        onRank: widget.connection.submitRanking,
+      ),
       GamePhase.reveal => RevealView(event: _reveal!, myId: widget.myId),
       GamePhase.results => ResultsView(
-          mode: _results!.mode,
-          scores: _results!.scores,
-          trophies: _results!.trophies,
-          isHost: _lobby.hostId == widget.myId,
-          onPlayAgain: widget.connection.playAgain,
-          onLeave: _leave,
-          myId: widget.myId,
-        ),
+        mode: _results!.mode,
+        scores: _results!.scores,
+        trophies: _results!.trophies,
+        isHost: _lobby.hostId == widget.myId,
+        onPlayAgain: widget.connection.playAgain,
+        onLeave: _leave,
+        myId: widget.myId,
+      ),
     };
   }
 }

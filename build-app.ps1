@@ -28,6 +28,9 @@ if (Test-Path $envFile) {
 $defines = @()
 if ($settings["SERVER"]) { $defines += "--dart-define=SERVER=$($settings['SERVER'])" }
 if ($settings["GOOGLE_SERVER_CLIENT_ID"]) { $defines += "--dart-define=GOOGLE_SERVER_CLIENT_ID=$($settings['GOOGLE_SERVER_CLIENT_ID'])" }
+foreach ($k in @("ADMOB_BANNER_ID", "ADMOB_REWARDED_ID", "PASS_PRODUCT_ID")) {
+    if ($settings[$k]) { $defines += "--dart-define=$k=$($settings[$k])" }
+}
 
 $serverShown = "localhost:8090 (default)"
 if ($settings["SERVER"]) { $serverShown = $settings["SERVER"] }
@@ -36,6 +39,12 @@ if ($settings["GOOGLE_SERVER_CLIENT_ID"]) { $googleShown = "ON" }
 Write-Host ""
 Write-Host "Server the app will connect to: $serverShown"
 Write-Host "Google sign-in: $googleShown"
+$adsShown = "TEST ads (Google samples, earn nothing)"
+if ($settings["ADMOB_BANNER_ID"] -and $settings["ADMOB_REWARDED_ID"]) { $adsShown = "REAL ads" }
+$passShown = "not purchasable (no product id)"
+if ($settings["PASS_PRODUCT_ID"]) { $passShown = "product '$($settings['PASS_PRODUCT_ID'])'" }
+Write-Host "Ads: $adsShown"
+Write-Host "Pass: $passShown"
 Write-Host ""
 
 Push-Location (Join-Path $root "app")

@@ -13,7 +13,9 @@ import '../services/server_discovery.dart';
 import '../theme.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/doodle_stage.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/logo.dart';
+import '../widgets/pass_button.dart';
 import '../services/audio_service.dart';
 import 'game_screen.dart';
 import '../services/daily_reminder.dart';
@@ -588,27 +590,40 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMenu(Identity identity) {
     return Scaffold(
+      bottomNavigationBar: const AdBanner(),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 10),
+              // The pass first, top right, before the eye has anywhere else
+              // to go. It's the one thing in the game that makes money.
+              Row(
+                children: const [
+                  GrandCanvasLogo(size: 40),
+                  SizedBox(width: 10),
+                  // Shrinks before the pass button ever has to.
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: GrandCanvasWordmark(scale: 0.52),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  PassButton(),
+                ],
+              ),
               const SizedBox(height: 12),
               _ProfileBar(
                 identity: identity,
                 profile: _profile,
                 onTapName: _promptRename,
                 onTapTrophies: _openLeaderboard,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  GrandCanvasLogo(size: 46),
-                  SizedBox(width: 12),
-                  GrandCanvasWordmark(scale: 0.62),
-                ],
               ),
               if (_doodle != null) ...[
                 const SizedBox(height: 14),

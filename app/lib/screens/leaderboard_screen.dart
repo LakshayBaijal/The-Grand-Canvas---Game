@@ -6,6 +6,7 @@ import '../models/game_event.dart';
 import '../models/round_models.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/celebration.dart';
 import '../services/audio_service.dart';
@@ -13,7 +14,11 @@ import '../services/audio_service.dart';
 /// The global standings: everyone who has finished a ranked game, ordered by
 /// the trophies they've collected.
 class LeaderboardScreen extends StatefulWidget {
-  const LeaderboardScreen({super.key, required this.connection, required this.myId});
+  const LeaderboardScreen({
+    super.key,
+    required this.connection,
+    required this.myId,
+  });
 
   final GameConnection connection;
   final String myId;
@@ -52,6 +57,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     AudioService.instance.play(Music.leaderboard);
     final entries = _entries;
     return Scaffold(
+      bottomNavigationBar: const AdBanner(),
       appBar: AppBar(title: const Text('LEADERBOARD')),
       body: SafeArea(
         child: Column(
@@ -59,27 +65,31 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             if (_me != null) _YourStanding(profile: _me!),
             Expanded(
               child: entries == null
-                  ? const Center(child: CircularProgressIndicator(color: GameColors.primary))
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: GameColors.primary,
+                      ),
+                    )
                   : entries.isEmpty
-                      ? const _EmptyBoard()
-                      : RefreshIndicator(
-                          color: GameColors.primary,
-                          onRefresh: () async => widget.connection.getLeaderboard(),
-                          child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                            itemCount: entries.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 8),
-                            itemBuilder: (context, i) => PopIn(
-                              // Only cascade the part you can actually see;
-                              // a long board shouldn't stagger for 30 seconds.
-                              index: i < 12 ? i : 12,
-                              child: _Row(
-                                entry: entries[i],
-                                isMe: entries[i].id == widget.myId,
-                              ),
-                            ),
+                  ? const _EmptyBoard()
+                  : RefreshIndicator(
+                      color: GameColors.primary,
+                      onRefresh: () async => widget.connection.getLeaderboard(),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                        itemCount: entries.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, i) => PopIn(
+                          // Only cascade the part you can actually see;
+                          // a long board shouldn't stagger for 30 seconds.
+                          index: i < 12 ? i : 12,
+                          child: _Row(
+                            entry: entries[i],
+                            isMe: entries[i].id == widget.myId,
                           ),
                         ),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -270,7 +280,11 @@ class _EmptyBoard extends StatelessWidget {
               'Play Ranked to put your name up here. Friendly games are just '
               'for fun and never count.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: GameColors.textMuted, fontSize: 14, height: 1.4),
+              style: TextStyle(
+                color: GameColors.textMuted,
+                fontSize: 14,
+                height: 1.4,
+              ),
             ),
           ],
         ),

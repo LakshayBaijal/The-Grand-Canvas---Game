@@ -42,7 +42,10 @@ class StyleSelection extends ChangeNotifier {
 ///
 /// With a [selection], everything is unlocked and the choice lands there
 /// instead of in the player's saved styles — see [StyleSelection].
-Future<void> showCustomizeSheet(BuildContext context, {StyleSelection? selection}) {
+Future<void> showCustomizeSheet(
+  BuildContext context, {
+  StyleSelection? selection,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -67,8 +70,10 @@ class _CustomizeSheet extends StatelessWidget {
         final owned = free != null || entitlements.hasStyles;
         final currentPaper = free?.paper ?? entitlements.paper;
         final currentPen = free?.pen ?? entitlements.pen;
-        void pickPaper(PaperStyle s) => free != null ? free.paper = s : entitlements.choosePaper(s);
-        void pickPen(PenStyle s) => free != null ? free.pen = s : entitlements.choosePen(s);
+        void pickPaper(PaperStyle s) =>
+            free != null ? free.paper = s : entitlements.choosePaper(s);
+        void pickPen(PenStyle s) =>
+            free != null ? free.pen = s : entitlements.choosePen(s);
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
@@ -79,7 +84,10 @@ class _CustomizeSheet extends StatelessWidget {
               end: Alignment.bottomCenter,
               colors: [Color(0xFF221B52), GameColors.surface],
             ),
-            border: Border.all(color: GameColors.cyan.withValues(alpha: 0.45), width: 1.6),
+            border: Border.all(
+              color: GameColors.cyan.withValues(alpha: 0.45),
+              width: 1.6,
+            ),
             boxShadow: GameDecor.glow(GameColors.cyan, strength: 0.6),
           ),
           child: Column(
@@ -127,10 +135,14 @@ class _CustomizeSheet extends StatelessWidget {
                 free != null
                     ? 'Everything is open in the daily. Pick whatever suits the prompt.'
                     : owned
-                        ? 'Everyone sees your paper and pen when your drawing comes up.'
-                        : 'Part of the one-off unlock. Everyone sees your paper and pen '
-                            'when your drawing comes up.',
-                style: const TextStyle(color: GameColors.textMuted, fontSize: 12, height: 1.35),
+                    ? 'Everyone sees your paper and pen when your drawing comes up.'
+                    : 'Part of the pass. Everyone sees your paper and pen '
+                          'when your drawing comes up.',
+                style: const TextStyle(
+                  color: GameColors.textMuted,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
               ),
               const SizedBox(height: 18),
               _Section(
@@ -151,7 +163,9 @@ class _CustomizeSheet extends StatelessWidget {
                         onTap: locked
                             ? () => showUnlockSheet(context)
                             : () => pickPaper(style),
-                        preview: CustomPaint(painter: _PaperPreview(style)),
+                        preview: CustomPaint(
+                          painter: PaperPreviewPainter(style),
+                        ),
                       );
                     },
                   ),
@@ -177,7 +191,7 @@ class _CustomizeSheet extends StatelessWidget {
                             ? () => showUnlockSheet(context)
                             : () => pickPen(style),
                         preview: CustomPaint(
-                          painter: _PenPreview(style, currentPaper),
+                          painter: PenPreviewPainter(style, currentPaper),
                         ),
                       );
                     },
@@ -192,7 +206,7 @@ class _CustomizeSheet extends StatelessWidget {
                     showUnlockSheet(context);
                   },
                   icon: const Icon(Icons.lock_open_rounded, size: 18),
-                  label: const Text('UNLOCK EVERYTHING'),
+                  label: const Text('GET THE PASS'),
                 ),
               ],
             ],
@@ -263,7 +277,9 @@ class _StyleTile extends StatelessWidget {
                   color: selected ? GameColors.primary : GameColors.border,
                   width: selected ? 2.5 : 1.2,
                 ),
-                boxShadow: selected ? GameDecor.glow(GameColors.primary, strength: 0.5) : null,
+                boxShadow: selected
+                    ? GameDecor.glow(GameColors.primary, strength: 0.5)
+                    : null,
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
@@ -276,7 +292,11 @@ class _StyleTile extends StatelessWidget {
                     if (locked)
                       Container(
                         color: Colors.black.withValues(alpha: 0.45),
-                        child: const SketchIcon(SketchGlyph.lock, size: 18, color: Colors.white),
+                        child: const SketchIcon(
+                          SketchGlyph.lock,
+                          size: 18,
+                          color: Colors.white,
+                        ),
                       ),
                   ],
                 ),
@@ -302,20 +322,21 @@ class _StyleTile extends StatelessWidget {
 
 /// Previews use the real painters, so a swatch can't drift from what you
 /// actually get.
-class _PaperPreview extends CustomPainter {
-  const _PaperPreview(this.style);
+class PaperPreviewPainter extends CustomPainter {
+  const PaperPreviewPainter(this.style);
 
   final PaperStyle style;
 
   @override
-  void paint(Canvas canvas, Size size) => paintPaperBackground(canvas, size, style);
+  void paint(Canvas canvas, Size size) =>
+      paintPaperBackground(canvas, size, style);
 
   @override
-  bool shouldRepaint(covariant _PaperPreview old) => old.style != style;
+  bool shouldRepaint(covariant PaperPreviewPainter old) => old.style != style;
 }
 
-class _PenPreview extends CustomPainter {
-  const _PenPreview(this.style, this.paper);
+class PenPreviewPainter extends CustomPainter {
+  const PenPreviewPainter(this.style, this.paper);
 
   final PenStyle style;
   final PaperStyle paper;
@@ -340,5 +361,6 @@ class _PenPreview extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PenPreview old) => old.style != style || old.paper != paper;
+  bool shouldRepaint(covariant PenPreviewPainter old) =>
+      old.style != style || old.paper != paper;
 }

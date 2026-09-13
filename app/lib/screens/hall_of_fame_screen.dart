@@ -7,6 +7,7 @@ import '../models/game_event.dart';
 import '../services/audio_service.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/celebration.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/sketch_icons.dart';
@@ -63,6 +64,7 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
     AudioService.instance.play(Music.leaderboard);
     final days = _days;
     return Scaffold(
+      bottomNavigationBar: const AdBanner(),
       appBar: AppBar(title: const Text('HALL OF FAME')),
       body: SafeArea(
         child: days == null

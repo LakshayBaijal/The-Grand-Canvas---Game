@@ -270,75 +270,67 @@ screen density, and it uses the game's own palette rather than fighting it.
 
 ## Money
 
-One thing is paid for, and it's decoration.
+Two ways in, one thing sold, and the thing sold is decoration.
 
 **Free forever:** every mode, every prompt, the whole canvas, the leaderboard,
-and the black pen, the yellow pen and the eraser. Between those three you can
-draw anything a prompt asks for.
+the Daily, and the black pen, the yellow pen and the eraser. Between those
+three you can draw anything a prompt asks for.
 
-**Paid:** the other seven colours, plus paper and pen styles.
+**The pass — ₹99, once:** the other seven colours, all six papers, all five
+pens, and no ads. Forever, on every mode. It is the one thing in the game
+that makes money, so it sits top-right of the home screen in gold, before
+anything else, and the sheet it opens *shows* what's in it — the swatches,
+the papers and the pens drawn by their real painters — rather than naming
+"styles" in a sentence nobody could picture.
 
-| | colours | paper & pens |
-| --- | --- | --- |
-| Watch one rewarded video | **24 hours** (stacks if you watch again) | no |
-| One-off purchase | **forever** | **forever** |
+**A rewarded video:** colours only, for 24 hours (stacks if you watch again).
+Styles are never given away for a video, deliberately: if watching unlocked
+everything, the pass would have nothing left to offer. Colour is what people
+miss first, so colour is what earns the ad view.
 
-Styles are never given away for an ad view, deliberately. If watching a video
-unlocked everything, the purchase would have nothing left to offer — the paid
-tier has to be worth more than the free route or it isn't a product. Colour is
-what people miss first, so colour is what earns the ad view.
+**One banner**, the standard 320×50, at the bottom of the menu-type screens:
+home, matchmaking, the lobby, the boards, the Daily's front page and gallery.
+Never on the canvas, the voting or the reveal — nothing sits on top of a
+round. Pass owners never see it. Until an ad has actually loaded the strip
+takes no height at all, so a screen with no fill looks exactly as it did.
 
 Paper and pen **travel with the drawing** (`paper` on the entry, `style` on
 each stroke) so your entries look like yours when they come up in everyone
 else's presentation. That visibility is the entire reason anyone buys a
 cosmetic. Both are passed through the server untouched — it never interprets
-them, and an unknown value just falls back to the free one, so old clients and
-bot drawings render fine.
-
-Papers are all light on purpose: a dark sheet would make the free black pen
-invisible, which would turn a cosmetic into a trap.
+them, and an unknown value just falls back to the free one.
 
 The rule that makes this safe: **paying can never buy a better score.** Colour
 is not worth points, the drawings are judged by other players, and a two-colour
 drawing competes on equal terms. A competitive ladder where money buys an
 advantage is a dead ladder.
 
-**There are no interstitials, no banners, and nothing that interrupts a round.**
-The only ad in the game is one the player chose to watch, from a sheet they
-opened themselves — by tapping a locked colour, or one of the two small chips
-in the corner of the drawing screen (`🎨` colours, `✨` paper & pens). The
-colours chip disappears once unlocked; there's nothing left to sell, so it
-stops asking.
+### How it's wired
 
 `app/lib/services/entitlements.dart` owns what's unlocked and persists it.
-`app/lib/services/store.dart` is the seam where the SDKs plug in — nothing else
-in the app talks to an ad or billing library, so the two integrations can be
-done independently.
+`app/lib/services/store.dart` is the only file that talks to an SDK:
+`PlayStore` uses `google_mobile_ads` (one banner unit, one rewarded unit,
+preloaded so "watch" doesn't sit on a spinner) and `in_app_purchase` (the
+pass as a non-consumable; Play answers on a stream, so a purchase parks a
+completer that the stream resolves, and a purchase Play reports on its own —
+a reinstall, a payment that cleared later — lands through `onPassOwned`).
 
-### Testing the unlocks
+The ids come from `.env` at build time (`build-app.ps1` passes them as
+dart-defines; Gradle reads `ADMOB_APP_ID` for the manifest). **With no ids,
+every build uses Google's official test ad units**: real-looking ads that
+earn nothing, and a product Play doesn't know. So an unconfigured build is
+safe to install and still shows the whole flow working, and the sheet says
+"TEST ADS" on it so it can't be mistaken for the real thing.
 
-A normal release build gets `UnavailableStore`: the buttons are there, and
-every purchase politely fails. To build an APK where they actually grant what
-they promise:
+`--dart-define=DEV_UNLOCKS=true` swaps in `DebugStore`, which grants both
+unlocks with no ad and no payment (a green "TEST BUILD" line says so). It has
+to be explicit rather than an `assert`, because asserts are stripped from
+release builds — an assertion guarding this would have done nothing in the
+one build where it mattered, and free purchases would have shipped.
 
-```bash
-flutter build apk --release --dart-define=DEV_UNLOCKS=true
-```
-
-That build shows a green **TEST BUILD — nothing is charged and no ad plays**
-line in the unlock sheet, so a test APK can't be mistaken for a real one.
-
-The flag has to be explicit rather than an `assert`, because **asserts are
-stripped from release builds** — an assertion guarding this would have done
-nothing in the one build where it mattered, and free purchases would have
-shipped.
-
-> **Before release:** replace `DebugStore` with `google_mobile_ads` (a rewarded
-> unit, the app id in the manifest and plist, and preloading so "watch" doesn't
-> sit on a spinner) and `in_app_purchase` (a non-consumable in the Play
-> Console, receipt verification, and a real `restorePurchases`). The price must
-> come from the store at runtime — Play requires the localized price, and the
-> hardcoded `₹99` is only a placeholder.
+Receipt verification is local (Play's own purchase state). Server-side
+verification through the Play Developer API is the next hardening step if
+the pass ever gets pirated; it is not needed to launch.
 
 ## The idle canvas
 

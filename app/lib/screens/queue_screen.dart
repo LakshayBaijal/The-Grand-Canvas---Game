@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/game_event.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/celebration.dart';
 import '../widgets/doodle_stage.dart';
 import '../services/audio_service.dart';
@@ -15,7 +16,11 @@ import '../services/audio_service.dart';
 /// runs the whole time — there's always a drawing appearing in front of you
 /// rather than a bare spinner.
 class QueueScreen extends StatefulWidget {
-  const QueueScreen({super.key, required this.connection, required this.onCancel});
+  const QueueScreen({
+    super.key,
+    required this.connection,
+    required this.onCancel,
+  });
 
   final GameConnection connection;
   final VoidCallback onCancel;
@@ -78,6 +83,7 @@ class _QueueScreenState extends State<QueueScreen> {
     AudioService.instance.play(Music.matchmaking);
     final seconds = _untilBots.inSeconds;
     return Scaffold(
+      bottomNavigationBar: const AdBanner(),
       appBar: AppBar(
         title: const Text('FINDING A MATCH'),
         automaticallyImplyLeading: false,
@@ -89,7 +95,11 @@ class _QueueScreenState extends State<QueueScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 8),
-              _QueueCard(waiting: _waiting, target: _target, secondsUntilBots: seconds),
+              _QueueCard(
+                waiting: _waiting,
+                target: _target,
+                secondsUntilBots: seconds,
+              ),
               const SizedBox(height: 14),
               // The stage sizes itself to its (square) paper. Stretching it to
               // fill left a tall empty region *inside* the panel, because its
@@ -151,7 +161,10 @@ class _QueueCard extends StatelessWidget {
                 child: SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: GameColors.primary),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: GameColors.primary,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -182,9 +195,9 @@ class _QueueCard extends StatelessWidget {
                       color: i < waiting
                           ? GameColors.primary
                           : i == waiting
-                              // The seat we're waiting on, hinted.
-                              ? GameColors.primary.withValues(alpha: 0.3)
-                              : GameColors.surfaceHigh,
+                          // The seat we're waiting on, hinted.
+                          ? GameColors.primary.withValues(alpha: 0.3)
+                          : GameColors.surfaceHigh,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),

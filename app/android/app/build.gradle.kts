@@ -19,6 +19,18 @@ if (hasUploadKey) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// The AdMob app id has to be in the manifest, and the manifest can't read a
+// dart-define, so it comes from the repo-root .env directly. Google's sample
+// id is the fallback: test ads that earn nothing, never a crash for a
+// missing id.
+val dotEnv = Properties()
+val dotEnvFile = rootProject.file("../../.env")
+if (dotEnvFile.exists()) {
+    dotEnv.load(FileInputStream(dotEnvFile))
+}
+val admobAppId = (dotEnv["ADMOB_APP_ID"] as String?)?.trim().takeUnless { it.isNullOrEmpty() }
+    ?: "ca-app-pub-3940256099942544~3347511713"
+
 android {
     namespace = "com.whosegames.grandcanvas"
     compileSdk = flutter.compileSdkVersion
@@ -46,6 +58,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["admobAppId"] = admobAppId
     }
 
     signingConfigs {

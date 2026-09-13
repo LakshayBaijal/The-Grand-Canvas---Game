@@ -6,6 +6,7 @@ import '../models/game_event.dart';
 import '../models/lobby_state.dart';
 import '../models/round_models.dart';
 import '../theme.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/doodle_stage.dart';
 
@@ -52,7 +53,10 @@ class LobbyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isFriendly ? 'FRIENDLY LOBBY' : 'RANKED MATCH')),
+      bottomNavigationBar: const AdBanner(),
+      appBar: AppBar(
+        title: Text(_isFriendly ? 'FRIENDLY LOBBY' : 'RANKED MATCH'),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -76,7 +80,9 @@ class LobbyView extends StatelessWidget {
               // The idle canvas takes whatever room the lobby isn't using —
               // waiting for people to join is the dullest part of a party
               // game, so there's always something being drawn here.
-              Expanded(child: DoodleStage(doodle: doodle, onNext: onNextDoodle)),
+              Expanded(
+                child: DoodleStage(doodle: doodle, onNext: onNextDoodle),
+              ),
               const SizedBox(height: 14),
               _PlayerRow(lobby: lobby, myId: myId),
               const SizedBox(height: 14),
@@ -86,11 +92,17 @@ class LobbyView extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _hasRoom ? onAddBot : null,
-                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                        icon: const Icon(
+                          Icons.person_add_alt_1_rounded,
+                          size: 18,
+                        ),
                         label: const Text('ADD PLAYER'),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(44),
-                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
@@ -102,7 +114,10 @@ class LobbyView extends StatelessWidget {
                           minimumSize: const Size(56, 44),
                           padding: EdgeInsets.zero,
                         ),
-                        child: const Icon(Icons.person_remove_alt_1_rounded, size: 18),
+                        child: const Icon(
+                          Icons.person_remove_alt_1_rounded,
+                          size: 18,
+                        ),
                       ),
                     ],
                   ],
@@ -114,7 +129,7 @@ class LobbyView extends StatelessWidget {
                     _canStart
                         ? 'START GAME'
                         : 'NEED ${_minPlayers - lobby.players.length} MORE PLAYER'
-                            '${_minPlayers - lobby.players.length == 1 ? '' : 'S'}',
+                              '${_minPlayers - lobby.players.length == 1 ? '' : 'S'}',
                   ),
                 ),
               ] else
@@ -125,7 +140,10 @@ class LobbyView extends StatelessWidget {
                     _isFriendly
                         ? 'Waiting for the host to start…'
                         : 'Starting…',
-                    style: const TextStyle(color: GameColors.textMuted, fontSize: 15),
+                    style: const TextStyle(
+                      color: GameColors.textMuted,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
               const SizedBox(height: 12),
@@ -233,7 +251,11 @@ class _PlayerChip extends StatelessWidget {
               const Positioned(
                 top: -4,
                 right: -4,
-                child: SketchIcon(SketchGlyph.star, size: 16, color: GameColors.primary),
+                child: SketchIcon(
+                  SketchGlyph.star,
+                  size: 16,
+                  color: GameColors.primary,
+                ),
               ),
           ],
         ),
@@ -269,7 +291,11 @@ class _EmptySeat extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: GameColors.surfaceHigh, width: 2),
           ),
-          child: const Icon(Icons.person_outline, size: 18, color: GameColors.surfaceHigh),
+          child: const Icon(
+            Icons.person_outline,
+            size: 18,
+            color: GameColors.surfaceHigh,
+          ),
         ),
         const SizedBox(height: 7),
         const Text(
@@ -285,7 +311,6 @@ class _EmptySeat extends StatelessWidget {
     );
   }
 }
-
 
 /// Host-only control over whether the room is listed in the browser.
 ///

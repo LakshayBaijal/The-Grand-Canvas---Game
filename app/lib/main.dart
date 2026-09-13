@@ -6,6 +6,7 @@ import 'services/audio_service.dart';
 import 'services/daily_reminder.dart';
 import 'services/entitlements.dart';
 import 'services/game_connection.dart';
+import 'services/store.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -19,6 +20,16 @@ Future<void> main() async {
   // Read from disk before the first frame so the palette is never briefly
   // locked for someone who already paid.
   Entitlements.instance.load();
+  // Ads and billing. Not awaited: the first screen doesn't need them, and a
+  // slow Play Store must never delay the menu. A purchase Play reports on
+  // its own (a reinstall, a payment that cleared later) lands here too.
+  final s = store;
+  if (s is PlayStore) {
+    s.onPassOwned = (owned) {
+      if (owned) Entitlements.instance.grantLifetime();
+    };
+  }
+  s.init();
   // Read the saved music/sound preference before the first screen asks to
   // play anything, so a muted player never gets a burst of audio first.
   AudioService.instance.load();

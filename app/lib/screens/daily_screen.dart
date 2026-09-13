@@ -11,6 +11,7 @@ import '../services/daily_reminder.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
 import '../views/draw_view.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/celebration.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/sketch_icons.dart';
@@ -424,6 +425,7 @@ class _Intro extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      bottomNavigationBar: const AdBanner(),
       appBar: AppBar(title: const Text('THE DAILY')),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -592,6 +594,7 @@ class _GalleryState extends State<_Gallery> {
         .toList();
 
     return Scaffold(
+      bottomNavigationBar: const AdBanner(),
       appBar: AppBar(
         title: const Text('THE DAILY'),
         actions: [
