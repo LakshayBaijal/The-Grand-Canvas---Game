@@ -27,7 +27,8 @@ DB_DIR="$HOME/data"
 
 echo "==> Packages (Node 24, Caddy, git)"
 sudo apt-get update -qq
-sudo apt-get install -y -qq git curl ca-certificates debian-keyring debian-archive-keyring apt-transport-https >/dev/null
+sudo apt-get install -y -qq git curl cron ca-certificates debian-keyring debian-archive-keyring apt-transport-https >/dev/null
+sudo systemctl enable --now cron >/dev/null 2>&1 || true
 if ! command -v node >/dev/null 2>&1 || [ "$(node --version | sed 's/^v//; s/\..*//')" -lt 22 ]; then
   curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash - >/dev/null
   sudo apt-get install -y -qq nodejs >/dev/null
