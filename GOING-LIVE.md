@@ -5,8 +5,8 @@ because they need your accounts and your passwords. The full walkthrough, with
 tick-boxes and copy buttons, is the "Grand Canvas Launch Checklist" artifact;
 this file is the same plan in short, so it lives with the code.
 
-Monthly cost: **~₹400** for one small server in Bangalore; nothing else
-recurs. One-time: **$25** for the Play Store account.
+Monthly cost: **₹0**, using a US Always Free VM. One-time: **$25** for the
+Play Store account.
 
 Everything you fill in goes in one file, `.env`, at the top of the repo
 (copy `.env.example` and fill it in; `.env` is ignored by git).
@@ -24,26 +24,35 @@ There is no separate database service to pay for. The SQLite file is the
 database; the server's disk is where it lives; `deploy/backup.sh` copies it
 nightly.
 
-## 1. A server: DigitalOcean, Bangalore, $4/month
+## 1. A server: Google Cloud, free forever
 
-Oracle's free VM rejected the cards (it does that to many Indian cards, and
-it has cut its free tier once without warning). Google Cloud's free VM is
-US-only. A plain rented Ubuntu server in India for ~₹400/month is the
-simplest thing that works, and nothing about the game is tied to who rents
-it: Vultr (Mumbai, from $2.50), Hostinger (takes UPI) or any Ubuntu 24.04
-box work with the same scripts.
+Google Cloud's Always Free tier gives one small VM (`e2-micro`) for ₹0/month,
+forever, but only in three regions: `us-west1`, `us-central1`, `us-east1`.
+Outside those (Mumbai included) it's billed. The trade for free-forever is
+latency: players in India see roughly 200-300ms extra round trip to a US
+server, which doesn't matter for a game with no fast reflexes in it.
 
-1. Sign up at digitalocean.com; card or PayPal.
-2. Make an SSH key on the laptop:
-   `ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\grandcanvas`, then
-   `Get-Content $env:USERPROFILE\.ssh\grandcanvas.pub` and copy the line.
-3. Create → Droplets: region **Bangalore**, image **Ubuntu 24.04**, size
-   Basic / Regular / **$4** (512 MB is plenty; $6 for 1 GB if you like),
-   authentication **SSH key** → paste the line, hostname `grandcanvas`.
-4. Copy the IPv4 address. `ssh -i $env:USERPROFILE\.ssh\grandcanvas root@<ip>`
-   works → done.
+1. console.cloud.google.com → Compute Engine → VM instances → enable the
+   API when it asks (~1 min) → **Create Instance**.
+2. Name `grandcanvas`. Region **us-central1**. Machine: **E2** series →
+   **e2-micro**.
+3. Boot disk → Change → Ubuntu → **Ubuntu 24.04 LTS**, 10 GB (30 GB is the
+   Always Free limit, so up to that is still free) → Select.
+4. Firewall: tick **Allow HTTP traffic** and **Allow HTTPS traffic**.
+5. Create. Copy the **External IP**.
+6. Click the **SSH** button next to the instance in the console — it opens
+   a browser terminal already logged in, no key to generate. That's enough
+   to run the setup script below. (A local key, `ssh-keygen -t ed25519 -f
+   $env:USERPROFILE\.ssh\grandcanvas` added under the VM's "Add SSH key",
+   is only needed later for `scp`-ing backups from the laptop.)
 
-`.env`: `VM_PUBLIC_IP`, `SSH_KEY_PATH`.
+`.env`: `VM_PUBLIC_IP`, `GOOGLE_CLOUD_PROJECT_ID`.
+
+**The catch to know about:** Always Free also caps outbound data at 1 GB a
+month from a US region. A drawing's data is tiny (vector strokes, not
+images), so this comfortably covers casual play; if the game gets properly
+popular, watch Billing → Reports for a network egress charge — small at
+$0.12/GB — rather than being surprised by it later.
 
 ## 2. A free name: DuckDNS
 

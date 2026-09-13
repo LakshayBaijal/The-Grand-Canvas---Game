@@ -41,10 +41,20 @@ fi
 echo "    node $(node --version), caddy $(caddy version | cut -d' ' -f1)"
 
 echo "==> Firewall: make sure web traffic can get in (some images block it by default)"
-sudo iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
-sudo iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -p tcp --dport 443 -j ACCEPT
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent >/dev/null 2>&1 || true
-sudo netfilter-persistent save >/dev/null 2>&1 || true
+# Only relevant on providers whose *host* firewall defaults to closed
+# (Oracle's images do). Google Cloud and most others filter at the network
+# edge instead -- the console checkboxes for HTTP/HTTPS traffic already
+# cover it, there's no local firewall blocking anything, and several
+# current cloud images don't even ship iptables. So: only touch it if it's
+# actually there.
+if command -v iptables >/dev/null 2>&1; then
+  sudo iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
+  sudo iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -p tcp --dport 443 -j ACCEPT
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent >/dev/null 2>&1 || true
+  sudo netfilter-persistent save >/dev/null 2>&1 || true
+else
+  echo "    no local iptables here -- assuming the cloud provider's own firewall handles it (Google Cloud does)"
+fi
 
 echo "==> Code"
 if [ -d "$APP_DIR/.git" ]; then

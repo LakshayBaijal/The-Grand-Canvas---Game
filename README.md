@@ -921,7 +921,7 @@ picture?") aren't assertable. Two throwaway techniques worth reusing:
 ## Before shipping to the Play Store
 
 > **The step-by-step version of this section, in plain words, is
-> [GOING-LIVE.md](GOING-LIVE.md).** A small server in Bangalore, a free DuckDNS
+> [GOING-LIVE.md](GOING-LIVE.md).** A free-forever VM on Google Cloud, a free DuckDNS
 > name, `deploy/setup-vm.sh` to install everything in one command, `.env` for
 > every setting, `build-app.ps1` to build with them, Google sign-in, the
 > signing key, the Play Console checklist, and the routine after launch.
