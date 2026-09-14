@@ -317,118 +317,212 @@ function buildDrawing(key) {
 //
 // A round's prompt is a template with a blank in it; a Daily prompt is a whole
 // sentence, the same one for everybody on earth that day, with no clock and
-// nothing locked. So the film about it needs the opposite of variety: one
-// prompt and nine people's answers to it, which is far more convincing when
-// the answers rhyme. Nine chairs, each buried differently.
+// nothing locked.
 //
-// Real prompt, from daily.ts.
+// The prompt below is deliberately one of the plainest in daily.ts, and it was
+// chosen for one reason: the honest answers to it are nine completely
+// different objects. A prompt whose answers all look alike -- "the chair where
+// all the clothes end up", say -- produces a wall of nine near-identical
+// pictures, which makes the Daily look like one drawing repeated instead of
+// nine people having nine ideas. The wall is the whole argument for the mode,
+// so the prompt has to be one that scatters.
 // ---------------------------------------------------------------------------
-const DAILY_PROMPT = 'The chair where all the clothes end up.';
+const DAILY_PROMPT = 'What lives under the sofa.';
 
-const DAILY_TAKES = [
-  { artist: 'RIYA',    top: .30, lumps: 5, accent: C.pink,    extra: 'sock'   },
-  { artist: 'ARJUN',   top: .21, lumps: 6, accent: C.cyan,    extra: 'sleeve' },
-  { artist: 'MEERA',   top: .13, lumps: 7, accent: C.purple,  extra: 'hat'    },
-  { artist: 'DEV',     top: .40, lumps: 4, accent: C.lime,    extra: 'cat'    },
-  { artist: 'SANA',    top: .26, lumps: 6, accent: C.primary, extra: 'sleeve' },
-  { artist: 'KABIR',   top: .34, lumps: 5, accent: C.cyan,    extra: 'sock'   },
-  { artist: 'NEHA',    top: .17, lumps: 7, accent: C.pink,    extra: 'hat'    },
-  { artist: 'OMAR',    top: .44, lumps: 4, accent: C.purple,  extra: 'none'   },
-  { artist: 'PRIYA',   top: .28, lumps: 6, accent: C.lime,    extra: 'cat'    },
-  { artist: 'YOU',     top: .24, lumps: 6, accent: C.primary, extra: 'sock'   },
+const UNDER_SOFA = [
+  { artist: 'RIYA',  accent: C.pink    },   // 0 a lost sock
+  { artist: 'ARJUN', accent: C.purple  },   // 1 a dust bunny with opinions
+  { artist: 'MEERA', accent: C.cyan    },   // 2 the remote
+  { artist: 'DEV',   accent: C.pink    },   // 3 a toy car
+  { artist: 'SANA',  accent: C.primary },   // 4 loose change
+  { artist: 'KABIR', accent: C.primary },   // 5 half a biscuit
+  { artist: 'NEHA',  accent: C.lime    },   // 6 a sandwich, some time ago
+  { artist: 'OMAR',  accent: C.purple  },   // 7 a spider, at home
+  { artist: 'PRIYA', accent: C.cyan    },   // 8 the missing jigsaw piece
+  { artist: 'YOU',   accent: C.lime    },   // 9 something with teeth
+];
+
+/** A lumpy closed loop -- dust, monsters, anything that isn't geometry. */
+function blobLoop(cx, cy, r, lumps, wobbleAmt = .18) {
+  const pts = [], N = 22;
+  const phase = rand() * Math.PI * 2;
+  for (let k = 0; k <= N; k++) {
+    const a = (k / N) * Math.PI * 2;
+    const rr = r * (1 + Math.sin(a * lumps + phase) * wobbleAmt + Math.sin(a * (lumps + 3) + phase * 2) * wobbleAmt * .5);
+    pts.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr * .88 });
+  }
+  return pts;
+}
+
+const UNDER_SOFA_BUILDERS = [
+
+  // 0 -- the sock that got away
+  ({ S, C, line, curve }, acc) => [
+    S(curve([{ x: .40, y: .17 }, { x: .37, y: .40 }, { x: .355, y: .60 }, { x: .345, y: .70 },
+             { x: .46, y: .78 }, { x: .68, y: .77 }, { x: .715, y: .68 }, { x: .63, y: .60 },
+             { x: .585, y: .48 }, { x: .585, y: .17 }, { x: .40, y: .17 }]), C.ink, 8),
+    S(line({ x: .397, y: .245 }, { x: .588, y: .245 }), C.ink, 6),
+    S(line({ x: .393, y: .295 }, { x: .587, y: .295 }), C.ink, 6),
+    S(curve([{ x: .355, y: .655 }, { x: .44, y: .70 }, { x: .50, y: .69 }]), C.ink, 5),
+    S(line({ x: .405, y: .375 }, { x: .580, y: .375 }, .3), acc, 8, 'marker'),
+    S(line({ x: .395, y: .445 }, { x: .590, y: .445 }, .3), acc, 8, 'marker'),
+    S(line({ x: .385, y: .515 }, { x: .610, y: .520 }, .3), acc, 8, 'marker'),
+  ],
+
+  // 1 -- a dust bunny that has been here longer than you
+  ({ S, C, line, ellipse, curve }, acc) => {
+    const out = [S(curve(blobLoop(.50, .55, .27, 5, .16)), C.ink, 8)];
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * Math.PI * 2 + .3;
+      out.push(S(line({ x: .50 + Math.cos(a) * .265, y: .55 + Math.sin(a) * .235 },
+                      { x: .50 + Math.cos(a) * .345, y: .55 + Math.sin(a) * .310 }, .4), C.ink, 5));
+    }
+    out.push(S(ellipse(.435, .515, .036, .040), C.ink, 7));
+    out.push(S(ellipse(.565, .515, .036, .040), C.ink, 7));
+    out.push(S(ellipse(.443, .525, .014, .015), C.ink, 6));
+    out.push(S(ellipse(.573, .525, .014, .015), C.ink, 6));
+    out.push(S(curve([{ x: .455, y: .635 }, { x: .50, y: .665 }, { x: .545, y: .635 }]), C.ink, 6));
+    out.push(S(line({ x: .40, y: .70 }, { x: .60, y: .70 }, .3), acc, 8, 'marker'));
+    out.push(S(line({ x: .43, y: .745 }, { x: .57, y: .745 }, .3), acc, 8, 'marker'));
+    return out;
+  },
+
+  // 2 -- the remote, obviously
+  ({ S, C, line, ellipse, poly }, acc) => {
+    const out = [
+      S(poly([{ x: .355, y: .12 }, { x: .645, y: .12 }, { x: .645, y: .88 },
+              { x: .355, y: .88 }, { x: .355, y: .12 }]), C.ink, 8),
+      S(poly([{ x: .445, y: .165 }, { x: .555, y: .165 }, { x: .555, y: .205 },
+              { x: .445, y: .205 }, { x: .445, y: .165 }]), C.ink, 5),
+      S(ellipse(.50, .295, .058, .052), C.ink, 6),
+      S(ellipse(.50, .295, .020, .018), acc, 8, 'marker'),
+    ];
+    for (let r = 0; r < 4; r++)
+      for (const x of [.425, .50, .575])
+        out.push(S(ellipse(x, .44 + r * .115, .028, .026), C.ink, 5));
+    return out;
+  },
+
+  // 3 -- a toy car, one wheel short
+  ({ S, C, line, ellipse, curve, poly }, acc) => [
+    S(curve([{ x: .16, y: .66 }, { x: .22, y: .52 }, { x: .34, y: .50 }, { x: .40, y: .35 },
+             { x: .63, y: .34 }, { x: .69, y: .51 }, { x: .82, y: .54 }, { x: .85, y: .66 },
+             { x: .16, y: .66 }]), C.ink, 8),
+    S(curve([{ x: .425, y: .485 }, { x: .445, y: .385 }, { x: .585, y: .385 }, { x: .605, y: .490 }]), C.ink, 6),
+    S(line({ x: .515, y: .385 }, { x: .515, y: .487 }), C.ink, 5),
+    S(ellipse(.335, .695, .085, .082), C.ink, 8),
+    S(ellipse(.335, .695, .030, .029), C.ink, 6),
+    S(ellipse(.685, .695, .085, .082), C.ink, 8),
+    S(ellipse(.685, .695, .030, .029), C.ink, 6),
+    S(line({ x: .21, y: .585 }, { x: .80, y: .585 }, .3), acc, 9, 'marker'),
+    S(line({ x: .19, y: .635 }, { x: .83, y: .635 }, .3), acc, 9, 'marker'),
+  ],
+
+  // 4 -- loose change, and one of them is foreign
+  ({ S, C, line, ellipse }, acc) => [
+    S(ellipse(.36, .62, .175, .165), C.ink, 8),
+    S(ellipse(.36, .62, .115, .108), C.ink, 5),
+    S(ellipse(.63, .53, .150, .142), C.ink, 8),
+    S(ellipse(.63, .53, .098, .092), C.ink, 5),
+    S(ellipse(.53, .77, .125, .118), C.ink, 8),
+    S(ellipse(.53, .77, .080, .075), C.ink, 5),
+    S(ellipse(.63, .53, .050, .048), acc, 9, 'marker'),
+    S(line({ x: .30, y: .27 }, { x: .30, y: .34 }, .3), acc, 7, 'marker'),
+    S(line({ x: .265, y: .305 }, { x: .335, y: .305 }, .3), acc, 7, 'marker'),
+    S(line({ x: .78, y: .24 }, { x: .78, y: .30 }, .3), acc, 7, 'marker'),
+    S(line({ x: .75, y: .27 }, { x: .81, y: .27 }, .3), acc, 7, 'marker'),
+  ],
+
+  // 5 -- half a biscuit
+  ({ S, C, line, arc, ellipse }, acc) => {
+    const out = [
+      S(arc(.50, .55, .28, .27, Math.PI * 1.72, Math.PI * 3.42), C.ink, 8),
+      S(arc(.745, .40, .085, .080, Math.PI * .62, Math.PI * 1.60), C.ink, 7),
+      S(arc(.665, .315, .060, .056, Math.PI * .55, Math.PI * 1.65), C.ink, 6),
+    ];
+    for (const [x, y] of [[.40, .46], [.56, .52], [.44, .66], [.62, .70], [.34, .62]])
+      out.push(S(ellipse(x, y, .032, .030), C.ink, 6));
+    out.push(S(ellipse(.855, .245, .022, .020), acc, 7, 'marker'));
+    out.push(S(ellipse(.895, .325, .016, .015), acc, 7, 'marker'));
+    out.push(S(ellipse(.815, .175, .013, .012), acc, 7, 'marker'));
+    return out;
+  },
+
+  // 6 -- a sandwich, from some time ago
+  ({ S, C, line, ellipse, curve, poly }, acc) => [
+    S(poly([{ x: .17, y: .76 }, { x: .83, y: .76 }, { x: .50, y: .22 }, { x: .17, y: .76 }]), C.ink, 8),
+    S(curve([{ x: .245, y: .665 }, { x: .38, y: .620 }, { x: .50, y: .672 },
+             { x: .63, y: .618 }, { x: .755, y: .665 }]), C.ink, 6),
+    S(curve([{ x: .295, y: .585 }, { x: .41, y: .540 }, { x: .52, y: .592 },
+             { x: .645, y: .545 }, { x: .705, y: .585 }]), C.ink, 6),
+    S(line({ x: .215, y: .715 }, { x: .785, y: .715 }, .3), acc, 9, 'marker'),
+    S(line({ x: .275, y: .625 }, { x: .725, y: .625 }, .3), acc, 9, 'marker'),
+    S(ellipse(.40, .40, .028, .026), C.lime, 7, 'marker'),
+    S(ellipse(.575, .445, .022, .020), C.lime, 7, 'marker'),
+    S(ellipse(.49, .33, .018, .017), C.lime, 7, 'marker'),
+  ],
+
+  // 7 -- a spider, entirely at home
+  ({ S, C, line, ellipse, curve }, acc) => {
+    const out = [
+      S(ellipse(.50, .585, .135, .115), C.ink, 8),
+      S(ellipse(.50, .415, .085, .075), C.ink, 8),
+      S(ellipse(.472, .398, .017, .019), C.ink, 6),
+      S(ellipse(.528, .398, .017, .019), C.ink, 6),
+    ];
+    for (let k = 0; k < 4; k++) {
+      const y = .50 + k * .058;
+      const reach = .30 - k * .018, drop = .10 + k * .055;
+      out.push(S(curve([{ x: .375, y }, { x: .375 - reach * .55, y: y - .07 }, { x: .375 - reach, y: y + drop }]), C.ink, 6));
+      out.push(S(curve([{ x: .625, y }, { x: .625 + reach * .55, y: y - .07 }, { x: .625 + reach, y: y + drop }]), C.ink, 6));
+    }
+    out.push(S(line({ x: .43, y: .565 }, { x: .57, y: .565 }, .3), acc, 8, 'marker'));
+    out.push(S(line({ x: .42, y: .625 }, { x: .58, y: .625 }, .3), acc, 8, 'marker'));
+    return out;
+  },
+
+  // 8 -- the piece that finishes the puzzle
+  ({ S, C, line, curve }, acc) => [
+    S(curve([{ x: .27, y: .27 }, { x: .43, y: .27 },
+             { x: .43, y: .185 }, { x: .57, y: .185 }, { x: .57, y: .27 },
+             { x: .73, y: .27 }, { x: .73, y: .43 },
+             { x: .815, y: .43 }, { x: .815, y: .57 }, { x: .73, y: .57 },
+             { x: .73, y: .73 }, { x: .57, y: .73 },
+             { x: .57, y: .815 }, { x: .43, y: .815 }, { x: .43, y: .73 },
+             { x: .27, y: .73 }, { x: .27, y: .27 }]), C.ink, 8),
+    S(line({ x: .315, y: .355 }, { x: .685, y: .355 }, .3), acc, 9, 'marker'),
+    S(line({ x: .305, y: .445 }, { x: .700, y: .445 }, .3), acc, 9, 'marker'),
+    S(line({ x: .305, y: .535 }, { x: .700, y: .535 }, .3), acc, 9, 'marker'),
+    S(line({ x: .315, y: .625 }, { x: .685, y: .625 }, .3), acc, 9, 'marker'),
+  ],
+
+  // 9 -- something with teeth (the one you watch being drawn)
+  ({ S, C, line, ellipse, curve, poly }, acc) => {
+    const out = [S(curve(blobLoop(.50, .555, .29, 4, .13)), C.ink, 8)];
+    out.push(S(ellipse(.415, .465, .062, .068), C.ink, 7));
+    out.push(S(ellipse(.585, .465, .062, .068), C.ink, 7));
+    out.push(S(ellipse(.428, .482, .024, .026), C.ink, 7));
+    out.push(S(ellipse(.598, .482, .024, .026), C.ink, 7));
+    out.push(S(curve([{ x: .385, y: .625 }, { x: .50, y: .600 }, { x: .615, y: .625 }]), C.ink, 7));
+    out.push(S(curve([{ x: .385, y: .625 }, { x: .50, y: .745 }, { x: .615, y: .625 }]), C.ink, 7));
+    out.push(S(poly([{ x: .415, y: .628 }, { x: .452, y: .690 }, { x: .489, y: .630 },
+                     { x: .526, y: .694 }, { x: .563, y: .630 }]), C.ink, 5));
+    out.push(S(curve([{ x: .225, y: .545 }, { x: .145, y: .495 }, { x: .175, y: .420 }]), C.ink, 7));
+    out.push(S(curve([{ x: .775, y: .545 }, { x: .855, y: .495 }, { x: .825, y: .420 }]), C.ink, 7));
+    for (const [y, w] of [[.300, .10], [.790, .13], [.845, .09]])
+      out.push(S(line({ x: .50 - w, y }, { x: .50 + w, y }, .3), acc, 9, 'marker'));
+    return out;
+  },
 ];
 
 /**
- * One person's chair. The chair is roughly the same every time and the pile on
- * it never is, which is exactly what nine people answering one prompt looks
- * like. Drawn from the bottom up -- legs, seat, then the heap -- so it reads
- * as a chair for the first second and as a problem after that.
+ * One person's answer to the prompt. Nine different objects rather than nine
+ * versions of one, because a wall of near-identical pictures argues against
+ * the mode instead of for it.
  */
-function buildDailyChair(i) {
-  const v = DAILY_TAKES[i % DAILY_TAKES.length];
-  rand = rng(1000 + i * 37);
-  const s = [];
-  const seat = .76;
-
-  // the chair, or what is left visible of it
-  s.push(S(poly([{ x: .17, y: seat - .04 }, { x: .83, y: seat - .04 }, { x: .83, y: seat + .03 },
-                 { x: .17, y: seat + .03 }, { x: .17, y: seat - .04 }]), C.ink, 7));    // seat
-  for (const [x, dx] of [[.20, .010], [.31, .006], [.69, -.006], [.80, -.010]])
-    s.push(S(line({ x, y: seat + .03 }, { x: x + dx, y: .935 }), C.ink, 7));            // legs
-  s.push(S(line({ x: .12, y: .942 }, { x: .88, y: .942 }, .5), C.ink, 5));              // the floor
-
-  // the heap. A dome with sub-lumps rather than a smooth arch -- a clean curve
-  // reads as a tent, and the whole joke is that it is obviously laundry.
-  const prof = u => {
-    const dome = Math.pow(Math.sin(Math.PI * clamp(u, 0, 1)), .55);
-    const bump = .11 * Math.sin(u * Math.PI * (3 + v.lumps)) + .07 * Math.sin(u * Math.PI * (5 + v.lumps) + 1.3);
-    return Math.max(.06, dome + bump * dome);
-  };
-  const mound = [{ x: .13, y: seat - .02 }];
-  const STEPS = 14;
-  for (let k = 0; k <= STEPS; k++) {
-    const u = k / STEPS;
-    mound.push({ x: lerp(.13, .87, u), y: seat - .03 - (seat - v.top) * prof(u) + (rand() * 2 - 1) * .012 });
-  }
-  mound.push({ x: .87, y: seat - .02 });
-  s.push(S(curve(mound), C.ink, 8));
-
-  // folds, so it is clothes and not a rock
-  for (let k = 0; k < 3; k++) {
-    const u = .26 + k * .24;
-    const top = seat - .03 - (seat - v.top) * prof(u);
-    const y = lerp(seat - .06, top + .06, .35 + rand() * .35);
-    s.push(S(curve([{ x: u - .06, y }, { x: u + .03, y: y + .045 }, { x: u + .12, y: y - .02 }]), C.ink, 5));
-  }
-  // Colour, laid on as separate garments rather than as bands across the whole
-  // heap: full-width stripes turn it into a layer cake, and the one thing this
-  // has to read as is a pile of individual clothes.
-  for (let k = 0; k < 7; k++) {
-    const f = .14 + k * .115;
-    const yy = lerp(seat - .05, v.top + .04, f);
-    // how wide the heap actually is at this height, so nothing spills out
-    let lo = .13, hi = .87;
-    for (let u = 0; u <= 1; u += .02) {
-      if (seat - .03 - (seat - v.top) * prof(u) < yy) { lo = lerp(.13, .87, u); break; }
-    }
-    for (let u = 1; u >= 0; u -= .02) {
-      if (seat - .03 - (seat - v.top) * prof(u) < yy) { hi = lerp(.13, .87, u); break; }
-    }
-    const span = hi - lo - .05;
-    if (span < .07) continue;
-    const frac = .34 + rand() * .38;
-    const x0 = lo + .025 + rand() * span * (1 - frac);
-    s.push(S(line({ x: x0, y: yy }, { x: x0 + span * frac, y: yy + (rand() * 2 - 1) * .013 }, .3),
-             v.accent, 8, 'marker'));
-  }
-
-  // one corner of the backrest, still holding out
-  const rail = v.top - .05;
-  s.push(S(line({ x: .70, y: v.top + .06 }, { x: .715, y: rail }), C.ink, 6));
-  s.push(S(line({ x: .715, y: rail }, { x: .80, y: rail + .015 }), C.ink, 6));
-
-  // whatever is escaping
-  if (v.extra === 'sock') {
-    s.push(S(curve([{ x: .84, y: seat - .10 }, { x: .90, y: seat - .01 }, { x: .875, y: seat + .08 }]), C.ink, 6));
-    s.push(S(ellipse(.882, seat + .112, .034, .027), C.ink, 6));
-    s.push(S(line({ x: .858, y: seat + .105 }, { x: .906, y: seat + .105 }, .3), v.accent, 7, 'marker'));
-  } else if (v.extra === 'sleeve') {
-    s.push(S(curve([{ x: .17, y: seat - .12 }, { x: .09, y: seat - .02 }, { x: .12, y: seat + .10 }]), C.ink, 7));
-    s.push(S(curve([{ x: .23, y: seat - .10 }, { x: .17, y: seat - .01 }, { x: .20, y: seat + .09 }]), C.ink, 7));
-    s.push(S(line({ x: .115, y: seat + .098 }, { x: .205, y: seat + .088 }), C.ink, 6));
-  } else if (v.extra === 'hat') {
-    s.push(S(ellipse(.30, v.top - .01, .105, .028), C.ink, 7));
-    s.push(S(curve([{ x: .225, y: v.top - .018 }, { x: .24, y: v.top - .095 },
-                    { x: .36, y: v.top - .095 }, { x: .375, y: v.top - .018 }]), C.ink, 7));
-    s.push(S(line({ x: .232, y: v.top - .042 }, { x: .368, y: v.top - .042 }), v.accent, 8, 'marker'));
-  } else if (v.extra === 'cat') {
-    const cy = v.top - .045;
-    s.push(S(ellipse(.44, cy, .070, .064), C.ink, 7));
-    s.push(S(poly([{ x: .387, y: cy - .036 }, { x: .376, y: cy - .102 }, { x: .434, y: cy - .060 }]), C.ink, 6));
-    s.push(S(poly([{ x: .493, y: cy - .036 }, { x: .504, y: cy - .102 }, { x: .446, y: cy - .060 }]), C.ink, 6));
-    s.push(S(ellipse(.419, cy - .004, .011, .013), C.ink, 5));
-    s.push(S(ellipse(.461, cy - .004, .011, .013), C.ink, 5));
-    s.push(S(curve([{ x: .508, y: cy + .038 }, { x: .572, y: cy + .018 }, { x: .578, y: cy - .048 }]), C.ink, 6));
-  }
-  return s;
+function buildDailyDrawing(i) {
+  const v = UNDER_SOFA[i % UNDER_SOFA.length];
+  rand = rng(2200 + i * 53);
+  return UNDER_SOFA_BUILDERS[i % UNDER_SOFA_BUILDERS.length](
+    { S, C, line, arc, ellipse, curve, poly, coilBetween, wobble }, v.accent);
 }

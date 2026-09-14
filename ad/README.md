@@ -84,9 +84,14 @@ never be taken back, the day really does roll over at midnight UTC everywhere
 at once, and the Daily really does unlock every colour, paper and pen for
 nothing.
 
-Nine people answering one prompt is far more convincing when the answers
-rhyme, so they're nine chairs, each buried differently — `buildDailyChair()` in
-`drawings.js` builds one chair and a different heap on it each time.
+The prompt on screen — *"What lives under the sofa."* — is one of the plainest
+in the list, and it was picked for one reason: the honest answers to it are
+nine completely different objects. A sock, a dust bunny with opinions, the
+remote, a toy car, some coins, half a biscuit, a sandwich from some time ago, a
+spider, the missing jigsaw piece. A prompt whose answers all look alike gives
+you a wall of one drawing repeated, which argues *against* the mode instead of
+for it — the wall is the whole case for the Daily, so the prompt has to be one
+that scatters.
 
 ---
 

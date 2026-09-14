@@ -54,8 +54,12 @@
  *   7.20  midnight          the day closes and the names come out
  *   8.50  the card          a new one tomorrow
  *
- * Nine people answering one prompt is far more convincing when the answers
- * rhyme, so they are nine chairs, each buried differently.
+ * The prompt is one of the plainest in daily.ts, chosen because the honest
+ * answers to it are nine completely different objects -- a sock, a dust bunny,
+ * the remote, a toy car, some coins, half a biscuit, an old sandwich, a
+ * spider, the missing jigsaw piece. A prompt whose answers all look alike
+ * gives you a wall of one drawing repeated, which argues against the mode
+ * instead of for it.
  */
 
 // Must match make-music.mjs, which bakes the chime and the hearts in here.
@@ -64,8 +68,8 @@ const HEARTS = [5.95, 6.20, 6.46, 6.74];
 const RUN = 10.0;                   // engine.js already owns the name END
 
 const HERO_I = 9;                                             // 'YOU'
-const hero = buildDailyChair(HERO_I);
-const others = Array.from({ length: 9 }, (_, i) => buildDailyChair(i));
+const hero = buildDailyDrawing(HERO_I);
+const others = Array.from({ length: 9 }, (_, i) => buildDailyDrawing(i));
 
 // Your drawing arrives over the middle of its scene, unhurried -- there is no
 // clock in the Daily and the film shouldn't imply one.
@@ -209,7 +213,7 @@ const TILE = 236, GAPT = 20;
 const WX = (1920 - (3 * TILE + 2 * GAPT)) / 2, WY = 150;
 const tileAt = i => ({ x: WX + (i % 3) * (TILE + GAPT), y: WY + Math.floor(i / 3) * (TILE + GAPT), s: TILE });
 // which tiles the hearts land on, and what they finish at
-const HEART_ON = [4, 1, 6, 2];
+const HEART_ON = [7, 1, 5, 3];
 
 function sceneWall(t) {
   const a = easeOut(win(t, K.wall, K.wall + .22)) * (1 - win(t, K.midnight - .2, K.midnight));
@@ -251,9 +255,9 @@ function sceneWall(t) {
 // middle and highest, third on the right. They land third-second-first, so the
 // reveal builds instead of just appearing.
 const TOP3 = [
-  { i: 1, name: 'ARJUN', hearts: 186, place: 2, x: 420,  drop: 44 },
-  { i: 4, name: 'SANA',  hearts: 214, place: 1, x: 810,  drop: 0  },
-  { i: 6, name: 'NEHA',  hearts: 151, place: 3, x: 1200, drop: 66 },
+  { i: 1, name: 'ARJUN', hearts: 186, place: 2, x: 420,  drop: 44 },   // the dust bunny
+  { i: 7, name: 'OMAR',  hearts: 214, place: 1, x: 810,  drop: 0  },   // the spider
+  { i: 5, name: 'KABIR', hearts: 151, place: 3, x: 1200, drop: 66 },   // half a biscuit
 ];
 
 function sceneMidnight(t) {
