@@ -3,15 +3,21 @@
 #
 #   ./ad/make-store-images.sh
 #
-#   01-draw.png       1080x1920   phone screenshot
-#   02-funded.png     1080x1920
-#   03-ten-people.png 1080x1920
-#   04-daily.png      1080x1920
-#   feature.png       1024x500    the banner across the top of the listing
+#   01-draw.png         1080x1920   phone screenshot
+#   02-funded.png       1080x1920
+#   03-ten-people.png   1080x1920
+#   04-daily.png        1080x1920
+#   feature.png         1024x500    the banner across the top of the Play listing
+#   youtube-banner.png  2560x1440   the YouTube channel banner
 #
 # Play wants at least 2 phone screenshots (it shows up to 8) and exactly one
 # feature graphic at 1024x500. Upload the four numbered ones in order -- the
 # first two are what people actually see before they scroll.
+#
+# YouTube crops the banner differently per device -- full 2560x1440 only shows
+# on a TV; everywhere else is a centred strip, as narrow as 1546x423 on a
+# phone. Everything that has to be read sits inside that box; upload the full
+# PNG as-is and let YouTube do the cropping.
 set -euo pipefail
 
 AD="$(cd "$(dirname "$0")" && pwd)"
@@ -35,4 +41,5 @@ shot 2 1080 1920 02-funded.png
 shot 3 1080 1920 03-ten-people.png
 shot 4 1080 1920 04-daily.png
 shot 5 1024 500  feature.png
+shot 6 2560 1440 youtube-banner.png
 echo "==> Done"

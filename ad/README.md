@@ -67,11 +67,28 @@ Console, since Play changes them.
 | `02-funded.png` | 1080x1920 | the payoff — money, the stamp, $1,800, trophies |
 | `03-ten-people.png` | 1080x1920 | ten people, one prompt, all at once |
 | `04-daily.png` | 1080x1920 | a new prompt every day |
-| `feature.png` | 1024x500 | the banner across the top of the listing |
+| `feature.png` | 1024x500 | the banner across the top of the Play listing |
+| `youtube-banner.png` | 2560x1440 | the YouTube channel banner |
 
 Play wants at least 2 phone screenshots (it shows up to 8) and exactly one
 feature graphic at 1024×500. Upload the numbered ones in order — **the first
 two are all most people ever see**, so they carry the hook and the payoff.
+
+The YouTube banner is cropped differently on every device: the full
+2560×1440 canvas only ever shows on a TV. Desktop shows a 2560-wide strip
+423px tall, centred vertically; mobile crops further, to a centred
+**1546×423 "safe area."** The lockup — icon, wordmark, tagline, the
+WhoseGames credit, the FREE badge — sits entirely inside that 1546×423 box,
+and so do two of the six drawings, one in each of the box's side margins;
+the other four sit further out, in the wider strip only desktop and the TV
+view show. First pass put every drawing out in that wider strip, which meant
+mobile — the tightest and most common crop — showed none of them at all, just
+the lockup on bare violet. Upload the PNG as-is; YouTube does the cropping.
+
+The WhoseGames mark only exists as an animated GIF with an opaque background
+baked into every frame (no transparency to key out), so a single frame is
+extracted once to `assets/wg-mark.png` and drawn as the same small rounded,
+shadowed tile the ad videos use — never recoloured or stretched edge-to-edge.
 
 These are posters and they shout: huge type on dark bands, rays, glow,
 confetti, everything tilted and lit, a FREE sticker. What they don't do is show
