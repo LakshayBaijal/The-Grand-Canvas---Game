@@ -57,6 +57,41 @@ Console, since Play changes them.
 
 ---
 
+# The store images
+
+`ad/store/` — the listing graphics. Rebuild with `./ad/make-store-images.sh`.
+
+| file | size | |
+|---|---|---|
+| `01-draw.png` | 1080x1920 | the hook — a prompt and the answer being drawn |
+| `02-funded.png` | 1080x1920 | the payoff — money, the stamp, $1,800, trophies |
+| `03-ten-people.png` | 1080x1920 | ten people, one prompt, all at once |
+| `04-daily.png` | 1080x1920 | a new prompt every day |
+| `feature.png` | 1024x500 | the banner across the top of the listing |
+
+Play wants at least 2 phone screenshots (it shows up to 8) and exactly one
+feature graphic at 1024×500. Upload the numbered ones in order — **the first
+two are all most people ever see**, so they carry the hook and the payoff.
+
+These are posters and they shout: huge type on dark bands, rays, glow,
+confetti, everything tilted and lit, a FREE sticker. What they don't do is show
+gameplay that doesn't exist.
+
+That isn't squeamishness, it's the cheapest way to lose a launch. Play's policy
+requires store graphics to represent actual functionality, it's enforced hard
+on games, and a rejection lands exactly when you're trying to go live. The
+slower version is worse: faked screenshots buy installs and then collect
+one-star "not what the pictures showed" reviews, and Play ranks on retention
+and rating — so the spike sinks inside a fortnight.
+
+So every drawing is from `drawings.js`, every screen is real UI, and every
+number is the server's own: `$1,800` a round and a `$1,000` goal from
+`rooms.ts`, `+30 TROPHIES` from `TROPHIES_BY_PLACE`, ten to a room from
+`FRIENDLY_MAX_PLAYERS`, 405 daily prompts and 161 round prompts counted out of
+`daily.ts` and `prompts.ts`. All the loudness is in the composition.
+
+---
+
 # The Daily
 
 `GrandCanvas-daily-10s.mp4` — the one part of the game that gets people back

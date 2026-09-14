@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grand Canvas — store images</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center;
+           transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg, #start { display: none; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas><img id="wg" alt=""><div id="start"></div></div>
+
+<script src="engine.js"></script>
+<script src="drawings.js"></script>
+<script>
+/**
+ * The Play Store listing images. `?shot=1` .. `?shot=5`; make-store-images.sh
+ * screenshots each one.
+ *
+ * These are posters, and they are allowed to shout -- huge type, rays, glow,
+ * confetti, gold on violet, everything tilted and lit. What they are not
+ * allowed to do is show a game that doesn't exist. Play's policy requires
+ * store graphics to represent actual functionality, it is enforced hard on
+ * games, and a rejection arrives exactly when you are trying to launch. The
+ * slower version is worse: faked screenshots buy installs and then collect
+ * one-star "not what the pictures showed" reviews, and Play ranks on retention
+ * and rating, so the spike sinks inside a fortnight.
+ *
+ * So every drawing, every number and every piece of UI below is the real
+ * thing, pulled from drawings.js and the server's own constants -- $1,800 a
+ * round, a $1,000 goal, 30 trophies for first, ten to a room, 405 daily
+ * prompts, 161 round prompts. The loudness is all in the composition.
+ */
+
+// --- flash --------------------------------------------------------------
+/** Wedges radiating from a point. The cheapest way to make a thing look like
+ *  it is arriving rather than sitting there. */
+function rays(cx, cy, n, colour, alpha, inner, outer, spin = 0) {
+  g.save(); g.globalAlpha = alpha; g.fillStyle = colour;
+  for (let i = 0; i < n; i++) {
+    const a0 = spin + (i / n) * Math.PI * 2, a1 = a0 + (Math.PI * 2 / n) * .46;
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a0) * inner, cy + Math.sin(a0) * inner);
+    g.lineTo(cx + Math.cos(a0) * outer, cy + Math.sin(a0) * outer);
+    g.lineTo(cx + Math.cos(a1) * outer, cy + Math.sin(a1) * outer);
+    g.lineTo(cx + Math.cos(a1) * inner, cy + Math.sin(a1) * inner);
+    g.closePath(); g.fill();
+  }
+  g.restore();
+}
+
+/** A spiky burst -- sale-sticker energy, used behind badges. */
+function burst(cx, cy, r, points, colour, jag = .62) {
+  g.save(); g.fillStyle = colour; g.beginPath();
+  for (let i = 0; i <= points * 2; i++) {
+    const a = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+    const rr = i % 2 ? r * jag : r;
+    i ? g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr)
+      : g.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+  }
+  g.closePath(); g.fill(); g.restore();
+}
+
+function confetti(seed, n, x0, y0, x1, y1, scale = 1) {
+  const r = rng(seed), cols = [C.pink, C.cyan, C.lime, C.primary, C.purple];
+  for (let i = 0; i < n; i++) {
+    const x = lerp(x0, x1, r()), y = lerp(y0, y1, r()), s = (12 + r() * 20) * scale;
+    g.save(); g.translate(x, y); g.rotate(r() * 7);
+    g.globalAlpha = .55 + r() * .45;
+    g.fillStyle = cols[Math.floor(r() * 5)];
+    g.fillRect(-s / 2, -s / 4, s, s / 2);
+    g.restore();
+  }
+  g.globalAlpha = 1;
+}
+
+/** The background every poster sits on: violet, a hot centre, and a vignette
+ *  so the middle of the frame is where the eye goes. */
+function ground(cx, cy, warmth = 1) {
+  g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+  rays(cx, cy, 18, '#FFC53D', .055 * warmth, 40, Math.max(W, H) * 1.25, .18);
+  const glow = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .62);
+  glow.addColorStop(0, `rgba(255,197,61,${.20 * warmth})`);
+  glow.addColorStop(.55, `rgba(255,92,138,${.06 * warmth})`);
+  glow.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  const vig = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .30, W / 2, H / 2, Math.max(W, H) * .78);
+  vig.addColorStop(0, 'rgba(11,9,32,0)'); vig.addColorStop(1, 'rgba(6,4,20,.88)');
+  g.fillStyle = vig; g.fillRect(0, 0, W, H);
+}
+
+/** A headline, set big, with a slab of dark behind it so it survives whatever
+ *  it is sitting on. */
+function headline(lines, cx, y, size, gap, { colour = C.primary, rot = -.022, band = true } = {}) {
+  g.save(); g.translate(cx, y); g.rotate(rot);
+  lines.forEach((ln, i) => {
+    const yy = i * (size + gap);
+    g.font = `900 ${size}px Roboto, Arial, sans-serif`;
+    if ('letterSpacing' in g) g.letterSpacing = '2px';
+    const w = g.measureText(ln).width;
+    if (band) {
+      g.fillStyle = 'rgba(6,4,20,.55)';
+      roundRect(-w / 2 - 34, yy - size * .70, w + 68, size * 1.34, size * .22); g.fill();
+    }
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = colour; g.shadowBlur = size * .42;
+    g.fillStyle = colour; g.fillText(ln, 0, yy);
+    g.shadowBlur = 0;
+  });
+  g.restore();
+}
+
+/** A sheet of paper with a drawing already on it, tilted and lit. */
+function poster(list, x, y, s, rot = 0, glowColour = null) {
+  g.save();
+  g.translate(x + s / 2, y + s / 2); g.rotate(rot); g.translate(-(x + s / 2), -(y + s / 2));
+  if (glowColour) {
+    g.save(); g.shadowColor = glowColour; g.shadowBlur = 90;
+    g.fillStyle = glowColour; g.fillRect(x + 10, y + 10, s - 20, s - 20); g.restore();
+  }
+  g.save(); g.shadowColor = 'rgba(0,0,0,.72)'; g.shadowBlur = 70; g.shadowOffsetY = 30;
+  g.fillStyle = C.paper; g.fillRect(x, y, s, s); g.restore();
+  paintPaper(x, y, s, s);
+  for (const st of list) strokePath(st.pts, 1, st.color, st.width * (s / 380) * .55, st.style, x, y, s);
+  g.strokeStyle = 'rgba(0,0,0,.12)'; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, s - 3, s - 3);
+  g.restore();
+}
+
+/** A prompt as the game shows it: the sentence with the filled-in blank lit up. */
+function promptBar(cx, y, maxW, size, parts) {
+  g.save();
+  g.fillStyle = 'rgba(24,19,65,.92)';
+  roundRect(cx - maxW / 2 - 30, y - size * 1.5, maxW + 60, size * 3.0, size * .8); g.fill();
+  g.strokeStyle = C.border; g.lineWidth = 4; g.stroke();
+  g.restore();
+  promptText(cx, y, maxW, size, 999, parts);
+}
+
+function pill(cx, cy, w, h, label, size, bg, fg) {
+  g.save();
+  g.shadowColor = bg; g.shadowBlur = 44;
+  g.fillStyle = bg; roundRect(cx - w / 2, cy - h / 2, w, h, h / 2); g.fill();
+  g.restore();
+  text(label, cx, cy + 2, size, fg, { spacing: 3 });
+}
+
+function freeBadge(cx, cy, r, rot = -.28) {
+  g.save(); g.translate(cx, cy); g.rotate(rot);
+  g.shadowColor = 'rgba(255,92,138,.75)'; g.shadowBlur = 50;
+  burst(0, 0, r, 14, C.pink, .80); g.shadowBlur = 0;
+  burst(0, 0, r * .86, 14, '#FF7DA3', .82);
+  text('FREE', 0, -r * .17, r * .44, '#FFFFFF', { spacing: 2 });
+  text('TO PLAY', 0, r * .27, r * .22, '#FFFFFF', { spacing: 3 });
+  g.restore();
+}
+
+// --- the real content -----------------------------------------------------
+const D = k => buildDrawing(k);
+
+// ===========================================================================
+// 1 — the hook: a prompt, and the answer being drawn
+// ===========================================================================
+function shotHook() {
+  ground(540, 1000, 1.1);
+  headline(['DRAW THE FIX', 'FOR ANYTHING'], 540, 244, 108, 30);
+
+  promptBar(540, 560, 860, 40, DRAWINGS.pupBrella.prompt);
+
+  confetti(11, 26, 40, 700, 1040, 1560, 1.15);
+  poster(D('pupBrella'), 110, 700, 860, -.035, 'rgba(255,197,61,.30)');
+
+  // the pencil, still going
+  pencil(300, 980, 470, -0.9);
+
+  pill(540, 1660, 720, 116, 'THE PUP-BRELLA', 46, C.primary, C.onPrimary);
+  text('You get one blank and 60 seconds.', 540, 1790, 42, C.text, { weight: 700 });
+  text('161 prompts. Nobody draws the same thing twice.', 540, 1856, 32, C.muted, { weight: 700 });
+}
+
+// ===========================================================================
+// 2 — the payoff: the table's money lands and it gets funded
+// ===========================================================================
+function shotFunded() {
+  ground(540, 900, 1.35);
+  headline(['GET FUNDED.'], 540, 216, 124, 0);
+  text('Everyone backs one drawing. Beat $1,000 and it happens.', 540, 348, 34, C.text,
+       { weight: 700 });
+
+  const PX = 90, PY = 470, PS = 900;
+  poster(D('smashOMatic'), PX, PY, PS, .02, 'rgba(30,168,74,.34)');
+
+  // The money is placed rather than scattered: it has to frame the drawing,
+  // not bury it. A screenshot where you cannot see what was drawn is selling
+  // confetti.
+  const SPOTS = [[70, 545, 178, -.5], [318, 438, 162, .35], [700, 432, 186, -.28],
+                 [978, 592, 168, .55], [112, 1268, 174, .4], [962, 1210, 182, -.45],
+                 [540, 1392, 170, .18]];
+  for (const [x, y, sz, rot] of SPOTS) note(x, y, rot, sz);
+  confetti(7, 70, 20, 380, 1060, 1500, 1.15);
+
+  // the stamp, sized so the mallet still reads underneath it
+  g.save(); g.translate(540, PY + PS * .50); g.rotate(-.2);
+  g.shadowColor = 'rgba(30,168,74,.9)'; g.shadowBlur = 56;
+  g.strokeStyle = C.funded; g.lineWidth = 15; roundRect(-320, -108, 640, 216, 26); g.stroke();
+  g.lineWidth = 6; roundRect(-300, -88, 600, 176, 20); g.stroke();
+  g.restore();
+  text('FUNDED!', 540, PY + PS * .50, 146, C.funded, { spacing: 6, rot: -.2, glow: 42 });
+
+  // the numbers, which are the game's own
+  g.save();
+  g.fillStyle = C.surface; roundRect(120, 1546, 840, 140, 70); g.fill();
+  g.strokeStyle = C.border; g.lineWidth = 5; g.stroke(); g.restore();
+  text('RAISED', 320, 1616, 38, C.muted, { spacing: 5 });
+  text('$1,800', 660, 1616, 92, C.lime, { glow: 32 });
+
+  pill(340, 1790, 380, 108, '+30 TROPHIES', 40, C.primary, C.onPrimary);
+  pill(760, 1790, 380, 108, 'RANKED', 40, C.surface, C.text);
+  freeBadge(902, 1440, 94, -.32);
+}
+
+// ===========================================================================
+// 3 — the social proof: ten people, one prompt, all at once
+// ===========================================================================
+function shotTen() {
+  ground(540, 900, 1.0);
+  headline(['TEN PEOPLE.', 'ONE PROMPT.'], 540, 236, 108, 30);
+  text('Everybody draws at the same time. Then you all pick a winner.',
+       540, 452, 33, C.text, { weight: 700 });
+
+  const S = 262, GAP = 20, ROWS = [2, 3, 3, 2];
+  let i = 0, y = 570;
+  const tilt = [-.05, .04, -.03, .05, -.04, .03, -.05, .04, -.02, .05];
+  for (const n of ROWS) {
+    const x0 = (1080 - (n * S + (n - 1) * GAP)) / 2;
+    for (let c = 0; c < n; c++, i++) {
+      poster(D(GALLERY_ORDER[i]), x0 + c * (S + GAP), y, S, tilt[i]);
+    }
+    y += S + GAP;
+  }
+  confetti(3, 34, 30, 560, 1050, 1700, 1.0);
+  pill(540, 1800, 900, 120, 'ROOMS FOR TEN · PLAY WITH FRIENDS', 40, C.primary, C.onPrimary);
+  freeBadge(912, 1560, 104, .26);
+}
+
+// ===========================================================================
+// 4 — the reason to come back: the Daily
+// ===========================================================================
+function shotDaily() {
+  ground(540, 880, 1.05);
+  headline(['A NEW PROMPT', 'EVERY DAY'], 540, 240, 108, 30);
+  text('“What lives under the sofa.”', 540, 470, 46, C.text, { weight: 700 });
+  text('The same one for everybody on earth. No timer. Nothing locked.',
+       540, 534, 30, C.muted, { weight: 700 });
+
+  const S = 300, GAP = 24, X0 = (1080 - (3 * S + 2 * GAP)) / 2;
+  const tilt = [-.04, .03, -.05, .04, -.03, .05, -.04, .03, -.05];
+  for (let i = 0; i < 9; i++) {
+    const x = X0 + (i % 3) * (S + GAP), y = 640 + Math.floor(i / 3) * (S + GAP);
+    poster(buildDailyDrawing(i), x, y, S, tilt[i]);
+    if (i === 1 || i === 4 || i === 7) {
+      g.save(); g.translate(x + S - 40, y + 44); g.scale(2.1, 2.1);
+      g.shadowColor = 'rgba(255,92,138,.8)'; g.shadowBlur = 22;
+      g.beginPath(); g.moveTo(0, 8);
+      g.bezierCurveTo(-14, -3, -9, -14, 0, -7);
+      g.bezierCurveTo(9, -14, 14, -3, 0, 8);
+      g.closePath(); g.fillStyle = C.pink; g.fill(); g.restore();
+    }
+  }
+  confetti(19, 22, 30, 620, 1050, 1620, .9);
+  pill(540, 1720, 900, 118, '405 PROMPTS · EVERY COLOUR FREE', 40, C.primary, C.onPrimary);
+  text('Hearts decide it. At midnight the names come out.', 540, 1850, 34, C.text, { weight: 700 });
+}
+
+// ===========================================================================
+// 5 — the feature graphic that sits on top of the listing (1024x500)
+// ===========================================================================
+function shotFeature() {
+  ground(512, 250, 1.2);
+  const tilt = [-.10, .08, -.07, .09];
+  const picks = ['pupBrella', 'smashOMatic', 'deskCat', 'zapHat'];
+  picks.forEach((k, i) => {
+    const x = i < 2 ? -30 + i * 150 : 764 + (i - 2) * 150;
+    poster(D(k), x, i % 2 ? 250 : 40, 210, tilt[i]);
+  });
+  const scrim = g.createLinearGradient(0, 0, W, 0);
+  scrim.addColorStop(0, 'rgba(11,9,32,.35)'); scrim.addColorStop(.30, 'rgba(11,9,32,.94)');
+  scrim.addColorStop(.70, 'rgba(11,9,32,.94)'); scrim.addColorStop(1, 'rgba(11,9,32,.35)');
+  g.fillStyle = scrim; g.fillRect(0, 0, W, H);
+
+  const s = 140;
+  if (icon.complete && icon.naturalWidth) {
+    g.save(); g.translate(214, 250);
+    g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 40; g.shadowOffsetY = 16;
+    roundRect(-s / 2, -s / 2, s, s, s * .22); g.clip(); g.shadowColor = 'transparent';
+    g.drawImage(icon, -s / 2, -s / 2, s, s); g.restore();
+  }
+  text('GRAND CANVAS', 312, 208, 64, C.primary, { spacing: 5, glow: 38, align: 'left' });
+  text('Draw it. Pitch it. Get funded.', 314, 272, 31, C.text, { weight: 700, align: 'left' });
+  text('RANKED · A DAILY PROMPT · ROOMS FOR TEN', 314, 316, 19, C.muted,
+       { weight: 700, spacing: 2, align: 'left' });
+  freeBadge(930, 86, 62, -.3);
+}
+
+// --- run ------------------------------------------------------------------
+const SHOTS = {
+  1: { w: 1080, h: 1920, draw: shotHook },
+  2: { w: 1080, h: 1920, draw: shotFunded },
+  3: { w: 1080, h: 1920, draw: shotTen },
+  4: { w: 1080, h: 1920, draw: shotDaily },
+  5: { w: 1024, h: 500,  draw: shotFeature },
+};
+const pick = SHOTS[new URLSearchParams(location.search).get('shot') || '1'];
+prepareStage(pick.w, pick.h, { x: 0, y: 0, size: 1 });
+const paint = () => { g.setTransform(1, 0, 0, 1, 0, 0); pick.draw(); };
+icon.complete && icon.naturalWidth ? paint() : (icon.onload = paint, icon.onerror = paint);
+</script>
+</body>
+</html>
