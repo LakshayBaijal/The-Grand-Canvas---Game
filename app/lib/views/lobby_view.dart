@@ -33,6 +33,7 @@ class LobbyView extends StatelessWidget {
     required this.onSetVisibility,
     required this.onAddFriend,
     required this.onInviteFriends,
+    required this.onKickPlayer,
   });
 
   final LobbyState lobby;
@@ -54,6 +55,10 @@ class LobbyView extends StatelessWidget {
   /// Friendly rooms only: pull online friends in by name.
   final VoidCallback onInviteFriends;
 
+  /// Host-only, friendly rooms only: empty one seat. Bots included, so the
+  /// same control clears any seat at the table.
+  final void Function(String playerId) onKickPlayer;
+
   bool get _isFriendly => lobby.mode == GameMode.friendly;
   // Ranked lobbies fill themselves and start themselves; there's no host to
   // press anything, so none of the host controls apply.
@@ -62,6 +67,44 @@ class LobbyView extends StatelessWidget {
   bool get _hasBots => lobby.players.any((p) => p.isBot);
   int get _maxPlayers => _isFriendly ? _friendlyMaxPlayers : _rankedMaxPlayers;
   bool get _hasRoom => lobby.players.length < _maxPlayers;
+
+  /// Asks before emptying a seat. A kick is instant and the other person is
+  /// told about it, so it is not something to do on a mis-tap — but it also
+  /// isn't a ban, and the wording says so rather than sounding final.
+  Future<void> _confirmKick(BuildContext context, Player player) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: GameColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          player.isBot ? 'Remove ${player.nickname}?' : 'Remove ${player.nickname}?',
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+        ),
+        content: Text(
+          player.isBot
+              ? 'The seat opens up for someone else.'
+              : 'They go back to the menu and are told you removed them. '
+                    'They can join again with the code.',
+          style: const TextStyle(color: GameColors.textMuted, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: const Text('CANCEL', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: const Text(
+              'REMOVE',
+              style: TextStyle(fontWeight: FontWeight.w900, color: GameColors.pink),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (yes == true) onKickPlayer(player.id);
+  }
 
   /// Tap someone at the table: add them as a friend. Bots don't have
   /// friends, and the server would say so; better not to offer.
@@ -160,6 +203,10 @@ class LobbyView extends StatelessWidget {
                 myId: myId,
                 maxPlayers: _maxPlayers,
                 onTapPlayer: (p) => _playerMenu(context, p),
+                // Only the host sees the minus badges, and never on their
+                // own seat — leaving is a different button.
+                canKick: (p) => _isHost && p.id != myId,
+                onKick: (p) => _confirmKick(context, p),
               ),
               if (_isFriendly) ...[
                 const SizedBox(height: 10),
@@ -249,12 +296,16 @@ class _PlayerRow extends StatelessWidget {
     required this.myId,
     required this.maxPlayers,
     required this.onTapPlayer,
+    required this.canKick,
+    required this.onKick,
   });
 
   final LobbyState lobby;
   final String myId;
   final int maxPlayers;
   final void Function(Player) onTapPlayer;
+  final bool Function(Player) canKick;
+  final void Function(Player) onKick;
 
   @override
   Widget build(BuildContext context) {
@@ -298,6 +349,9 @@ class _PlayerRow extends StatelessWidget {
                         color: GameColors.forIndex(i),
                         isMe: lobby.players[i].id == myId,
                         isHost: lobby.players[i].id == lobby.hostId,
+                        onKick: canKick(lobby.players[i])
+                            ? () => onKick(lobby.players[i])
+                            : null,
                       ),
                     )
                   : const _EmptySeat(),
@@ -319,12 +373,17 @@ class _PlayerChip extends StatelessWidget {
     required this.color,
     required this.isMe,
     required this.isHost,
+    this.onKick,
   });
 
   final Player player;
   final Color color;
   final bool isMe;
   final bool isHost;
+
+  /// Null for everyone who can't be removed — which is everyone, unless you
+  /// are the host of a friendly room looking at somebody else's seat.
+  final VoidCallback? onKick;
 
   @override
   Widget build(BuildContext context) {
@@ -357,6 +416,37 @@ class _PlayerChip extends StatelessWidget {
                   SketchGlyph.star,
                   size: 16,
                   color: GameColors.primary,
+                ),
+              ),
+            // Opposite corner to the host star so the two never collide, and
+            // with a hit box larger than the dot — 38px avatars sit close
+            // together and a 16px target would be a coin flip.
+            if (onKick != null)
+              Positioned(
+                top: -6,
+                left: -6,
+                child: GestureDetector(
+                  onTap: onKick,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: GameColors.pink,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: GameColors.surface, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.remove_rounded,
+                        size: 11,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
               ),
           ],

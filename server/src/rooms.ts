@@ -42,6 +42,27 @@ export const RANKED_START_DELAY_SECONDS = 3;
 export const PROMPT_SECONDS = 40;
 export const DRAW_SECONDS = 75;
 export const INVEST_SECONDS = 35;
+
+/** Extra voting time per drawing beyond a five-seat table.
+ *
+ *  The presentation before the vote already scales with the number of
+ *  drawings, but the interactive part did not: at five seats you judge four
+ *  drawings in 35s, and at ten you judge nine in the same 35s. That is less
+ *  than four seconds a drawing to remember and rank, and it is the one place
+ *  a ten-seat room actually strains — not the server, which sends about
+ *  twice the strokes it already thins and rounds.
+ *
+ *  Deliberately much smaller than a proportional scaling: judging the tenth
+ *  drawing is quicker than judging the second, and a round that drags is
+ *  worse than one that hurries. */
+export const VOTE_SECONDS_PER_EXTRA_ENTRY = 2.5;
+
+/** The interactive voting window for a table with [entries] drawings in it,
+ *  not counting the presentation that runs before it. */
+export function voteSecondsFor(entries: number): number {
+  const extra = Math.max(0, entries - MAX_PLAYERS);
+  return INVEST_SECONDS + Math.ceil(extra * VOTE_SECONDS_PER_EXTRA_ENTRY);
+}
 /** The scoreboard tail at the end of the reveal, after every drawing has had
  *  its moment. The showcase before it is timed separately — see
  *  SHOWCASE_SECONDS_PER_ENTRY. */
@@ -334,6 +355,29 @@ export function leaveLobby(playerId: string): Lobby | undefined {
     if (nextHuman) lobby.hostId = nextHuman.id;
   }
   return lobby;
+}
+
+/**
+ * The host removes someone from a friendly room. Returns the player who was
+ * removed, or null when there was nobody by that id.
+ *
+ * Deliberately not a variant of leaving: the player is told they were removed
+ * (see the `kicked` message) rather than silently finding themselves back at
+ * the menu, because the two feel completely different to be on the end of.
+ *
+ * Caller checks who is asking and what phase the lobby is in — index.ts does
+ * that for `add_bot` and `remove_bot` too, and the rules differ per message.
+ */
+export function kickPlayer(lobby: Lobby, targetId: string): Player | null {
+  const target = lobby.players.get(targetId);
+  if (!target) return null;
+
+  lobby.players.delete(targetId);
+  lobby.scores.delete(targetId);
+  lobby.roundDrawings.delete(targetId);
+  lobby.investments.delete(targetId);
+  lobby.rankings.delete(targetId);
+  return target;
 }
 
 export function playerInfos(lobby: Lobby): PlayerInfo[] {

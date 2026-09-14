@@ -9,7 +9,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bad_mental_canvas/screens/title_screen.dart';
 import 'package:bad_mental_canvas/theme.dart';
 
-const _fontDir = 'D:/dev/flutter/bin/cache/artifacts/material_fonts';
+/// Where the SDK keeps Roboto. `flutter test` exports FLUTTER_ROOT, so this
+/// works on whichever machine the tests are run from — it used to be one
+/// developer's D: drive, which meant these five files simply failed to set
+/// up anywhere else.
+final _fontDir =
+    '${Platform.environment['FLUTTER_ROOT'] ?? '/usr/local/flutter'}'
+    '/bin/cache/artifacts/material_fonts';
 
 /// Real fonts, or every glyph is a wide box and rows overflow that never
 /// would on a phone.

@@ -126,3 +126,59 @@ test("two different accounts never collide on one profile", () => {
   assert.equal(store.getProfileByGoogle("google-fff")!.id, a);
   assert.equal(store.getProfileByGoogle("google-ggg")!.id, b);
 });
+
+/**
+ * The thank-you is a reward for playing, deliberately NOT a reward for
+ * rating: Google Play bans incentivised reviews outright, and the in-app
+ * review API tells the app nothing about whether anyone rated, so there is
+ * nothing to gate on even if it were allowed. What these pin down is the only
+ * promise the server makes — it is owed after enough games, and offered once.
+ */
+test("the thank-you is owed only after enough games, and only once", () => {
+  const id = newPlayer("Regular");
+  assert.equal(store.getProfile(id)?.thanksDue, false, "not on day one");
+
+  for (let i = 1; i < store.THANKS_AFTER_GAMES; i++) {
+    award(id, 5, 0, 100);
+    assert.equal(store.getProfile(id)?.thanksDue, false, `still not after ${i} games`);
+  }
+
+  award(id, 5, 1, 200);
+  assert.equal(store.getProfile(id)?.thanksDue, true, "owed once the games are in");
+
+  store.markThanked(id);
+  assert.equal(store.getProfile(id)?.thanksDue, false, "and never owed again");
+
+  // Playing on doesn't bring it back, and marking twice is harmless.
+  award(id, 5, 0, 100);
+  store.markThanked(id);
+  assert.equal(store.getProfile(id)?.thanksDue, false);
+});
+
+test("signing in doesn't hand the thank-you out a second time", () => {
+  // Played on the phone, was thanked, then signs in to an account that has
+  // never been thanked. The folded-in games push the account past the
+  // threshold; without carrying the flag across, the reward comes twice.
+  const phone = newPlayer("Phone");
+  for (let i = 0; i < store.THANKS_AFTER_GAMES; i++) award(phone, 5, 0, 100);
+  store.markThanked(phone);
+
+  const account = newPlayer("Account");
+  store.linkGoogle(account, "google-thanks-a");
+  assert.equal(store.getProfile(account)?.thanksDue, false, "no games yet");
+
+  const merged = store.linkGoogle(phone, "google-thanks-a");
+  assert.ok(merged.games >= store.THANKS_AFTER_GAMES, "the games really did fold in");
+  assert.equal(merged.thanksDue, false, "already thanked on the phone — not again");
+});
+
+test("an untouched account still gets thanked after a merge", () => {
+  const phone = newPlayer("Phone2");
+  for (let i = 0; i < store.THANKS_AFTER_GAMES; i++) award(phone, 5, 0, 100);
+
+  const account = newPlayer("Account2");
+  store.linkGoogle(account, "google-thanks-b");
+
+  const merged = store.linkGoogle(phone, "google-thanks-b");
+  assert.equal(merged.thanksDue, true, "nobody has been thanked yet, so it is still owed");
+});

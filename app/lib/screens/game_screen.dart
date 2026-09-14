@@ -112,6 +112,16 @@ class _GameScreenState extends State<GameScreen> {
           _waitingSubmitted = submitted;
           _waitingTotal = total;
         });
+      case KickedEvent():
+        // The server has already unseated us, so leaving the normal way
+        // would send a `leave_lobby` for a lobby we're no longer in. Pop
+        // straight out and say why, or the screen just vanishes.
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('The host removed you from the room.'),
+          ),
+        );
       case ErrorEvent(:final message):
         ScaffoldMessenger.of(
           context,
@@ -268,6 +278,7 @@ class _GameScreenState extends State<GameScreen> {
             showInviteFriendsSheet(context, widget.connection),
         onSetVisibility: ({required bool isPublic}) =>
             widget.connection.setVisibility(isPublic: isPublic),
+        onKickPlayer: widget.connection.kickPlayer,
       ),
       GamePhase.promptWriting => PromptWritingView(
         key: ValueKey('prompt-${_promptWriting!.roundIndex}'),

@@ -65,10 +65,12 @@ class _MoneyShowcaseState extends State<MoneyShowcase> with TickerProviderStateM
   bool _stamped = false;
   final _timers = <Timer>[];
 
-  late final AnimationController _stampController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 520),
-  );
+  /// Built in initState, not lazily on first use. A showcase that is cut
+  /// short before the stamp lands never touches this, and a `late final`
+  /// would then be constructed for the first time by dispose() — where
+  /// `vsync: this` looks up an ancestor of an element that is already
+  /// deactivated, which throws.
+  late final AnimationController _stampController;
 
   /// Where each note comes to rest on the canvas, and how it sits.
   ///
@@ -80,6 +82,10 @@ class _MoneyShowcaseState extends State<MoneyShowcase> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
+    _stampController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
     _schedule();
   }
 

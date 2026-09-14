@@ -276,6 +276,8 @@ class GameConnection {
               .map((d) => UpcomingDay.fromJson(d as Map<String, dynamic>))
               .toList(),
         );
+      case 'kicked':
+        return KickedEvent(json['code'] as String? ?? '');
       case 'error':
         return ErrorEvent(json['message'] as String);
       case 'pong':
@@ -320,6 +322,10 @@ class GameConnection {
 
   void unlinkGoogle() => _send({'type': 'unlink_google'});
 
+  /// Tells the server the thank-you has been shown, so it is never offered
+  /// again on any device this account signs in on.
+  void thanksSeen() => _send({'type': 'thanks_seen'});
+
   /// Host-only, from inside the lobby.
   void setVisibility({required bool isPublic}) => _send({
     'type': 'set_visibility',
@@ -339,6 +345,11 @@ class GameConnection {
   void addBot() => _send({'type': 'add_bot'});
 
   void removeBot() => _send({'type': 'remove_bot'});
+
+  /// Host-only: empty one seat in a friendly room. Works on bots too, so the
+  /// same control clears any seat at the table.
+  void kickPlayer(String playerId) =>
+      _send({'type': 'kick_player', 'playerId': playerId});
 
   void submitPrompt(String text) =>
       _send({'type': 'submit_prompt', 'text': text});

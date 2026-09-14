@@ -23,6 +23,7 @@ import * as queue from "./matchmaking.js";
 import {
   DRAW_SECONDS,
   INVEST_SECONDS,
+  voteSecondsFor,
   INVESTMENT_BUDGET,
   INVESTMENT_STEP,
   MIN_PLAYERS_TO_START,
@@ -51,6 +52,7 @@ import {
   everyoneVoted,
   getLobbyByPlayer,
   joinLobby,
+  kickPlayer,
   leaveLobby,
   lobbySockets,
   playerInfos,
@@ -384,7 +386,8 @@ function finishDrawingRound(lobby: Lobby) {
   // Extra time up front for the client's one-at-a-time presentation of each
   // drawing before the interactive voting screen appears.
   const presentationSeconds = Math.ceil(entries.length * PRESENT_SECONDS_PER_ENTRY);
-  const deadlineMs = setPhaseTimer(lobby, INVEST_SECONDS + presentationSeconds, () =>
+  const voteSeconds = voteSecondsFor(entries.length);
+  const deadlineMs = setPhaseTimer(lobby, voteSeconds + presentationSeconds, () =>
     finishVoting(lobby),
   );
   clearBotTimers(lobby);
@@ -406,7 +409,7 @@ function finishDrawingRound(lobby: Lobby) {
   // Bots wait out the presentation too, so they don't finish before a human
   // has even seen the drawings.
   for (const id of botIds(lobby)) {
-    const delay = presentationSeconds * 1000 + botDelayMs(INVEST_SECONDS);
+    const delay = presentationSeconds * 1000 + botDelayMs(voteSeconds);
     scheduleBotAction(lobby, delay, () => {
       if (lobby.phase !== "voting") return;
       if (scoring === "money") {
@@ -882,6 +885,14 @@ wss.on("connection", (ws) => {
         break;
       }
 
+      case "thanks_seen": {
+        store.markThanked(playerId);
+        // Echoed back so the app sees thanksDue go false, which is what stops
+        // a second phone on the same account from offering it again.
+        sendProfile(ws, playerId);
+        break;
+      }
+
       case "get_leaderboard": {
         send(ws, {
           type: "leaderboard",
@@ -1045,6 +1056,26 @@ wss.on("connection", (ws) => {
         if (lobby.phase !== "lobby") return sendError(ws, "The game already started");
         if (!removeBot(lobby)) return sendError(ws, "There are no bots to remove");
         console.log(`[remove_bot] ${lobby.code}`);
+        broadcastLobbyState(lobby);
+        break;
+      }
+
+      case "kick_player": {
+        const lobby = getLobbyByPlayer(playerId);
+        if (!lobby) return sendError(ws, "You're not in a lobby");
+        if (lobby.mode !== "friendly") return sendError(ws, "Ranked tables can't be changed");
+        if (lobby.hostId !== playerId) return sendError(ws, "Only the host can remove players");
+        if (lobby.phase !== "lobby") return sendError(ws, "The game already started");
+        // Leaving is what this is; making it a separate control stops a
+        // mis-tap on your own seat from dropping you out of your own room.
+        if (message.playerId === playerId) return sendError(ws, "Leave the room instead");
+
+        const removed = kickPlayer(lobby, message.playerId);
+        if (!removed) return sendError(ws, "They already left");
+        console.log(`[kick] ${lobby.code} -${removed.nickname}`);
+        // Told before the state goes out, so the removed player's app knows
+        // why its lobby vanished rather than guessing from a silent close.
+        if (removed.ws) send(removed.ws, { type: "kicked", code: lobby.code });
         broadcastLobbyState(lobby);
         break;
       }

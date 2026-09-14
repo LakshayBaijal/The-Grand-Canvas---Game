@@ -154,6 +154,10 @@ export type ClientMessage =
    *  the claim. Sent after `hello`, never instead of it. */
   | { type: "link_google"; idToken: string }
   | { type: "unlink_google" }
+  /** The player has been shown the thank-you, so never offer it again.
+   *  Sent whether or not they did anything with it — the offer is what's
+   *  spent, not the reward. */
+  | { type: "thanks_seen" }
   | { type: "get_leaderboard" }
   // --- ranked ---
   | { type: "find_match" }
@@ -172,6 +176,9 @@ export type ClientMessage =
   | { type: "start_game" }
   | { type: "add_bot" }
   | { type: "remove_bot" }
+  /** Host-only, friendly rooms only, before the game starts. Works on bots
+   *  as well as people, so one control empties any seat. */
+  | { type: "kick_player"; playerId: string }
   // --- in game ---
   | { type: "submit_prompt"; text: string }
   | { type: "submit_drawing"; strokes: Stroke[]; title: string; paper?: string }
@@ -271,6 +278,9 @@ export type ServerMessage =
       visibility: LobbyVisibility;
     }
   | { type: "lobby_list"; lobbies: OpenLobby[] }
+  /** You were removed from a room by its host. Sent only to the person
+   *  removed; everyone else just sees the seat empty in `lobby_state`. */
+  | { type: "kicked"; code: string }
   | {
       type: "prompt_writing";
       template: string;

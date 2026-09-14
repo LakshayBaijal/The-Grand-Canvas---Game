@@ -193,6 +193,7 @@ class Profile {
     required this.placementsLeft,
     required this.season,
     required this.seasonEndsMs,
+    required this.thanksDue,
   });
 
   final String id;
@@ -218,6 +219,11 @@ class Profile {
   final int season;
   final int seasonEndsMs;
 
+  /// The server says this player has stayed long enough to be owed the
+  /// thank-you and hasn't had it yet. Decided server-side so a Google-linked
+  /// account isn't offered it again on a second phone.
+  final bool thanksDue;
+
   bool get isPlacing => placementsLeft > 0;
 
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
@@ -236,6 +242,7 @@ class Profile {
         placementsLeft: (json['placementsLeft'] as num?)?.toInt() ?? 0,
         season: (json['season'] as num?)?.toInt() ?? 0,
         seasonEndsMs: (json['seasonEndsMs'] as num?)?.toInt() ?? 0,
+        thanksDue: json['thanksDue'] as bool? ?? false,
       );
 }
 

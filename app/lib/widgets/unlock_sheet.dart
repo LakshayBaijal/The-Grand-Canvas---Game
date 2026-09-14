@@ -22,6 +22,19 @@ import 'sketch_icons.dart';
 ///  * **Today only** — a short video for every colour for 24 hours. Papers
 ///    and pens are never given away for a video, so the pass stays worth
 ///    more than the free route.
+/// The paid colours, in the order the toolbar shows them. Public because
+/// every screen that offers them has to show the same seven — a second copy
+/// of this list is how one of them ends up a colour short.
+const paidColours = [
+  Color(0xFFE53935),
+  Color(0xFFFB8C00),
+  Color(0xFF43A047),
+  Color(0xFF1E88E5),
+  Color(0xFF8E24AA),
+  Color(0xFF6D4C41),
+  Colors.white,
+];
+
 Future<void> showUnlockSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
@@ -41,17 +54,6 @@ class _UnlockSheet extends StatefulWidget {
 class _UnlockSheetState extends State<_UnlockSheet> {
   bool _busy = false;
   String? _error;
-
-  /// The paid colours, in the order the toolbar shows them.
-  static const _colours = [
-    Color(0xFFE53935),
-    Color(0xFFFB8C00),
-    Color(0xFF43A047),
-    Color(0xFF1E88E5),
-    Color(0xFF8E24AA),
-    Color(0xFF6D4C41),
-    Colors.white,
-  ];
 
   Future<void> _run(
     Future<bool> Function() action,
@@ -170,7 +172,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                     'Black and yellow are always free. These seven join them.',
                 child: Row(
                   children: [
-                    for (final c in _colours)
+                    for (final c in paidColours)
                       Container(
                         margin: const EdgeInsets.only(right: 6),
                         width: 24,

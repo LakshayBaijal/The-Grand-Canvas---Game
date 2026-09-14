@@ -50,7 +50,21 @@ export type Profile = {
   /** Whether a Google account owns this profile. The `sub` itself never
    *  leaves the server — the client only needs to know if it is linked. */
   linked: boolean;
+  /** True once this player has finished enough games to be owed the
+   *  thank-you, and hasn't been given it yet. See [THANKS_AFTER_GAMES]. */
+  thanksDue: boolean;
 };
+
+/**
+ * Ranked games before the thank-you is offered.
+ *
+ * Low enough that someone who likes the game reaches it in an evening, high
+ * enough that it isn't handed to a person who opened the app once — the
+ * point is to give something back to a player who stayed, not to run a
+ * giveaway. Friendly games deliberately don't count: they're unrated and a
+ * host with bots could reach any number in minutes.
+ */
+export const THANKS_AFTER_GAMES = 3;
 
 export type LeaderboardRow = Profile & { rank: number };
 
@@ -95,6 +109,11 @@ export function openStore(path: string): void {
   // The Google account this profile belongs to, if it has been linked. Google
   // calls it `sub`; it is stable for a given user and app, and is the only
   // part of the token worth storing — we deliberately keep no email or name.
+  // When this player was given the thank-you (0 = never). Stored on the
+  // profile rather than the phone so that a Google-linked account isn't
+  // offered it again on a second device, and a reinstall doesn't reset it.
+  addColumn("players", "thanked_ms", "INTEGER NOT NULL DEFAULT 0");
+
   addColumn("players", "google_sub", "TEXT");
   // Partial index: unlinked profiles all have NULL here, and NULLs would
   // otherwise collide under a plain unique index on some engines.
@@ -222,6 +241,7 @@ type Row = {
   season: number;
   season_games: number;
   google_sub: string | null;
+  thanked_ms: number;
 };
 
 function toProfile(row: Row): Profile {
@@ -237,7 +257,18 @@ function toProfile(row: Row): Profile {
     season: row.season,
     seasonGames: row.season_games,
     linked: row.google_sub !== null,
+    thanksDue: row.thanked_ms === 0 && row.games >= THANKS_AFTER_GAMES,
   };
+}
+
+/** Records that the thank-you has been given, so it is never offered twice.
+ *  Idempotent: a second call on the same profile changes nothing. */
+export function markThanked(id: string): Profile | null {
+  db.prepare(`UPDATE players SET thanked_ms = ? WHERE id = ? AND thanked_ms = 0`).run(
+    Date.now(),
+    id,
+  );
+  return getProfile(id);
 }
 
 /**
@@ -324,14 +355,37 @@ export function linkGoogle(deviceId: string, sub: string): Profile {
 
   const device = getProfile(deviceId);
   if (device) {
+    // thanked_ms takes whichever side has already been thanked, because the
+    // folded-in games push the total past the threshold: without this, a
+    // player who was thanked on their phone before signing in would be owed
+    // it all over again on the account.
+    const deviceThanked = (
+      db.prepare("SELECT thanked_ms FROM players WHERE id = ?").get(deviceId) as
+        | { thanked_ms: number }
+        | undefined
+    )?.thanked_ms ?? 0;
     db.prepare(
       `UPDATE players
          SET trophies   = trophies + ?,
              games      = games + ?,
              wins       = wins + ?,
-             best_score = MAX(best_score, ?)
+             best_score = MAX(best_score, ?),
+             thanked_ms = CASE
+                            WHEN thanked_ms = 0 THEN ?
+                            WHEN ? = 0          THEN thanked_ms
+                            ELSE MIN(thanked_ms, ?)
+                          END
        WHERE id = ?`,
-    ).run(device.trophies, device.games, device.wins, device.bestScore, existing.id);
+    ).run(
+      device.trophies,
+      device.games,
+      device.wins,
+      device.bestScore,
+      deviceThanked,
+      deviceThanked,
+      deviceThanked,
+      existing.id,
+    );
     db.prepare("DELETE FROM players WHERE id = ?").run(deviceId);
   }
   return getProfile(existing.id)!;

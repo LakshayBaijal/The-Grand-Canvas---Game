@@ -46,6 +46,10 @@ dependencies:
   flutter_timezone: ^5.1.0
   google_mobile_ads: ^9.1.0
   in_app_purchase: ^3.3.0
+  # Play's own review sheet. It reports nothing back — not whether the
+  # player rated, nor what they gave — which is exactly why no reward can
+  # ever be tied to it. See ThanksSheet.
+  in_app_review: ^2.0.12
   gal: ^2.3.3
   path_provider: ^2.1.6
 

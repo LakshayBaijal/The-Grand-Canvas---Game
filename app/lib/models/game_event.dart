@@ -352,6 +352,14 @@ class DailyUpcomingEvent extends GameEvent {
   final List<UpcomingDay> days;
 }
 
+/// The host of a friendly room removed you from it. Distinct from simply
+/// being dropped, because "the room closed" and "someone removed you" are
+/// very different things to be told.
+class KickedEvent extends GameEvent {
+  const KickedEvent(this.code);
+  final String code;
+}
+
 class ErrorEvent extends GameEvent {
   const ErrorEvent(this.message);
   final String message;

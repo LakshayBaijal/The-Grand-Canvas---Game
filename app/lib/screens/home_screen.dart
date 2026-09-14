@@ -8,6 +8,7 @@ import '../models/lobby_state.dart';
 import '../models/round_models.dart';
 import '../services/game_connection.dart';
 import '../services/google_account.dart';
+import '../services/entitlements.dart';
 import '../services/identity.dart';
 import '../services/server_discovery.dart';
 import '../theme.dart';
@@ -17,6 +18,7 @@ import '../widgets/ad_banner.dart';
 import '../widgets/friends_sheet.dart';
 import '../widgets/logo.dart';
 import '../widgets/pass_button.dart';
+import '../widgets/thanks_sheet.dart';
 import '../services/audio_service.dart';
 import 'game_screen.dart';
 import '../services/daily_reminder.dart';
@@ -75,6 +77,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _discovering = false;
   bool _discovered = false;
   bool _inGame = false;
+
+  /// The thank-you is owed but can't be shown yet — the player is mid-game
+  /// or in the queue. Held until they're back on the menu: landing it over
+  /// the final scores would bury it under the thing they actually came for.
+  bool _thanksWaiting = false;
 
   /// The friendly-lobby request in flight, kept so it can be retried once if
   /// the server thinks we're still seated somewhere. Null when idle; the
@@ -305,6 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       case ProfileEvent(:final profile):
         setState(() => _profile = profile);
+        if (profile.thanksDue) _offerThanks();
       case DailyUpcomingEvent(:final days):
         DailyReminder.instance.schedule(days);
       case DoodleEvent():
@@ -352,6 +360,29 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Gives the thank-you: a day of everything, for having played a few
+  /// games. Held back until the menu is on top, then granted before it is
+  /// shown so the reward is real whatever the player does with the sheet.
+  ///
+  /// The server is told once the sheet has been seen, which is what stops it
+  /// being offered again — on this phone or, for a Google-linked account, on
+  /// any other. Nothing here is conditional on rating anything; see
+  /// [showThanksSheet] for why that matters.
+  Future<void> _offerThanks() async {
+    if (_inGame || _queued) {
+      _thanksWaiting = true;
+      return;
+    }
+    _thanksWaiting = false;
+    // Marked before the sheet opens: if the app is killed mid-sheet the
+    // player keeps the pass and is not pestered again, which is the right
+    // way round to fail.
+    widget.connection.thanksSeen();
+    await Entitlements.instance.grantThanksPass();
+    if (!mounted) return;
+    await showThanksSheet(context);
+  }
+
   void _openGame(LobbyState lobby) {
     _pendingFriendly = null;
     setState(() {
@@ -377,6 +408,7 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() => _inGame = false);
           // Still signed in on the same socket — just pick the canvas back up.
           if (_connected) widget.connection.requestDoodle();
+          if (_thanksWaiting) _offerThanks();
         });
   }
 

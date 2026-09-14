@@ -17,7 +17,13 @@ import 'package:bad_mental_canvas/services/drawing_export.dart';
 ///
 /// Output lands in `build/screenshots/export_card*.png` (gitignored).
 
-const _fontDir = 'D:/dev/flutter/bin/cache/artifacts/material_fonts';
+/// Where the SDK keeps Roboto. `flutter test` exports FLUTTER_ROOT, so this
+/// works on whichever machine the tests are run from — it used to be one
+/// developer's D: drive, which meant these five files simply failed to set
+/// up anywhere else.
+final _fontDir =
+    '${Platform.environment['FLUTTER_ROOT'] ?? '/usr/local/flutter'}'
+    '/bin/cache/artifacts/material_fonts';
 
 Future<void> _loadFonts() async {
   final loader = FontLoader('Roboto');

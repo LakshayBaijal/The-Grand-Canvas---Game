@@ -125,6 +125,64 @@ void main() {
     });
   });
 
+  group('the thank-you pass', () {
+    test('gives everything the pass gives, but only for a day', () async {
+      await entitlements.grantThanksPass();
+
+      expect(entitlements.hasFullPalette, isTrue);
+      // The one place styles are given away. It is what makes the day worth
+      // something: a screenshot of a brush never sold anyone a brush.
+      expect(entitlements.hasStyles, isTrue);
+      expect(entitlements.hasLifetime, isFalse, reason: 'it is not a purchase');
+      expect(entitlements.dayPassLeft, isNotNull);
+    });
+
+    test('a chosen paper and pen actually apply while it runs', () async {
+      await entitlements.grantThanksPass();
+      await entitlements.choosePaper(PaperStyle.kraft);
+      await entitlements.choosePen(PenStyle.brush);
+
+      expect(entitlements.paper, PaperStyle.kraft);
+      expect(entitlements.pen, PenStyle.brush);
+    });
+
+    test('when it runs out the styles lock again, choice intact', () async {
+      SharedPreferences.setMockInitialValues({
+        'thanks_pass_until': DateTime.now()
+            .subtract(const Duration(minutes: 1))
+            .millisecondsSinceEpoch,
+        'style_paper': PaperStyle.kraft.id,
+        'style_pen': PenStyle.brush.id,
+      });
+      await entitlements.load();
+
+      expect(entitlements.hasStyles, isFalse);
+      expect(entitlements.hasFullPalette, isFalse);
+      // The choice is remembered, so buying the pass later restores what they
+      // picked rather than dumping them back on plain paper.
+      expect(entitlements.paper, PaperStyle.free);
+      expect(entitlements.pen, PenStyle.free);
+    });
+
+    test('it survives a restart', () async {
+      await entitlements.grantThanksPass();
+      await entitlements.load();
+
+      expect(entitlements.hasStyles, isTrue);
+    });
+
+    test('it and an ad pass do not eat each other', () async {
+      // Different keys on purpose: a watched ad landing mid-thank-you must
+      // not shorten either one.
+      await entitlements.grantThanksPass();
+      final thanks = entitlements.dayPassLeft!;
+      await entitlements.grantDayPass();
+
+      expect(entitlements.hasStyles, isTrue, reason: 'the thank-you still runs');
+      expect(entitlements.dayPassLeft!.inMinutes, greaterThanOrEqualTo(thanks.inMinutes - 1));
+    });
+  });
+
   test('listeners fire so the palette repaints the moment it unlocks', () async {
     await entitlements.load();
     var notified = 0;
