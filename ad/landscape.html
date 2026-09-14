@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — 6.5s ad (landscape)</title>
+<style>
+  /* A fixed 1920x1080 stage (16:9, what YouTube and a laptop want), pinned to
+     the centre of the viewport and scaled to fit whatever window it is in.
+     Everything outside it letterboxes black. */
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center;
+           transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 22px; opacity: 0;
+        box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer;
+           background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start">
+    <div>
+      <b>GRAND CANVAS</b>
+      <span>6.5 second spot &middot; landscape<br><br>
+        <kbd>click</kbd> or <kbd>space</kbd> to play<br>
+        <kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span>
+    </div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+/**
+ * The landscape cut -- YouTube, a laptop, anything 16:9.
+ *
+ * Same six and a half seconds, rearranged rather than letterboxed: the paper
+ * takes the left half at nearly full height, and the prompt, the name and the
+ * money stack down the right. A 9:16 spot with bars on it reads as somebody
+ * else's phone video; this reads as made for the screen it's on.
+ *
+ * "Mornings would be so much easier without the alarm clock."  ->  a boxing
+ * glove on a spring that punches the alarm for you. Every piece is a shape you
+ * can name -- circle, bell, coil, glove -- so the gag lands while the pencil
+ * is still moving.
+ */
+startSpot({
+  W: 1920, H: 1080,
+  seed: 19,
+  prompt: { before: 'Mornings would be so much easier without ', blank: 'the alarm clock', after: '.' },
+  title: 'THE SNOOZE-MITT',
+  subtitle: "it punches the alarm so you don't have to",
+
+  build({ S, C, line, arc, ellipse, curve, poly, coilBetween }) {
+    const s = [];
+    const cx = .32, cy = .50, r = .185;
+
+    // -- the alarm clock: the thing the prompt is complaining about
+    s.push(S(ellipse(cx, cy, r, r), C.ink, 8));                              // case
+    s.push(S(ellipse(cx, cy, r * .80, r * .80), C.ink, 5));                  // inner rim
+    s.push(S(arc(.185, .275, .072, .068, Math.PI * .82, Math.PI * 2.18), C.ink, 7));   // bells
+    s.push(S(line({ x: .123, y: .300 }, { x: .247, y: .300 }), C.ink, 5));
+    s.push(S(arc(.455, .275, .072, .068, Math.PI * .82, Math.PI * 2.18), C.ink, 7));
+    s.push(S(line({ x: .393, y: .300 }, { x: .517, y: .300 }), C.ink, 5));
+    s.push(S(line({ x: .228, y: .332 }, { x: .258, y: .368 }), C.ink, 6));   // bell stems
+    s.push(S(line({ x: .412, y: .332 }, { x: .382, y: .368 }), C.ink, 6));
+    s.push(S(line({ x: .320, y: .222 }, { x: .320, y: .296 }), C.ink, 6));   // the hammer
+    s.push(S(ellipse(.320, .210, .021, .019), C.ink, 6));
+    s.push(S(line({ x: .215, y: .665 }, { x: .175, y: .768 }), C.ink, 7));   // legs
+    s.push(S(line({ x: .425, y: .665 }, { x: .465, y: .768 }), C.ink, 7));
+
+    // -- the face: it knows exactly what is coming
+    s.push(S(ellipse(.268, .455, .018, .021), C.ink, 6));
+    s.push(S(ellipse(.372, .455, .018, .021), C.ink, 6));
+    s.push(S(curve([{ x: .270, y: .585 }, { x: .320, y: .545 }, { x: .370, y: .585 }]), C.ink, 6));
+    s.push(S(curve([{ x: .140, y: .300 }, { x: .161, y: .334 }, { x: .140, y: .358 },
+                    { x: .121, y: .334 }, { x: .140, y: .300 }]), C.cyan, 7, 'marker'));   // sweat
+    s.push(S(line({ x: .075, y: .785 }, { x: .720, y: .785 }), C.ink, 7));   // the bedside table
+
+    // -- the invention, arriving from the right at speed
+    s.push(S(poly([{ x: .975, y: .405 }, { x: .905, y: .405 }, { x: .905, y: .595 }, { x: .975, y: .595 }]), C.ink, 7));
+    s.push(S(coilBetween({ x: .895, y: cy }, { x: .730, y: cy }, 4, .050), C.ink, 7));     // the spring
+    s.push(S(poly([{ x: .682, y: .448 }, { x: .730, y: .448 }, { x: .730, y: .552 },
+                   { x: .682, y: .552 }, { x: .682, y: .448 }]), C.ink, 6));               // cuff
+    s.push(S(ellipse(.595, .500, .085, .095), C.ink, 7));                                  // the mitt
+    s.push(S(curve([{ x: .548, y: .556 }, { x: .506, y: .578 }, { x: .504, y: .616 },
+                    { x: .546, y: .612 }]), C.ink, 7));                                    // thumb
+    s.push(S(curve([{ x: .556, y: .444 }, { x: .595, y: .436 }, { x: .634, y: .447 }]), C.ink, 5));  // knuckles
+    // Ink outline, marker fill -- the way everything in this game gets coloured.
+    // Spaced a hair closer than the marker is wide, so the strokes merge into
+    // a filled shape instead of reading as stripes, and shortened towards the
+    // top and bottom so the colour follows the mitt rather than sitting on it.
+    for (let i = 0; i < 11; i++) {
+      const yy = .428 + i * .0144;
+      const k = Math.sqrt(Math.max(0, 1 - Math.pow((yy - .500) / .095, 2))) * .88;
+      s.push(S(line({ x: .595 - .085 * k, y: yy }, { x: .595 + .085 * k, y: yy }, .3), C.pink, 7, 'marker'));
+    }
+    s.push(S(line({ x: .518, y: .588 }, { x: .540, y: .588 }, .3), C.pink, 7, 'marker'));   // thumb fill
+    s.push(S(line({ x: .516, y: .602 }, { x: .540, y: .602 }, .3), C.pink, 7, 'marker'));
+
+    // -- contact
+    for (const a of [.35, 1.05, 1.75, 2.45, 3.15, 3.85, 4.55, 5.25])
+      s.push(S(line({ x: .512 + Math.cos(a) * .038, y: .50 + Math.sin(a) * .038 },
+                    { x: .512 + Math.cos(a) * .082, y: .50 + Math.sin(a) * .082 }, .4), C.primary, 9, 'marker'));
+    for (const y of [.42, .50, .58])                                                       // knocked sideways
+      s.push(S(line({ x: .110, y }, { x: .030, y }, .4), C.cyan, 8, 'marker'));
+    return s;
+  },
+
+  layout: {
+    chipX: 1030, chipW: 300, hudY: 90, hudH: 66, hudText: 26,
+    clockX: 1660, clockW: 200, clockText: 32,
+    promptX: 1445, promptY: 280, promptW: 800, promptSize: 44,
+    paperX: 90, paperY: 100, paperSize: 880, noteSize: 124, bgGlowR: 1000,
+    titleX: 1445, titleY: 520, titleSize: 78, subY: 590, subSize: 30,
+    barX: 1205, barW: 480, pillY: 690, pillH: 104, raisedSize: 26, amountSize: 56,
+    goalY: 846, goalSize: 20,
+    stampX: 530, stampY: 560, stampW: 618, stampH: 206, stampText: 140,
+    end: {
+      glowX: 960, glowY: 500, glowR: 900,
+      iconX: 515, iconY: 500, iconSize: 360,
+      align: 'left', textX: 775,
+      wordY: 430, wordSize: 96, wordSpacing: 8,
+      tagY: 520, tagSize: 40,
+      ctaCX: 1075, ctaCY: 620, ctaW: 600, ctaH: 112, ctaText: 38,
+      wgX: 912, wgY: 800, wgSize: 96,
+      studioX: 960, studioY: 945, studioSize: 24,
+    },
+  },
+});
+</script>
+</body>
+</html>

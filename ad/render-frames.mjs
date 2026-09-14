@@ -31,12 +31,16 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 ws.addEventListener('open', async () => {
   await send('Runtime.enable');
   await send('Page.enable');
+  await sleep(900);   // the page was opened by the launcher; let it parse
   // Exact output pixels, independent of the window the browser opened with.
-  await send('Emulation.setDeviceMetricsOverride', { width: 1080, height: 1920, deviceScaleFactor: 1, mobile: false });
+  // The page knows its own size, so portrait and landscape need no flag here.
+  const dims = await send('Runtime.evaluate', { expression: '[W, H].join("x")', returnByValue: true });
+  const [vw, vh] = String(dims.result.value).split('x').map(Number);
+  await send('Emulation.setDeviceMetricsOverride', { width: vw, height: vh, deviceScaleFactor: 1, mobile: false });
+  console.log(`stage: ${vw}x${vh}`);
 
-  // Chrome was launched straight at the page, so there is nothing to
-  // navigate to -- just let fonts and the icon settle.
-  await sleep(1500);
+  // Let fonts and the icon settle before the first capture.
+  await sleep(1200);
   const probe = await send('Runtime.evaluate', { expression: 'typeof frame + "," + (typeof wg) + "," + (icon.complete && icon.naturalWidth > 0)' });
   console.log('page ready:', probe.result.value);
   if (!String(probe.result.value).startsWith('function')) { console.error('frame() not found -- wrong target?'); process.exit(1); }
