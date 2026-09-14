@@ -9,8 +9,13 @@
      ad slot wants) scaled to whatever window it is in. Record the window, or
      open it at exactly 540x960 / 1080x1920 for a pixel-perfect capture. */
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-  body { display: grid; place-items: center; font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
-  #stage { position: relative; width: 1080px; height: 1920px; transform-origin: center; background: #0B0920; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  /* Pinned to the middle of the viewport and scaled from there. Centring it
+     as a grid item instead looks identical at 1080x1920 and is black at every
+     other size: the row grows to the stage's full 1920px, so scaling about
+     the stage's own centre leaves it below the fold of a normal window. */
+  #stage { position: fixed; left: 50%; top: 50%; width: 1080px; height: 1920px;
+           transform-origin: center; transform: translate(-50%, -50%); background: #0B0920; }
   #c { position: absolute; inset: 0; width: 1080px; height: 1920px; }
   /* The studio mark is an animated GIF; a canvas would only ever draw its
      first frame, so it lives in the DOM above the canvas and is faded in
@@ -465,7 +470,10 @@ let loop = params.has('loop');
 let start = null, raf = 0, played = { win: false, launch: false };
 const overlay = document.getElementById('start');
 
-function fit() { const k = Math.min(innerWidth / W, innerHeight / H); document.getElementById('stage').style.transform = `scale(${k})`; }
+function fit() {
+  const k = Math.min(innerWidth / W, innerHeight / H);
+  document.getElementById('stage').style.transform = `translate(-50%, -50%) scale(${k})`;
+}
 addEventListener('resize', fit); fit();
 
 function play() {

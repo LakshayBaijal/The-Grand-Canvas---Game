@@ -1,7 +1,9 @@
 # The 6.5-second spot
 
-One scripted round of the real game, then the logo. Open `index.html` in
-Chrome, press **space**, screen-record it. That's the ad.
+**`GrandCanvas-ad.mp4`** is the finished thing — 1080x1920, 60fps, 6.5s, with
+sound. Upload it as-is. Everything else here is what made it.
+
+One scripted round of the real game, then the logo.
 
 ```
 0.0  prompt lands on the paper       "Walking the dog always means dealing with rain."
@@ -20,7 +22,24 @@ hype is in the pacing. Ads that show gameplay a game doesn't have are the
 fastest route to one-star reviews and an AdMob policy strike, so nothing here
 is invented.
 
-## Recording it
+## Rebuilding the video
+
+After changing anything in `index.html`:
+
+```bash
+./ad/render-mp4.sh
+```
+
+It drives one headless Chrome over the DevTools protocol — set the clock to
+frame N, screenshot, repeat — then hands the PNG sequence to ffmpeg with the
+game's music and stings mixed under it. Because nothing depends on real-time
+playback, the capture can take as long as it likes and every frame is exact;
+and because the hand-wobble comes from a seeded RNG, two runs are identical.
+
+Needs Chrome, node 18+, and ffmpeg (`brew install ffmpeg`). Knobs:
+`FPS=30 CRF=23 ./ad/render-mp4.sh` for a smaller file.
+
+## Watching it live, or recording it by hand
 
 1. Open `ad/index.html` in Chrome (double-click the file).
 2. Press **⌘⇧F** / F11 for full screen — the stage scales to fit and letterboxes
