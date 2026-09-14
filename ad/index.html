@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — 6.5s ad</title>
+<style>
+  /* The stage is a fixed 1080x1920 canvas (9:16, what every short-video and
+     ad slot wants) scaled to whatever window it is in. Record the window, or
+     open it at exactly 540x960 / 1080x1920 for a pixel-perfect capture. */
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: grid; place-items: center; font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: relative; width: 1080px; height: 1920px; transform-origin: center; background: #0B0920; }
+  #c { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+  /* The studio mark is an animated GIF; a canvas would only ever draw its
+     first frame, so it lives in the DOM above the canvas and is faded in
+     for the end card. */
+  #wg { position: absolute; left: 50%; top: 1660px; width: 150px; height: 150px; margin-left: -75px;
+        border-radius: 32px; opacity: 0; box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer;
+           background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" width="1080" height="1920"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start">
+    <div>
+      <b>GRAND CANVAS</b>
+      <span>6.5 second spot<br><br>
+        <kbd>click</kbd> or <kbd>space</kbd> to play<br>
+        <kbd>R</kbd> replay &nbsp;·&nbsp; <kbd>M</kbd> mute &nbsp;·&nbsp; <kbd>L</kbd> loop</span>
+    </div>
+  </div>
+  <audio id="aDraw"   src="assets/drawing.ogg"      preload="auto"></audio>
+  <audio id="aWin"    src="assets/sting_win.ogg"    preload="auto"></audio>
+  <audio id="aLaunch" src="assets/sting_launch.ogg" preload="auto"></audio>
+</div>
+
+<script>
+'use strict';
+// ---------------------------------------------------------------------------
+// Grand Canvas — the 6.5 second spot.
+//
+// One scripted round of the real game, start to finish, then the logo:
+//
+//   0.0  prompt lands on the paper
+//   0.5  the invention is drawn, stroke by stroke, pencil at the tip
+//   3.6  its name is stamped underneath
+//   4.1  the table's money lands on it, $200 a note, up to $1,800
+//   5.0  FUNDED!
+//   5.3  logo card: icon, wordmark, "free on Google Play", studio mark
+//   6.5  hold
+//
+// Everything shown is a real mechanic — the prompt template is one of the
+// game's own, the paper and pens are ported from drawing_canvas.dart, the
+// money and the FUNDED stamp are the reveal screen. Ads that show gameplay a
+// game doesn't have are the fastest route to one-star reviews and an AdMob
+// policy strike, so the hype is in the pacing, not in inventing features.
+// ---------------------------------------------------------------------------
+
+const W = 1080, H = 1920;
+const cv = document.getElementById('c');
+const g = cv.getContext('2d');
+
+// The game's palette (theme.dart) and paper (drawing_canvas.dart).
+const C = {
+  bg: '#0B0920', bgHigh: '#15113A', surface: '#181341', border: '#322B66',
+  primary: '#FFC53D', primaryBright: '#FFE08A', primaryDeep: '#E9A213', onPrimary: '#231700',
+  pink: '#FF5C8A', cyan: '#3DDCFF', lime: '#9BE564', purple: '#B388FF',
+  text: '#F6F4FF', muted: '#9E97CE',
+  paper: '#FAF3E3', ink: '#1A1A1A', funded: '#1EA84A', note: '#2FA84F', notePaper: '#EFF7EA',
+};
+
+// --- tiny helpers -----------------------------------------------------------
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOut = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+const easeIn = t => Math.pow(clamp(t, 0, 1), 3);
+const easeInOut = t => { t = clamp(t, 0, 1); return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2; };
+// Overshoots then settles — the "pop" every UI element here lands with.
+const back = t => { t = clamp(t, 0, 1); const s = 1.70158; return 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2); };
+// Progress of a window [a, b] at time t, 0 before and 1 after.
+const win = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+
+// Deterministic RNG (mulberry32, same as the server's doodle engine) so every
+// take of the ad is identical — the hand wobble never changes between runs.
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+// --- the drawing ------------------------------------------------------------
+// "Walking the dog always means dealing with ___."  →  rain.
+// The invention: a dog in a tiny umbrella hat. Chosen because every part of it
+// is a shape a person can name in the half-second it takes to draw — circle,
+// ellipse, arc, a few lines — so the picture reads while it is still being
+// made, which is the whole trick of the spot.
+//
+// Coordinates are 0..1 on the paper, like the game's own strokes. Each stroke
+// is built from a clean shape and then given the same three imperfections the
+// server's pen gives bot drawings: a slow bow, a fine tremor, and endpoints
+// that land a hair off. Clean geometry, human hand.
+const rand = rng(7);
+function wobble(pts, amt = 1) {
+  const bowAmp = (rand() * 2 - 1) * 0.006 * amt, phase = rand() * Math.PI;
+  const n = pts.length - 1;
+  return pts.map((p, i) => {
+    const t = n ? i / n : 0;
+    const bow = Math.sin(t * Math.PI + phase * .15) * bowAmp;
+    const tremor = (rand() * 2 - 1) * 0.0014 * amt;
+    return { x: p.x + bow + tremor, y: p.y + bow * .6 + tremor };
+  });
+}
+function line(a, b, amt = 1) {
+  const n = Math.max(6, Math.round(Math.hypot(b.x - a.x, b.y - a.y) * 60));
+  const pts = []; for (let i = 0; i <= n; i++) pts.push({ x: lerp(a.x, b.x, i / n), y: lerp(a.y, b.y, i / n) });
+  return wobble(pts, amt);
+}
+function arc(cx, cy, rx, ry, from, to, amt = 1) {
+  const n = Math.max(10, Math.round(Math.abs(to - from) * (rx + ry) * 60));
+  const pts = []; for (let i = 0; i <= n; i++) { const a = lerp(from, to, i / n); pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry }); }
+  return wobble(pts, amt);
+}
+// Ellipse that starts at a random angle and doesn't quite close — the single
+// most recognisable "drawn by a person" tell.
+function ellipse(cx, cy, rx, ry, amt = 1) {
+  const start = rand() * Math.PI * 2, sweep = Math.PI * 2 + (rand() * .3 - .1);
+  return arc(cx, cy, rx, ry, start, start + sweep, amt);
+}
+function poly(pts, amt = 1) {
+  let out = []; for (let i = 0; i < pts.length - 1; i++) { const seg = line(pts[i], pts[i + 1], amt); out = out.concat(i ? seg.slice(1) : seg); } return out;
+}
+function curve(pts, amt = 1) {  // Catmull-Rom through the points
+  const out = []; for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    for (let s = 0; s < 12; s++) { const t = s / 12, t2 = t * t, t3 = t2 * t;
+      out.push({ x: .5 * ((2*p1.x) + (-p0.x + p2.x)*t + (2*p0.x - 5*p1.x + 4*p2.x - p3.x)*t2 + (-p0.x + 3*p1.x - 3*p2.x + p3.x)*t3),
+                 y: .5 * ((2*p1.y) + (-p0.y + p2.y)*t + (2*p0.y - 5*p1.y + 4*p2.y - p3.y)*t2 + (-p0.y + 3*p1.y - 3*p2.y + p3.y)*t3) }); } }
+  out.push(pts[pts.length - 1]); return wobble(out, amt);
+}
+const S = (pts, color = C.ink, width = 6, style = 'pen') => ({ pts, color, width, style });
+
+// Layout on the paper: dog sits low-centre, umbrella above, rain around.
+const DOG = (() => {
+  const s = [];
+  // -- umbrella first: it's the joke, so it's what you see being drawn first.
+  const ux = .5, uy = .30, ur = .27;
+  s.push(S(arc(ux, uy, ur, ur * .62, Math.PI, Math.PI * 2), C.ink, 7));              // canopy top
+  // scalloped edge: five little dips
+  { const pts = []; for (let i = 0; i <= 5; i++) { const a = Math.PI + (i / 5) * Math.PI; pts.push({ x: ux + Math.cos(a) * ur, y: uy }); }
+    let edge = []; for (let i = 0; i < 5; i++) { const a = pts[i], b = pts[i + 1], m = { x: (a.x + b.x) / 2, y: uy + .035 };
+      edge = edge.concat(curve([a, m, b]).slice(i ? 1 : 0)); } s.push(S(edge, C.ink, 7)); }
+  s.push(S(line({ x: ux, y: uy - ur * .62 }, { x: ux, y: uy - ur * .62 - .035 }), C.ink, 6));   // tip
+  // canopy panels in yellow marker
+  for (const a of [Math.PI * 1.25, Math.PI * 1.5, Math.PI * 1.75]) s.push(S(line({ x: ux, y: uy }, { x: ux + Math.cos(a) * ur * .97, y: uy + Math.sin(a) * ur * .62 * .97 }), C.primary, 9, 'marker'));
+  s.push(S(line({ x: ux, y: uy + .01 }, { x: ux, y: .43 }), C.ink, 6));               // stick down to the head
+  // -- the dog
+  s.push(S(ellipse(.50, .52, .11, .10), C.ink, 7));                                   // head
+  s.push(S(curve([{ x: .41, y: .47 }, { x: .34, y: .55 }, { x: .38, y: .63 }, { x: .42, y: .58 }]), C.ink, 7));   // left ear
+  s.push(S(curve([{ x: .59, y: .47 }, { x: .66, y: .55 }, { x: .62, y: .63 }, { x: .58, y: .58 }]), C.ink, 7));   // right ear
+  s.push(S(arc(.465, .50, .012, .012, 0, Math.PI * 2), C.ink, 7));                   // eyes
+  s.push(S(arc(.535, .50, .012, .012, 0, Math.PI * 2), C.ink, 7));
+  s.push(S(curve([{ x: .485, y: .545 }, { x: .50, y: .535 }, { x: .515, y: .545 }, { x: .50, y: .56 }, { x: .485, y: .545 }]), C.ink, 7)); // nose
+  s.push(S(curve([{ x: .50, y: .56 }, { x: .50, y: .585 }]), C.ink, 6));               // philtrum
+  s.push(S(curve([{ x: .47, y: .585 }, { x: .50, y: .605 }, { x: .53, y: .585 }]), C.ink, 6)); // smile
+  s.push(S(curve([{ x: .505, y: .60 }, { x: .515, y: .635 }, { x: .535, y: .61 }]), C.pink, 9, 'marker'));  // tongue
+  // hat strap under the chin
+  s.push(S(curve([{ x: .42, y: .57 }, { x: .50, y: .64 }, { x: .58, y: .57 }]), C.ink, 5, 'pen'));
+  // body
+  s.push(S(curve([{ x: .43, y: .62 }, { x: .37, y: .74 }, { x: .40, y: .84 }, { x: .60, y: .84 }, { x: .63, y: .74 }, { x: .57, y: .62 }]), C.ink, 7));
+  for (const x of [.42, .48, .53, .59]) s.push(S(line({ x, y: .84 }, { x, y: .91 }), C.ink, 7));   // legs
+  for (const x of [.42, .48, .53, .59]) s.push(S(arc(x, .915, .02, .012, Math.PI, Math.PI * 2 + .3), C.ink, 6));  // paws
+  s.push(S(curve([{ x: .62, y: .76 }, { x: .70, y: .70 }, { x: .73, y: .62 }, { x: .69, y: .60 }]), C.ink, 7));   // tail
+  // a collar tag in yellow
+  s.push(S(arc(.50, .655, .018, .018, 0, Math.PI * 2), C.primary, 7, 'marker'));
+  // -- rain: cyan drops bouncing off the canopy, and the dry patch stays dry.
+  const drops = [[.14, .12], [.22, .30], [.10, .46], [.82, .10], [.88, .30], [.78, .48], [.30, .06], [.70, .06], [.18, .66], [.84, .66]];
+  for (const [x, y] of drops) s.push(S(line({ x, y }, { x: x - .02, y: y + .05 }, .6), C.cyan, 8, 'marker'));
+  // two drops splashing off the umbrella
+  s.push(S(curve([{ x: .25, y: .27 }, { x: .21, y: .22 }, { x: .19, y: .25 }]), C.cyan, 6, 'marker'));
+  s.push(S(curve([{ x: .75, y: .27 }, { x: .79, y: .22 }, { x: .81, y: .25 }]), C.cyan, 6, 'marker'));
+  return s;
+})();
+
+// Give every stroke a slice of the 3.0s drawing window, proportional to its
+// length so long lines take longer, with a floor so dots still register.
+const DRAW_T0 = 0.5, DRAW_T1 = 3.5;
+(() => {
+  const len = s => s.pts.reduce((a, p, i) => i ? a + Math.hypot(p.x - s.pts[i-1].x, p.y - s.pts[i-1].y) : 0, 0);
+  const weights = DOG.map(s => Math.max(.06, len(s) * 2.2) + .04);   // +.04 = pen lift between strokes
+  const total = weights.reduce((a, b) => a + b, 0);
+  let t = DRAW_T0;
+  DOG.forEach((s, i) => { const d = (weights[i] / total) * (DRAW_T1 - DRAW_T0); s.t0 = t; s.t1 = t + d * .82; t += d; });
+})();
+
+// --- paper & pens, ported from drawing_canvas.dart -----------------------------
+function paintPaper(x, y, w, h) {
+  g.fillStyle = C.paper; g.fillRect(x, y, w, h);
+  const r = rng(3);
+  g.fillStyle = 'rgba(216,199,158,.4)';
+  for (let i = 0; i < 160; i++) { const px = x + r() * w, py = y + r() * h; g.beginPath(); g.arc(px, py, (r() * .7 + .3) * (w / 380), 0, 7); g.fill(); }
+  g.strokeStyle = 'rgba(194,175,131,.22)'; g.lineWidth = w / 700;
+  for (let i = 0; i < 22; i++) { const py = y + r() * h, px = x + r() * w; g.beginPath(); g.moveTo(px, py); g.lineTo(px + (r() * 36 - 18) * (w / 380), py + (r() * 5 - 2.5) * (w / 380)); g.stroke(); }
+}
+function strokePath(pts, upto, color, width, style, ox, oy, scale) {
+  const n = Math.max(2, Math.min(pts.length, Math.ceil(pts.length * upto)));
+  if (n < 2) return;
+  const path = (dx = 0, dy = 0) => { g.beginPath(); for (let i = 0; i < n; i++) { const p = pts[i]; const X = ox + p.x * scale + dx, Y = oy + p.y * scale + dy; i ? g.lineTo(X, Y) : g.moveTo(X, Y); } };
+  const base = (ws = 1, alpha = 1, cap = 'round') => { g.strokeStyle = color; g.globalAlpha = alpha; g.lineWidth = width * ws; g.lineCap = cap; g.lineJoin = 'round'; };
+  const w = width;
+  if (style === 'marker') { base(1.5, .72, 'butt'); path(); g.stroke(); }
+  else if (style === 'crayon') { for (let k = 0; k < 4; k++) { const a = (k * 1.7) % (Math.PI * 2); base(.78, .34); path(Math.cos(a) * w * .16, Math.sin(a) * w * .16); g.stroke(); } }
+  else { base(); path(); g.stroke(); }
+  g.globalAlpha = 1;
+  return pts[n - 1];
+}
+function pencil(x, y, s, angle = -0.9) {
+  // The same pencil the title screen's idle canvas uses: a yellow body and a
+  // dark point, sitting on the tip of the line as it is drawn.
+  g.save(); g.translate(x, y); g.rotate(angle);
+  g.lineCap = 'round';
+  g.strokeStyle = C.primary; g.lineWidth = s * .07; g.beginPath(); g.moveTo(0, -s * .04); g.lineTo(0, -s * .34); g.stroke();
+  g.strokeStyle = C.primaryDeep; g.lineWidth = s * .07; g.beginPath(); g.moveTo(0, -s * .34); g.lineTo(0, -s * .40); g.stroke();
+  g.strokeStyle = '#E8D9B8'; g.lineWidth = s * .06; g.beginPath(); g.moveTo(0, -s * .04); g.lineTo(0, -s * .012); g.stroke();
+  g.fillStyle = C.ink; g.beginPath(); g.arc(0, 0, s * .014, 0, 7); g.fill();
+  g.restore();
+}
+
+// --- text helpers ------------------------------------------------------------
+function text(str, x, y, size, color, { weight = 900, align = 'center', spacing = 0, glow = 0, alpha = 1, rot = 0, scale = 1, font = 'Roboto, "Helvetica Neue", Arial, sans-serif' } = {}) {
+  g.save(); g.translate(x, y); g.rotate(rot); g.scale(scale, scale);
+  g.globalAlpha = alpha; g.font = `${weight} ${size}px ${font}`; g.textAlign = align; g.textBaseline = 'middle';
+  if ('letterSpacing' in g) g.letterSpacing = `${spacing}px`;
+  if (glow) { g.shadowColor = color; g.shadowBlur = glow; }
+  g.fillStyle = color; g.fillText(str, 0, 0);
+  g.restore();
+}
+function roundRect(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+// Word-wrapped prompt with the filled-in blank highlighted, typed in over
+// [typed] characters.
+function prompt(x, y, maxW, size, typed) {
+  const before = 'Walking the dog always means dealing with ', blank = 'rain', after = '.';
+  const full = before + blank + after;
+  const shown = full.slice(0, Math.floor(typed));
+  g.font = `700 ${size}px Roboto, "Helvetica Neue", Arial, sans-serif`; g.textBaseline = 'middle';
+  // lay out words
+  const words = full.split(' '); const lines = []; let cur = '';
+  for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; } else cur = test; }
+  lines.push(cur);
+  let idx = 0; const lh = size * 1.3; const y0 = y - ((lines.length - 1) * lh) / 2;
+  lines.forEach((ln, li) => {
+    const lw = g.measureText(ln).width; let cx = x - lw / 2; const cy = y0 + li * lh;
+    for (const ch of ln + (li < lines.length - 1 ? ' ' : '')) {
+      const isBlank = idx >= before.length && idx < before.length + blank.length;
+      const cw = g.measureText(ch).width;
+      if (idx < shown.length) {
+        if (isBlank) { g.fillStyle = C.primary; g.fillRect(cx - 2, cy - size * .62, cw + 4, size * 1.24); g.fillStyle = C.onPrimary; }
+        else g.fillStyle = C.text;
+        g.font = `${isBlank ? 900 : 700} ${size}px Roboto, "Helvetica Neue", Arial, sans-serif`;
+        g.fillText(ch, cx, cy);
+      }
+      cx += cw; idx++;
+    }
+  });
+}
+
+// --- money notes --------------------------------------------------------------
+// Nine backers, $200 each, landing one after another the way the reveal screen
+// throws them. Start points are off the paper's edges so they fly in.
+const NOTES = (() => { const r = rng(42); const out = [];
+  for (let i = 0; i < 9; i++) { const side = i % 4; const from = side === 0 ? { x: -.2, y: r() } : side === 1 ? { x: 1.2, y: r() } : side === 2 ? { x: r(), y: -.2 } : { x: r(), y: 1.2 };
+    out.push({ from, to: { x: .12 + r() * .76, y: .12 + r() * .76 }, rot: (r() * 2 - 1) * .5, t: 4.1 + i * .072 }); } return out; })();
+function note(x, y, rot, s, alpha = 1) {
+  g.save(); g.translate(x, y); g.rotate(rot); g.globalAlpha = alpha;
+  g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = s * .12; g.shadowOffsetY = s * .04;
+  g.fillStyle = C.notePaper; roundRect(-s * .5, -s * .27, s, s * .54, s * .05); g.fill(); g.shadowColor = 'transparent';
+  g.strokeStyle = C.note; g.lineWidth = s * .035; roundRect(-s * .44, -s * .21, s * .88, s * .42, s * .04); g.stroke();
+  g.fillStyle = C.note; g.beginPath(); g.arc(0, 0, s * .15, 0, 7); g.fill();
+  text('$', 0, s * .005, s * .2, C.notePaper);
+  text('200', -s * .32, s * .12, s * .11, C.note); text('200', s * .32, -s * .12, s * .11, C.note);
+  g.restore();
+}
+
+// --- confetti ----------------------------------------------------------------
+const CONF = (() => { const r = rng(9); const cols = [C.pink, C.cyan, C.lime, C.primary, C.purple]; return Array.from({ length: 90 }, () => ({ a: r() * Math.PI * 2, v: 900 + r() * 1400, c: cols[Math.floor(r() * 5)], s: 10 + r() * 16, spin: r() * 12, up: r() })); })();
+
+// --- assets -----------------------------------------------------------------
+const icon = new Image(); icon.src = 'assets/icon.png';
+const wg = document.getElementById('wg');
+const A = { draw: document.getElementById('aDraw'), win: document.getElementById('aWin'), launch: document.getElementById('aLaunch') };
+let muted = new URLSearchParams(location.search).has('mute');
+
+// ---------------------------------------------------------------------------
+// The frame. Pure function of t (seconds), so a still at ?t=4.6 is exactly the
+// frame a recording shows at 4.6s.
+// ---------------------------------------------------------------------------
+const END = 6.5;
+function frame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+
+  // Screen shake for the stamp.
+  let sx = 0, sy = 0;
+  if (t > 5.05 && t < 5.27) { const k = (1 - win(t, 5.05, 5.27)) * 14; sx = Math.sin(t * 190) * k; sy = Math.cos(t * 230) * k; }
+  g.translate(sx, sy);
+
+  // Background: the game's deep violet with a soft light where the paper sits.
+  g.fillStyle = C.bg; g.fillRect(-40, -40, W + 80, H + 80);
+  const glow = g.createRadialGradient(W / 2, H * .5, 0, W / 2, H * .5, W * .9);
+  glow.addColorStop(0, 'rgba(255,197,61,.16)'); glow.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+
+  if (t < 5.3 + .25) round(t);
+  if (t >= 5.3) logo(t);
+
+  // Studio mark lives in the DOM (animated GIF): fade it with the end card.
+  wg.style.opacity = t >= 5.3 ? easeOut(win(t, 5.55, 5.95)) : 0;
+}
+
+function round(t) {
+  const fade = 1 - win(t, 5.3, 5.55);
+  g.globalAlpha = fade;
+
+  // -- HUD: round chip and clock, so it's obviously a game and not a doodle app.
+  const hud = easeOut(win(t, .05, .45));
+  g.globalAlpha = fade * hud;
+  g.fillStyle = C.surface; roundRect(60, 120 - (1 - hud) * 40, 300, 72, 36); g.fill();
+  g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+  text('ROUND 2 · DRAW', 210, 156 - (1 - hud) * 40, 28, C.muted, { spacing: 3 });
+  // The clock ticks down from 0:59 during the draw, a little faster than
+  // real time so the pressure reads in three seconds.
+  const secs = Math.max(0, 59 - Math.floor(win(t, DRAW_T0, 5.0) * 34));
+  g.fillStyle = C.surface; roundRect(W - 60 - 220, 120 - (1 - hud) * 40, 220, 72, 36); g.fill(); g.stroke();
+  g.fillStyle = C.primary; g.beginPath(); g.arc(W - 60 - 220 + 44, 156 - (1 - hud) * 40, 14, 0, 7); g.fill();
+  text('0:' + String(secs).padStart(2, '0'), W - 60 - 220 + 130, 156 - (1 - hud) * 40, 34, C.text, { spacing: 2 });
+  g.globalAlpha = fade;
+
+  // -- prompt
+  const ptype = win(t, .15, 1.15) * 52;     // 47 chars typed in one second
+  prompt(W / 2, 320, 900, 44, ptype);
+
+  // -- paper: pops in from slightly small, with a real drop shadow.
+  const pop = back(win(t, 0, .5));
+  const PW = 940, PH = 940, px = (W - PW) / 2, py = 470;
+  g.save(); g.translate(W / 2, py + PH / 2); g.scale(pop, pop); g.translate(-W / 2, -(py + PH / 2));
+  g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 60; g.shadowOffsetY = 24;
+  g.fillStyle = C.paper; g.fillRect(px, py, PW, PH); g.shadowColor = 'transparent';
+  paintPaper(px, py, PW, PH);
+  // a hairline frame like the in-game sheet
+  g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, PW - 2, PH - 2);
+
+  // -- the drawing
+  let tip = null, tipStroke = null;
+  for (const s of DOG) {
+    if (t < s.t0) break;
+    const u = win(t, s.t0, s.t1);
+    const end = strokePath(s.pts, u, s.color, s.width * (PW / 380) * .55, s.style, px, py, PW);
+    if (u < 1 || t < s.t1 + .01) { tip = end; tipStroke = s; }
+  }
+  if (t >= DRAW_T0 - .1 && t < DRAW_T1 + .05) {
+    // The pencil hovers in before the first stroke and lifts off after the last.
+    const pt = tip || { x: px + DOG[0].pts[0].x * PW, y: py + DOG[0].pts[0].y * PW };
+    const X = tip ? px + tip.x * PW : pt.x, Y = tip ? py + tip.y * PW : pt.y;
+    const lift = t < DRAW_T0 ? (1 - win(t, DRAW_T0 - .1, DRAW_T0)) * 40 : t > DRAW_T1 ? win(t, DRAW_T1, DRAW_T1 + .05) * 40 : 0;
+    pencil(X, Y - lift, PW * .5, -0.9);
+  }
+
+  // -- the money, landing on the paper
+  for (const n of NOTES) {
+    if (t < n.t) continue;
+    const u = win(t, n.t, n.t + .32); const e = easeOut(u); const arcUp = Math.sin(u * Math.PI) * 90;
+    const X = px + lerp(n.from.x, n.to.x, e) * PW, Y = py + lerp(n.from.y, n.to.y, e) * PW - arcUp;
+    const land = u >= 1 ? 1 + (1 - easeOut(win(t, n.t + .32, n.t + .5))) * .18 : 1.25 - .25 * e;
+    note(X, Y, lerp(n.rot * 3, n.rot, e), 132 * land);
+  }
+  g.restore();
+
+  // -- title, stamped under the paper
+  if (t >= 3.55) {
+    const u = back(win(t, 3.55, 3.95));
+    text('THE PUP-BRELLA', W / 2, py + PH + 92, 84, C.primary, { spacing: 4, glow: 40 * fade, scale: u, rot: -0.03, alpha: fade * clamp(u, 0, 1) });
+    text('an umbrella hat for the dog', W / 2, py + PH + 158, 32, C.muted, { weight: 700, alpha: fade * win(t, 3.8, 4.1) });
+  }
+
+  // -- the counter
+  if (t >= 4.1) {
+    const landed = NOTES.filter(n => t >= n.t + .3).length; const amt = landed * 200;
+    const bump = NOTES.some(n => t >= n.t + .3 && t < n.t + .42) ? 1.12 : 1;
+    const a = easeOut(win(t, 4.1, 4.35)) * fade;
+    g.fillStyle = C.surface; g.globalAlpha = a; roundRect(W / 2 - 250, 1640, 500, 110, 55); g.fill(); g.strokeStyle = C.border; g.lineWidth = 3; g.stroke(); g.globalAlpha = 1;
+    text('RAISED', W / 2 - 128, 1695, 28, C.muted, { spacing: 4, alpha: a });
+    text('$' + amt.toLocaleString(), W / 2 + 62, 1695, 60, amt >= 1000 ? C.lime : C.text, { alpha: a, scale: bump, glow: amt >= 1000 ? 24 : 0 });
+    // goal marker
+    const gu = win(t, 4.2, 4.5);
+    g.fillStyle = C.border; g.globalAlpha = a; roundRect(W / 2 - 250, 1782, 500, 12, 6); g.fill();
+    g.fillStyle = amt >= 1000 ? C.lime : C.primary; roundRect(W / 2 - 250, 1782, 500 * clamp(amt / 1800, 0, 1) * gu, 12, 6); g.fill();
+    g.fillStyle = C.text; g.fillRect(W / 2 - 250 + 500 * (1000 / 1800) - 2, 1772, 4, 32);
+    text('GOAL $1,000', W / 2 - 250 + 500 * (1000 / 1800), 1828, 22, C.muted, { weight: 700, spacing: 2, alpha: a });
+    g.globalAlpha = 1;
+  }
+
+  // -- FUNDED! stamp with the confetti burst
+  if (t >= 5.05) {
+    const u = win(t, 5.05, 5.33); const s = lerp(3.2, 1, easeOut(u)); const al = clamp(u * 3, 0, 1) * fade;
+    g.save(); g.translate(W / 2, py + PH * .5 + 20); g.rotate(-0.2); g.scale(s, s); g.globalAlpha = al;
+    g.strokeStyle = C.funded; g.lineWidth = 14; roundRect(-330, -110, 660, 220, 26); g.stroke();
+    g.strokeStyle = C.funded; g.lineWidth = 5; roundRect(-310, -90, 620, 180, 20); g.stroke();
+    g.restore();
+    text('FUNDED!', W / 2, py + PH * .5 + 20, 150, C.funded, { spacing: 6, rot: -0.2, scale: s, alpha: al, glow: 30 * fade });
+    for (const c of CONF) {
+      const ct = t - 5.05; if (ct < 0) continue; const drag = 1 - Math.exp(-ct * 3);
+      const X = W / 2 + Math.cos(c.a) * c.v * drag / 3, Y = py + PH * .5 + Math.sin(c.a) * c.v * drag / 3 + ct * ct * 1400 - c.up * 400 * ct;
+      g.save(); g.translate(X, Y); g.rotate(c.spin * ct); g.globalAlpha = fade * (1 - win(ct, .9, 1.3)); g.fillStyle = c.c; g.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); g.restore();
+    }
+  }
+  g.globalAlpha = 1;
+}
+
+function logo(t) {
+  const u = win(t, 5.3, 5.9);
+  // A tighter, brighter glow behind the icon.
+  const glow = g.createRadialGradient(W / 2, 720, 0, W / 2, 720, 700);
+  glow.addColorStop(0, `rgba(255,197,61,${.34 * easeOut(u)})`); glow.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+
+  // Icon: the launcher mark, rounded like Play shows it, popping in.
+  const s = back(win(t, 5.35, 5.85)); const size = 460 * s;
+  if (icon.complete && icon.naturalWidth) {
+    g.save(); g.translate(W / 2, 720); g.rotate((1 - s) * .3);
+    g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 70; g.shadowOffsetY = 30;
+    roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent';
+    g.drawImage(icon, -size / 2, -size / 2, size, size); g.restore();
+  }
+  // Wordmark and the line under it.
+  const wu = win(t, 5.6, 6.0);
+  text('GRAND CANVAS', W / 2, 1090 + (1 - easeOut(wu)) * 40, 104, C.primary, { spacing: 9, glow: 44, alpha: easeOut(wu) });
+  const tu = win(t, 5.8, 6.15);
+  text('Draw it. Pitch it. Get funded.', W / 2, 1200 + (1 - easeOut(tu)) * 30, 46, C.text, { weight: 700, alpha: easeOut(tu) });
+  // CTA pill — the one line of hype, and it is true.
+  const cu = back(win(t, 5.95, 6.4));
+  if (cu > 0) {
+    g.save(); g.translate(W / 2, 1380); g.scale(cu, cu); g.globalAlpha = clamp(cu, 0, 1);
+    g.shadowColor = 'rgba(255,197,61,.55)'; g.shadowBlur = 50;
+    g.fillStyle = C.primary; roundRect(-330, -60, 660, 120, 60); g.fill(); g.shadowColor = 'transparent';
+    text('FREE ON GOOGLE PLAY', 0, 2, 40, C.onPrimary, { spacing: 4 });
+    g.restore();
+  }
+  // "by WhoseGames" under the studio mark (the mark itself is the GIF).
+  const su = easeOut(win(t, 5.7, 6.05));
+  text('a  W H O S E G A M E S  game', W / 2, 1600, 26, C.muted, { weight: 700, alpha: su });
+}
+
+// ---------------------------------------------------------------------------
+// Playback. Fixed to wall-clock so a screen recording plays back at the right
+// speed; ?t=N renders a single frame for checking.
+// ---------------------------------------------------------------------------
+const params = new URLSearchParams(location.search);
+const still = params.has('t');
+let loop = params.has('loop');
+let start = null, raf = 0, played = { win: false, launch: false };
+const overlay = document.getElementById('start');
+
+function fit() { const k = Math.min(innerWidth / W, innerHeight / H); document.getElementById('stage').style.transform = `scale(${k})`; }
+addEventListener('resize', fit); fit();
+
+function play() {
+  overlay.classList.add('hidden');
+  cancelAnimationFrame(raf);
+  start = performance.now(); played = { win: false, launch: false };
+  if (!muted) { A.draw.currentTime = 0; A.draw.volume = .55; A.draw.play().catch(() => {}); }
+  tick();
+}
+function tick() {
+  const t = (performance.now() - start) / 1000;
+  frame(Math.min(t, END + 4));
+  if (!muted) {
+    if (t >= 5.05 && !played.win) { played.win = true; A.win.currentTime = 0; A.win.volume = .9; A.win.play().catch(() => {}); }
+    if (t >= 5.35 && !played.launch) { played.launch = true; A.launch.currentTime = 0; A.launch.play().catch(() => {}); }
+    // duck the drawing loop out under the stamp
+    if (t > 4.9) A.draw.volume = .55 * (1 - win(t, 4.9, 5.4));
+  }
+  if (t >= END + 1.2 && loop) return play();
+  raf = requestAnimationFrame(tick);
+}
+
+if (still) {
+  overlay.classList.add('hidden');
+  const draw = () => frame(parseFloat(params.get('t')) || 0);
+  icon.complete && icon.naturalWidth ? draw() : (icon.onload = draw, icon.onerror = draw);
+}
+else {
+  overlay.addEventListener('click', play);
+  addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.key === 'r' || e.key === 'R') { e.preventDefault(); play(); }
+    if (e.key === 'm' || e.key === 'M') { muted = !muted; if (muted) for (const a of Object.values(A)) a.pause(); }
+    if (e.key === 'l' || e.key === 'L') loop = !loop;
+  });
+  frame(0);
+}
+</script>
+</body>
+</html>
