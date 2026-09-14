@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — 10s store video</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center;
+           transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 22px; opacity: 0;
+        box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer;
+           background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start">
+    <div>
+      <b>GRAND CANVAS</b>
+      <span>10 second store video &middot; 1920&times;1080<br><br>
+        <kbd>click</kbd> or <kbd>space</kbd> to play<br>
+        <kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span>
+    </div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+/**
+ * The ten-second video for the Play Store listing.
+ *
+ * A different job from the two ad spots, so a different film. An ad interrupts
+ * somebody and has to earn three more seconds; this plays to a person who is
+ * already on the listing with their thumb near Install. It doesn't need to
+ * hook them -- it needs to answer "what is this and who do I play it with"
+ * before they scroll, and then say Install.
+ *
+ * So it is a tour rather than a joke:
+ *
+ *   0.00  the prompt          one sentence with a hole in it
+ *   1.40  four people drawing  the whole pitch of the game in one shot
+ *   5.00  the pitch            money going onto somebody's answer
+ *   6.40  funded               the payoff, and the trophies
+ *   7.60  the league           there is a reason to come back
+ *   8.60  the card             name, what's in it, Install
+ *
+ * Captions along the bottom say what each beat is, because a store video is
+ * usually watched muted -- the sound is a bonus, never the explanation.
+ */
+
+// --- the round on screen ----------------------------------------------------
+const PROMPT = { before: 'Every office has an ongoing problem with ', blank: 'the printer', after: '.' };
+const FULL = PROMPT.before + PROMPT.blank + PROMPT.after;
+
+const ARTISTS = [
+  { name: 'LAKSHAY', colour: C.pink,    title: 'THE PAPER PIGEON' },
+  { name: 'RIYA',    colour: C.cyan,    title: 'THE SMASH-O-MATIC' },
+  { name: 'ARJUN',   colour: C.lime,    title: 'THE INK GEYSER' },
+  { name: 'MEERA',   colour: C.purple,  title: 'THE SHREDDER SMILE' },
+];
+
+// Four answers to one prompt, which is the whole game in a picture. Each is
+// kept to a dozen strokes -- they are drawn at 420px and have to read there.
+function buildAll() {
+  const out = [];
+
+  // 1. a bird that delivers the document instead
+  rand = rng(11);
+  out.push([
+    S(ellipse(.44, .55, .17, .125), C.ink, 7),                                     // body
+    S(ellipse(.67, .40, .088, .082), C.ink, 7),                                    // head
+    S(poly([{x:.745,y:.375},{x:.85,y:.405},{x:.745,y:.435}]), C.primary, 8, 'marker'), // beak
+    S(ellipse(.695, .378, .014, .014), C.ink, 6),                                  // eye
+    S(curve([{x:.38,y:.50},{x:.47,y:.44},{x:.56,y:.53},{x:.45,y:.575}]), C.ink, 6),// wing
+    S(poly([{x:.28,y:.545},{x:.145,y:.485},{x:.175,y:.565},{x:.135,y:.62},{x:.275,y:.60}]), C.ink, 6), // tail
+    S(line({x:.40,y:.665},{x:.385,y:.745}), C.ink, 6),
+    S(line({x:.52,y:.665},{x:.535,y:.745}), C.ink, 6),
+    S(line({x:.345,y:.752},{x:.425,y:.752}), C.ink, 6),
+    S(line({x:.495,y:.752},{x:.575,y:.752}), C.ink, 6),
+    S(poly([{x:.56,y:.70},{x:.79,y:.70},{x:.79,y:.86},{x:.56,y:.86},{x:.56,y:.70}]), C.ink, 6), // the document
+    S(line({x:.60,y:.755},{x:.75,y:.755}, .5), C.ink, 4),
+    S(line({x:.60,y:.805},{x:.75,y:.805}, .5), C.ink, 4),
+  ]);
+
+  // 2. a mallet on a spring, for when it jams again
+  rand = rng(23);
+  out.push([
+    S(poly([{x:.20,y:.60},{x:.80,y:.60},{x:.80,y:.85},{x:.20,y:.85},{x:.20,y:.60}]), C.ink, 8), // printer
+    S(line({x:.28,y:.695},{x:.72,y:.695}), C.ink, 5),                              // paper slot
+    S(ellipse(.30, .77, .022, .022), C.cyan, 7, 'marker'),                         // buttons
+    S(ellipse(.37, .77, .022, .022), C.ink, 6),
+    S(poly([{x:.34,y:.60},{x:.66,y:.60},{x:.66,y:.52},{x:.34,y:.52},{x:.34,y:.60}]), C.ink, 5), // jammed sheet
+    S(coilBetween({x:.50,y:.08},{x:.50,y:.30}, 4, .052), C.ink, 7),                // the spring
+    S(poly([{x:.34,y:.30},{x:.66,y:.30},{x:.66,y:.44},{x:.34,y:.44},{x:.34,y:.30}]), C.ink, 8), // mallet
+    ...[.34,.40,.46].map(y => S(line({x:.37,y:y+.02},{x:.63,y:y+.02}, .3), C.pink, 8, 'marker')),
+    ...[.6,1.4,2.2,3.0,3.8,4.6,5.4].map(a =>
+      S(line({x:.50+Math.cos(a)*.055,y:.475+Math.sin(a)*.045},
+             {x:.50+Math.cos(a)*.10, y:.475+Math.sin(a)*.085}, .4), C.primary, 8, 'marker')),
+  ]);
+
+  // 3. it was always going to do this eventually
+  rand = rng(37);
+  out.push([
+    S(poly([{x:.20,y:.58},{x:.80,y:.58},{x:.80,y:.86},{x:.20,y:.86},{x:.20,y:.58}]), C.ink, 8),
+    S(line({x:.28,y:.685},{x:.72,y:.685}), C.ink, 5),
+    S(ellipse(.31, .775, .022, .022), C.ink, 6),
+    S(curve([{x:.40,y:.58},{x:.34,y:.40},{x:.46,y:.22},{x:.58,y:.34},{x:.62,y:.20},{x:.70,y:.36},{x:.60,y:.58}]), C.cyan, 9, 'marker'),
+    ...[.44,.50,.56].map(y => S(line({x:.40,y},{x:.66,y}, .3), C.cyan, 9, 'marker')),
+    S(curve([{x:.24,y:.30},{x:.20,y:.36},{x:.26,y:.40},{x:.29,y:.33},{x:.24,y:.30}]), C.cyan, 7, 'marker'),
+    S(curve([{x:.80,y:.24},{x:.75,y:.30},{x:.81,y:.35},{x:.85,y:.28},{x:.80,y:.24}]), C.cyan, 7, 'marker'),
+    S(ellipse(.87, .46, .024, .024), C.cyan, 7, 'marker'),
+    S(ellipse(.15, .50, .020, .020), C.cyan, 7, 'marker'),
+  ]);
+
+  // 4. give it what it wants
+  rand = rng(53);
+  out.push([
+    S(poly([{x:.16,y:.42},{x:.84,y:.42},{x:.84,y:.86},{x:.16,y:.86},{x:.16,y:.42}]), C.ink, 8),
+    S(ellipse(.34, .53, .034, .038), C.ink, 7),                                    // eyes
+    S(ellipse(.66, .53, .034, .038), C.ink, 7),
+    S(ellipse(.345, .54, .012, .012), C.ink, 6),
+    S(ellipse(.665, .54, .012, .012), C.ink, 6),
+    S(curve([{x:.26,y:.66},{x:.50,y:.62},{x:.74,y:.66}]), C.ink, 7),               // grin
+    S(curve([{x:.26,y:.66},{x:.50,y:.80},{x:.74,y:.66}]), C.ink, 7),
+    S(poly([{x:.30,y:.665},{x:.345,y:.725},{x:.39,y:.665},{x:.44,y:.735},
+            {x:.49,y:.665},{x:.545,y:.735},{x:.60,y:.665},{x:.65,y:.72},{x:.70,y:.665}]), C.ink, 5),
+    S(poly([{x:.36,y:.06},{x:.64,y:.06},{x:.64,y:.30},{x:.36,y:.30},{x:.36,y:.06}]), C.ink, 6),  // the sheet going in
+    S(line({x:.41,y:.14},{x:.59,y:.14}, .5), C.ink, 4),
+    S(line({x:.41,y:.21},{x:.59,y:.21}, .5), C.ink, 4),
+    ...[.34, .50, .66].map(x => S(line({x, y:.325},{x, y:.395}, .4), C.primary, 8, 'marker')),
+  ]);
+  return out;
+}
+
+/** Spreads a drawing's strokes across [t0, t1], long lines taking longer. */
+function schedule(list, t0, t1) {
+  const len = s => s.pts.reduce((a, p, i) => i ? a + Math.hypot(p.x - s.pts[i-1].x, p.y - s.pts[i-1].y) : 0, 0);
+  const w = list.map(s => Math.max(.06, len(s) * 2.2) + .04);
+  const tot = w.reduce((a, b) => a + b, 0);
+  let t = t0;
+  list.forEach((s, i) => { const d = (w[i] / tot) * (t1 - t0); s.t0 = t; s.t1 = t + d * .82; t += d; });
+  return list;
+}
+
+const DRAWINGS = buildAll();
+// Staggered starts and slightly different speeds, so the four tables feel like
+// four people rather than one animation played four times.
+const SPANS = [[1.72, 4.40], [1.80, 4.52], [1.66, 4.30], [1.86, 4.58]];
+DRAWINGS.forEach((d, i) => schedule(d, SPANS[i][0], SPANS[i][1]));
+// The big one in the pitch shot is Riya's, redrawn on its own clock.
+const HERO = schedule(buildAll()[1], -9, -8);      // already finished by t=0
+
+// --- pieces -----------------------------------------------------------------
+function sheet(px, py, size, pop = 1) {
+  g.save();
+  g.translate(px + size / 2, py + size / 2); g.scale(pop, pop); g.translate(-(px + size / 2), -(py + size / 2));
+  g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 44; g.shadowOffsetY = 18;
+  g.fillStyle = C.paper; g.fillRect(px, py, size, size);
+  g.shadowColor = 'transparent'; g.shadowOffsetY = 0;
+  paintPaper(px, py, size, size);
+  g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, size - 2, size - 2);
+}
+function drawInto(list, t, px, py, size, withPencil) {
+  let tip = null;
+  for (const s of list) {
+    if (t < s.t0) break;
+    const u = win(t, s.t0, s.t1);
+    const end = strokePath(s.pts, u, s.color, s.width * (size / 380) * .55, s.style, px, py, size);
+    if (u < 1 || t < s.t1 + .01) tip = end;
+  }
+  if (withPencil && tip && t < list[list.length - 1].t1) pencil(px + tip.x * size, py + tip.y * size, size * .5, -0.9);
+  g.restore();
+  return tip;
+}
+function chip(x, y, w, h, label, size, colour = C.muted) {
+  g.fillStyle = C.surface; roundRect(x, y, w, h, h / 2); g.fill();
+  g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+  text(label, x + w / 2, y + h / 2, size, colour, { spacing: 3 });
+}
+/** The line along the bottom that says what you are looking at. Store videos
+ *  are watched with the sound off more often than not. */
+function caption(str, t, from, to) {
+  const a = easeOut(win(t, from, from + .25)) * (1 - win(t, to - .2, to));
+  if (a <= 0) return;
+  text(str, 960, 985, 30, C.primary, { spacing: 5, alpha: a, weight: 900 });
+}
+
+// --- the scenes -------------------------------------------------------------
+const T = { papers: 1.40, pitch: 5.00, funded: 6.40, league: 7.60, card: 8.60, end: 10.0 };
+
+function scenePrompt(t) {
+  const a = 1 - win(t, T.papers - .22, T.papers);
+  g.globalAlpha = a;
+  chip(810, 230, 300, 66, 'ROUND 1', 26);
+  promptText(960, 470, 1460, 70, win(t, .10, .95) * FULL.length * 1.05, PROMPT);
+  const s = easeOut(win(t, .95, 1.25));
+  text('5 players are drawing their answer', 960, 660, 34, C.muted, { weight: 700, alpha: s * a });
+  g.globalAlpha = 1;
+  caption('ONE PROMPT. EVERYBODY ANSWERS IT.', t, .55, T.papers);
+}
+
+function scenePapers(t) {
+  const a = easeOut(win(t, T.papers, T.papers + .2)) * (1 - win(t, T.pitch - .22, T.pitch));
+  g.globalAlpha = a;
+
+  chip(60, 60, 300, 66, 'ROUND 1 · DRAW', 26);
+  const secs = Math.max(0, 59 - Math.floor(win(t, T.papers, T.pitch) * 38));
+  chip(1660, 60, 200, 66, '', 26);
+  g.fillStyle = C.primary; g.beginPath(); g.arc(1700, 93, 13, 0, 7); g.fill();
+  text('0:' + String(secs).padStart(2, '0'), 1778, 93, 32, C.text, { spacing: 2 });
+  promptText(960, 168, 1300, 40, 999, PROMPT);
+
+  const SIZE = 430, Y = 262, XS = [46, 512, 978, 1444];
+  DRAWINGS.forEach((d, i) => {
+    const pop = back(win(t, T.papers + i * .07, T.papers + i * .07 + .34));
+    if (pop <= 0) return;
+    sheet(XS[i], Y, SIZE, pop);
+    drawInto(d, t, XS[i], Y, SIZE, true);
+    const done = t > d[d.length - 1].t1;
+    // name plate
+    g.globalAlpha = a * clamp(pop, 0, 1);
+    g.fillStyle = ARTISTS[i].colour;
+    g.beginPath(); g.arc(XS[i] + 26, Y + SIZE + 44, 13, 0, 7); g.fill();
+    text(ARTISTS[i].name, XS[i] + 52, Y + SIZE + 44, 31, C.text, { align: 'left', spacing: 2 });
+    if (done) text('DONE', XS[i] + SIZE - 4, Y + SIZE + 44, 26, C.lime, { align: 'right', spacing: 3 });
+    g.globalAlpha = a;
+  });
+  g.globalAlpha = 1;
+  caption('EVERYONE DRAWS AT THE SAME TIME', t, T.papers + .3, T.pitch);
+}
+
+// Nine backers putting money on Riya's answer.
+const PAY = Array.from({ length: 9 }, (_, i) => ({ t: T.pitch + .18 + i * .055 }));
+const PX = 200, PY = 190, PS = 560;
+
+function scenePitch(t) {
+  const a = easeOut(win(t, T.pitch, T.pitch + .22)) * (1 - win(t, T.league - .22, T.league));
+  if (a <= 0) return;
+  g.globalAlpha = a;
+
+  sheet(PX, PY, PS, 1);
+  drawInto(HERO, t, PX, PY, PS, false);
+
+  // the money
+  for (const [i, n] of PAY.entries()) {
+    if (t < n.t) continue;
+    const src = NOTES[i], u = win(t, n.t, n.t + .30), e = easeOut(u);
+    const X = PX + lerp(src.from.x, src.to.x, e) * PS, Y = PY + lerp(src.from.y, src.to.y, e) * PS - Math.sin(u * Math.PI) * 70;
+    note(X, Y, lerp(src.rot * 3, src.rot, e), PS * .145 * (u >= 1 ? 1 : 1.22 - .22 * e));
+  }
+
+  // the pitch, on the right
+  const CX = 1300;
+  text("RIYA'S PITCH", CX, 300, 30, C.muted, { spacing: 5, weight: 700 });
+  const ts = back(win(t, T.pitch + .1, T.pitch + .45));
+  text('THE SMASH-O-MATIC', CX, 386, 64, C.primary, { spacing: 3, glow: 34, scale: ts, rot: -.02 });
+  text('it hits the printer so you don’t have to', CX, 448, 28, C.muted, { weight: 700, alpha: win(t, T.pitch + .3, T.pitch + .55) });
+
+  const landed = PAY.filter(n => t >= n.t + .28).length, amt = landed * 200;
+  const bump = PAY.some(n => t >= n.t + .28 && t < n.t + .40) ? 1.1 : 1;
+  g.fillStyle = C.surface; roundRect(CX - 240, 540, 480, 104, 52); g.fill();
+  g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+  text('RAISED', CX - 118, 592, 26, C.muted, { spacing: 4 });
+  text('$' + amt.toLocaleString(), CX + 58, 592, 56, amt >= 1000 ? C.lime : C.text, { scale: bump, glow: amt >= 1000 ? 22 : 0 });
+  const goalX = CX - 240 + 480 * (1000 / 1800);
+  g.fillStyle = C.border; roundRect(CX - 240, 700, 480, 12, 6); g.fill();
+  g.fillStyle = amt >= 1000 ? C.lime : C.primary; roundRect(CX - 240, 700, 480 * clamp(amt / 1800, 0, 1), 12, 6); g.fill();
+  g.fillStyle = C.text; g.fillRect(goalX - 2, 690, 4, 32);
+  text('GOAL $1,000', goalX, 746, 20, C.muted, { weight: 700, spacing: 2 });
+
+  // -- funded
+  if (t >= T.funded) {
+    const u = win(t, T.funded, T.funded + .26), sc = lerp(3.0, 1, easeOut(u)), al = clamp(u * 3, 0, 1);
+    const cx = PX + PS / 2, cy = PY + PS / 2 + 14;
+    g.save(); g.translate(cx, cy); g.rotate(-.2); g.scale(sc, sc); g.globalAlpha = a * al;
+    g.strokeStyle = C.funded; g.lineWidth = 11; roundRect(-168, -57, 336, 114, 18); g.stroke();
+    g.lineWidth = 4; roundRect(-154, -43, 308, 86, 14); g.stroke();
+    g.restore();
+    text('FUNDED!', cx, cy, 78, C.funded, { spacing: 4, rot: -.2, scale: sc, alpha: a * al, glow: 24 });
+    for (const c of CONF) {
+      const ct = t - T.funded; if (ct < 0) continue;
+      const drag = 1 - Math.exp(-ct * 3);
+      const X = PX + PS / 2 + Math.cos(c.a) * c.v * drag / 3.4, Y = PY + PS / 2 + Math.sin(c.a) * c.v * drag / 3.4 + ct * ct * 1100 - c.up * 320 * ct;
+      g.save(); g.translate(X, Y); g.rotate(c.spin * ct); g.globalAlpha = a * (1 - win(ct, .9, 1.3));
+      g.fillStyle = c.c; g.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); g.restore();
+    }
+    const tu = back(win(t, T.funded + .25, T.funded + .6));
+    if (tu > 0) {
+      g.globalAlpha = a * clamp(tu, 0, 1);
+      g.fillStyle = C.primary; roundRect(CX - 150 * tu, 850 - 34 * tu, 300 * tu, 68 * tu, 34 * tu); g.fill();
+      text('+18 TROPHIES', CX, 850, 30 * tu, C.onPrimary, { spacing: 3 });
+      g.globalAlpha = a;
+    }
+  }
+  g.globalAlpha = 1;
+  caption('THE TABLE PUTS ITS MONEY ON ONE', t, T.pitch + .3, T.funded);
+  caption('BEAT THE GOAL, TAKE THE TROPHIES', t, T.funded + .1, T.league);
+}
+
+const BOARD = [
+  ['1', 'RIYA',  '1284', false, ''],
+  ['2', 'MEERA', '1240', false, ''],
+  ['3', 'YOU',   '1198', true,  '+24'],
+];
+
+function sceneLeague(t) {
+  const a = easeOut(win(t, T.league, T.league + .22)) * (1 - win(t, T.card - .2, T.card));
+  if (a <= 0) return;
+  g.globalAlpha = a;
+  const pop = back(win(t, T.league, T.league + .38));
+  g.save(); g.translate(960, 470); g.scale(pop, pop); g.translate(-960, -470);
+
+  g.fillStyle = C.surface; roundRect(600, 252, 720, 424, 30); g.fill();
+  g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+  text('SEASON 1 · GOLD III', 960, 314, 30, C.primary, { spacing: 5 });
+  g.fillStyle = C.border; g.fillRect(650, 350, 620, 2);
+
+  BOARD.forEach(([rank, name, rating, you, delta], i) => {
+    const y = 418 + i * 88;
+    if (you) { g.fillStyle = 'rgba(255,197,61,.12)'; roundRect(636, y - 34, 648, 68, 16); g.fill(); }
+    text(rank, 688, y, 33, you ? C.primary : C.muted, { align: 'center' });
+    text(name, 752, y, 35, you ? C.primary : C.text, { align: 'left', spacing: 2 });
+    text(rating, 1176, y, 35, you ? C.primary : C.text, { align: 'right' });
+    // The climb is the point, so the movement is shown, not just the position.
+    if (delta) text(delta, 1268, y, 27, C.lime, { align: 'right', spacing: 1 });
+  });
+  g.restore();
+  g.globalAlpha = 1;
+  caption('CLIMB A REAL LADDER, SEASON BY SEASON', t, T.league + .15, T.card);
+}
+
+function sceneCard(t) {
+  const u = win(t, T.card, T.card + .5);
+  const glow = g.createRadialGradient(960, 470, 0, 960, 470, 900);
+  glow.addColorStop(0, `rgba(255,197,61,${.34 * easeOut(u)})`); glow.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+
+  const s = back(win(t, T.card + .04, T.card + .46)), size = 340 * s;
+  if (icon.complete && icon.naturalWidth) {
+    g.save(); g.translate(515, 470); g.rotate((1 - s) * .3);
+    g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 60; g.shadowOffsetY = 26;
+    roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent';
+    g.drawImage(icon, -size / 2, -size / 2, size, size); g.restore();
+  }
+  const wu = easeOut(win(t, T.card + .2, T.card + .6));
+  text('GRAND CANVAS', 775, 400 + (1 - wu) * 34, 94, C.primary, { spacing: 8, glow: 42, alpha: wu, align: 'left' });
+  const tu = easeOut(win(t, T.card + .35, T.card + .7));
+  text('Draw it. Pitch it. Get funded.', 775, 488 + (1 - tu) * 26, 40, C.text, { weight: 700, alpha: tu, align: 'left' });
+  const fu = easeOut(win(t, T.card + .5, T.card + .82));
+  text('RANKED MATCHES · A DAILY PROMPT · ROOMS FOR TEN', 775, 546, 25, C.muted, { weight: 700, spacing: 2, alpha: fu, align: 'left' });
+
+  const cu = back(win(t, T.card + .62, T.card + 1.05));
+  if (cu > 0) {
+    g.save(); g.translate(1075, 648); g.scale(cu, cu); g.globalAlpha = clamp(cu, 0, 1);
+    g.shadowColor = 'rgba(255,197,61,.55)'; g.shadowBlur = 46;
+    g.fillStyle = C.primary; roundRect(-300, -56, 600, 112, 56); g.fill(); g.shadowColor = 'transparent';
+    text('INSTALL — IT’S FREE', 0, 2, 37, C.onPrimary, { spacing: 3 });
+    g.restore();
+  }
+  text('a  W H O S E G A M E S  game', 960, 945, 24, C.muted, { weight: 700, alpha: easeOut(win(t, T.card + .35, T.card + .7)) });
+}
+
+// --- the frame --------------------------------------------------------------
+function promoFrame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  let sx = 0, sy = 0;
+  if (t > T.funded && t < T.funded + .2) { const k = (1 - win(t, T.funded, T.funded + .2)) * 11; sx = Math.sin(t * 190) * k; sy = Math.cos(t * 230) * k; }
+  g.translate(sx, sy);
+
+  g.fillStyle = C.bg; g.fillRect(-40, -40, W + 80, H + 80);
+  const bg = g.createRadialGradient(960, 540, 0, 960, 540, 1050);
+  bg.addColorStop(0, 'rgba(255,197,61,.13)'); bg.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+
+  if (t < T.papers) scenePrompt(t);
+  if (t >= T.papers - .25 && t < T.pitch) scenePapers(t);
+  if (t >= T.pitch - .25 && t < T.league) scenePitch(t);
+  if (t >= T.league - .25 && t < T.card) sceneLeague(t);
+  if (t >= T.card) sceneCard(t);
+
+  wg.style.opacity = t >= T.card ? easeOut(win(t, T.card + .35, T.card + .75)) : 0;
+}
+// render-mp4.sh drives frame(t) by name, so hand it this film's version.
+window.frame = promoFrame;
+
+// Quiet by design: the bed sits at -20 LUFS and the money only peeks over it.
+prepareStage(1920, 1080, { x: 912, y: 800, size: 96 });
+runPlayback(promoFrame, T.end, [
+  ['bed',     'assets/promo_bed.mp3',   0,           .85],
+  ['coins',   'assets/sfx_coins.mp3',   T.pitch + .46, .55],
+  ['kaching', 'assets/sfx_kaching.mp3', T.funded - .02, .55],
+]);
+</script>
+</body>
+</html>

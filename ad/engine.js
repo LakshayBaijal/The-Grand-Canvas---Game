@@ -171,8 +171,8 @@ function roundRect(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x
 
 /** The prompt, word-wrapped, with the filled-in blank highlighted the way the
  *  game highlights it, typed in over [typed] characters. */
-function promptText(x, y, maxW, size, typed) {
-  const { before, blank, after } = SPOT.prompt;
+function promptText(x, y, maxW, size, typed, parts) {
+  const { before, blank, after } = parts ?? SPOT.prompt;
   const full = before + blank + after;
   const shown = full.slice(0, Math.floor(typed));
   g.font = `700 ${size}px Roboto, "Helvetica Neue", Arial, sans-serif`; g.textBaseline = 'middle';
@@ -380,9 +380,13 @@ const SOUNDS = [
   ['launch',  'assets/sting_launch.ogg', END_T + .05,   .80],
 ];
 
-function startSpot(spot) {
-  SPOT = spot; L = spot.layout; W = spot.W; H = spot.H;
-
+/**
+ * Prepares the canvas, the studio mark and the launcher icon, and keeps the
+ * stage scaled to the viewport. Shared by the ad pages and the store video,
+ * which draw completely different things on the same furniture.
+ */
+function prepareStage(width, height, wgBox) {
+  W = width; H = height;
   const stage = document.getElementById('stage');
   stage.style.width = W + 'px'; stage.style.height = H + 'px';
   cv = document.getElementById('c'); cv.width = W; cv.height = H;
@@ -390,30 +394,36 @@ function startSpot(spot) {
   g = cv.getContext('2d');
 
   wg = document.getElementById('wg');
-  const E = L.end;
-  wg.style.left = E.wgX + 'px'; wg.style.top = E.wgY + 'px';
-  wg.style.width = E.wgSize + 'px'; wg.style.height = E.wgSize + 'px';
+  wg.style.left = wgBox.x + 'px'; wg.style.top = wgBox.y + 'px';
+  wg.style.width = wgBox.size + 'px'; wg.style.height = wgBox.size + 'px';
   wg.style.marginLeft = '0';
 
   icon = new Image(); icon.src = 'assets/icon.png';
 
-  A = {};
-  for (const [name, src] of SOUNDS) { const el = new Audio(src); el.preload = 'auto'; A[name] = el; }
-
-  rand = rng(spot.seed ?? 7);
-  strokes = scheduleStrokes(spot.build({ S, C, line, arc, ellipse, curve, poly, coilBetween, wobble }));
-
-  // --- sizing: pin the stage to the middle of the viewport and scale from
-  // there. Centring it as a grid item instead looks identical at full size and
-  // is black at every other one — the row grows to the stage's full height, so
-  // scaling about the stage's own centre leaves it below the fold.
+  // Pin the stage to the middle of the viewport and scale from there. Centring
+  // it as a grid item instead looks identical at full size and is black at
+  // every other one -- the row grows to the stage's full height, so scaling
+  // about the stage's own centre leaves it below the fold.
   const fit = () => {
     const k = Math.min(innerWidth / W, innerHeight / H);
     stage.style.transform = `translate(-50%, -50%) scale(${k})`;
   };
   addEventListener('resize', fit); fit();
+  return g;
+}
 
-  // --- run it
+/**
+ * Click or space to play once; R replays, M mutes, L loops. `?t=N` instead
+ * holds the single frame at N seconds, which is what render-mp4.sh drives and
+ * what makes a still match the video exactly.
+ *
+ * [sounds] is a table of [name, src, atSeconds, volume]; [onTick] gets each
+ * frame's time, for anything that has to move between cues (ducking, mostly).
+ */
+function runPlayback(drawFrame, endAt, sounds, onTick) {
+  A = {};
+  for (const [name, src] of sounds) { const el = new Audio(src); el.preload = 'auto'; A[name] = el; }
+
   const params = new URLSearchParams(location.search);
   const overlay = document.getElementById('start');
   let muted = params.has('mute'), loop = params.has('loop');
@@ -427,23 +437,22 @@ function startSpot(spot) {
   }
   function tick() {
     const t = (performance.now() - start) / 1000;
-    frame(Math.min(t, END + 4));
+    drawFrame(Math.min(t, endAt + 4));
     if (!muted) {
-      for (const [name, , at, vol] of SOUNDS) {
+      for (const [name, , at, vol] of sounds) {
         if (t >= at && !fired.has(name)) {
           fired.add(name); A[name].currentTime = 0; A[name].volume = vol; A[name].play().catch(() => {});
         }
       }
-      // Duck the drawing loop out under the stamp.
-      if (t > 4.9) A.bed.volume = .50 * (1 - win(t, 4.9, 5.4));
+      if (onTick) onTick(t);
     }
-    if (t >= END + 1.2 && loop) return play();
+    if (t >= endAt + 1.2 && loop) return play();
     raf = requestAnimationFrame(tick);
   }
 
   if (params.has('t')) {
     overlay.classList.add('hidden');
-    const draw = () => frame(parseFloat(params.get('t')) || 0);
+    const draw = () => drawFrame(parseFloat(params.get('t')) || 0);
     icon.complete && icon.naturalWidth ? draw() : (icon.onload = draw, icon.onerror = draw);
   } else {
     overlay.addEventListener('click', play);
@@ -452,6 +461,15 @@ function startSpot(spot) {
       if (e.key === 'm' || e.key === 'M') { muted = !muted; if (muted) for (const a of Object.values(A)) a.pause(); }
       if (e.key === 'l' || e.key === 'L') loop = !loop;
     });
-    frame(0);
+    drawFrame(0);
   }
+}
+
+function startSpot(spot) {
+  SPOT = spot; L = spot.layout;
+  prepareStage(spot.W, spot.H, { x: L.end.wgX, y: L.end.wgY, size: L.end.wgSize });
+  rand = rng(spot.seed ?? 7);
+  strokes = scheduleStrokes(spot.build({ S, C, line, arc, ellipse, curve, poly, coilBetween, wobble }));
+  // Duck the drawing loop out under the stamp.
+  runPlayback(frame, END, SOUNDS, t => { if (t > 4.9) A.bed.volume = .50 * (1 - win(t, 4.9, 5.4)); });
 }

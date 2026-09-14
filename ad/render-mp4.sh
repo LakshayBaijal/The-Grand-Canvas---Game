@@ -2,9 +2,11 @@
 # Renders the spots to MP4 (and the soundtrack to MP3), from the pages
 # themselves.
 #
-#   ./ad/render-mp4.sh                 both cuts
+#   ./ad/render-mp4.sh                 the two ad cuts
 #   ./ad/render-mp4.sh portrait        1080x1920, for phones and Shorts
 #   ./ad/render-mp4.sh landscape       1920x1080, for YouTube and laptops
+#   ./ad/render-mp4.sh promo           1920x1080, 10s, for the Play listing
+#   ./ad/render-mp4.sh all             all three
 #
 # How it works: index.html?t=N draws exactly the frame the ad shows at N
 # seconds and stops, so this drives one headless Chrome over the DevTools
@@ -52,8 +54,8 @@ json.dump({"times": times, "total": t}, open(f"{work}/wg/timing.json", "w"))
 print(f"    {im.n_frames} frames, {t}ms loop")
 PY
 
-render_one () {
-  local page="$1" out="$2" label="$3"
+capture () {   # page, label, seconds -> frames in $WORK/frames
+  local page="$1" label="$2" secs="$3"
   echo ""
   echo "=================  $label  ================="
 
@@ -78,9 +80,20 @@ print(pages[0]['webSocketDebuggerUrl'] if pages else '')
 ")
   [ -n "$ws" ] || { echo "couldn't find $page in Chrome"; exit 1; }
 
-  echo "==> Rendering ${END}s at ${FPS}fps"
-  node "$AD/render-frames.mjs" "$ws" "" "$WORK/frames" "$WORK/wg" "$FPS" "$END"
+  echo "==> Rendering ${secs}s at ${FPS}fps"
+  node "$AD/render-frames.mjs" "$ws" "" "$WORK/frames" "$WORK/wg" "$FPS" "$secs"
   pkill -f "remote-debugging-port=$PORT" 2>/dev/null || true
+}
+
+show () {
+  echo "==> $AD/$1"
+  ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate \
+    -of default=noprint_wrappers=1 "$AD/$1"
+}
+
+render_ad () {
+  local page="$1" out="$2" label="$3"
+  capture "$page" "$label" "$END"
 
   # The soundtrack, laid out to match engine.js's SOUNDS table:
   #   the drawing loop from 0, ducking out under the stamp
@@ -104,26 +117,53 @@ alimiter=limit=0.95,atrim=0:$END,asetpts=PTS-STARTPTS[a]" \
     -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -profile:v high -level 4.2 \
     -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest \
     "$AD/$out"
+  show "$out"
+}
 
-  echo "==> $AD/$out"
-  ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate \
-    -of default=noprint_wrappers=1 "$AD/$out"
+# The store video is a quieter mix on a different bed: no stings, and the
+# money only just peeks over the music. Somebody on a listing is usually in
+# public with the volume wherever they last left it, and a video that shouts
+# is a video they mute -- a muted video sells nothing.
+render_promo () {
+  capture promo.html "PROMO  1920x1080 - 10s" 10.0
+  echo "==> Encoding"
+  ffmpeg -y -hide_banner -loglevel error -stats \
+    -framerate "$FPS" -i "$WORK/frames/f%05d.png" \
+    -i "$AD/assets/promo_bed.mp3" -i "$AD/assets/sfx_coins.mp3" -i "$AD/assets/sfx_kaching.mp3" \
+    -filter_complex "\
+[1:a]atrim=0:10,asetpts=PTS-STARTPTS,volume=0.85,afade=t=out:st=9.5:d=0.5[bed];\
+[2:a]adelay=5460|5460,volume=0.55[coins];\
+[3:a]adelay=6380|6380,volume=0.55[kach];\
+[bed][coins][kach]amix=inputs=3:duration=longest:normalize=0,\
+alimiter=limit=0.95,atrim=0:10,asetpts=PTS-STARTPTS[a]" \
+    -map 0:v -map "[a]" \
+    -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -profile:v high -level 4.2 \
+    -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest \
+    "$AD/GrandCanvas-store-10s.mp4"
+  show GrandCanvas-store-10s.mp4
 }
 
 case "$WHICH" in
-  portrait)  render_one index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920" ;;
-  landscape) render_one landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080" ;;
+  portrait)  render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920" ;;
+  landscape) render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080" ;;
+  promo)     render_promo ;;
   both)
-    render_one index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
-    render_one landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
+    render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
+    render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
     ;;
-  *) echo "usage: render-mp4.sh [portrait|landscape|both]"; exit 1 ;;
+  all)
+    render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
+    render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
+    render_promo
+    ;;
+  *) echo "usage: render-mp4.sh [portrait|landscape|promo|both|all]"; exit 1 ;;
 esac
 
 # The soundtrack on its own, for anyone who wants to cut their own pictures to
 # it. Both spots share it, so it only needs writing once.
 echo ""
 echo "==> Soundtrack"
-SRC="$AD/GrandCanvas-ad.mp4"; [ -f "$SRC" ] || SRC="$AD/GrandCanvas-ad-landscape.mp4"
-ffmpeg -y -hide_banner -loglevel error -i "$SRC" -vn -c:a libmp3lame -b:a 192k "$AD/GrandCanvas-ad.mp3"
-echo "    $AD/GrandCanvas-ad.mp3"
+if [ "$WHICH" != "promo" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
+  ffmpeg -y -hide_banner -loglevel error -i "$AD/GrandCanvas-ad.mp4" -vn -c:a libmp3lame -b:a 192k "$AD/GrandCanvas-ad.mp3"
+  echo "    $AD/GrandCanvas-ad.mp3"
+fi
