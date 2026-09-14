@@ -7,6 +7,7 @@ Three films, all finished and ready to upload. All H.264 + AAC with
 |---|---|---|
 | `GrandCanvas-store-10s.mp4` | 1920x1080, 10s | **the Play Store listing** — a tour of the game, quiet, captioned |
 | `GrandCanvas-gallery-10s.mp4` | 1920x1080, 10s | ten drawings, ten cuts — fast, for a feed or a site header |
+| `GrandCanvas-gallery-10s-portrait.mp4` | 1080x1920, 10s | the same montage for phones — Shorts, Reels, TikTok |
 | `GrandCanvas-daily-10s.mp4` | 1920x1080, 10s | the Daily on its own — the reason to come back tomorrow |
 | `GrandCanvas-ad.mp4` | 1080x1920, 6.5s | phones — Shorts, Reels, TikTok |
 | `GrandCanvas-ad-landscape.mp4` | 1920x1080, 6.5s | laptops and TVs — YouTube, a site header, pre-roll |
@@ -115,6 +116,14 @@ beats a drawing, so every finished line lands on a kick and a pen-swish. If you
 change the cut rhythm, rebuild `rapid_bed.mp3` to match — the swishes are baked
 in at the cut times so the edit and the music can't drift.
 
+**Two shapes, one film.** `gallery.html` is landscape by default and
+`?v=portrait` gives 9:16. The portrait cut isn't the landscape one with bars
+on it: the paper grows to nearly the full width, the title gets bigger, and the
+wall at the end stacks **3-2-3-2** instead of 5×2 — which is what ten pinned
+drawings actually look like on a phone. The end lockup is kept inside the
+middle of the frame, clear of the bottom ~450px where Reels and TikTok put
+their own caption and buttons.
+
 ---
 
 # The ad spots
@@ -154,8 +163,9 @@ is invented.
 ./ad/render-mp4.sh              # the two ad cuts
 ./ad/render-mp4.sh promo        # just the store video
 ./ad/render-mp4.sh gallery      # just the ten-cut gallery
+./ad/render-mp4.sh gallery-9x16 # the same montage, 1080x1920
 ./ad/render-mp4.sh daily        # just the Daily
-./ad/render-mp4.sh all          # all five
+./ad/render-mp4.sh all          # all six
 FPS=30 CRF=23 ./ad/render-mp4.sh   # smaller files
 ```
 

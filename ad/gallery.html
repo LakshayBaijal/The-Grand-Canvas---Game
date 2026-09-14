@@ -52,6 +52,11 @@
  *
  * The cuts are locked to the music rather than the other way round: 146bpm,
  * two beats a drawing, so every finished line lands on a kick.
+ *
+ * Two shapes, same film: landscape by default, and `?v=portrait` for 9:16.
+ * The portrait cut is not the landscape one with bars on it -- the paper grows
+ * to nearly the full width, and the wall at the end stacks 3-2-3-2 instead of
+ * 5x2, which is what ten pinned drawings look like on a phone.
  */
 
 // Must match make-music.mjs, which bakes a pen-swish onto each of these.
@@ -94,15 +99,52 @@ const thumbs = KEYS.map((key, i) => {
 });
 
 // --- geometry ---------------------------------------------------------------
-const PAPER = { x: 680, y: 112, s: 560 };
-const STRIP = { y: 872, s: 88, gap: 14 };
-STRIP.x = (1920 - (CUTS * STRIP.s + (CUTS - 1) * STRIP.gap)) / 2;
+const PORTRAIT = new URLSearchParams(location.search).get('v') === 'portrait';
+
+const LAY = PORTRAIT ? {
+  W: 1080, H: 1920,
+  prompt: { y: 190, size: 34, maxW: 940 },
+  paper: { x: 70, y: 330, s: 940 },
+  title: { y: 1376, size: 62 }, artist: { y: 1450, size: 30 },
+  strip: { y: 1546, s: 88, gap: 10 },
+  count: { y: 1706, size: 24 },
+  // 3-2-3-2 rather than a neat grid: ten pinned drawings, not a spreadsheet
+  wall: { rows: [3, 2, 3, 2], s: 310, gap: 20, y: 310 },
+  end: { glowY: 760, iconY: 560, iconS: 230, wordY: 830, wordSize: 86,
+         tagY: 928, tagSize: 32, ctaY: 1068, ctaW: 620, ctaH: 108, ctaSize: 34,
+         studioY: 1380, wgX: 498, wgY: 1208, wgSize: 84 },
+} : {
+  W: 1920, H: 1080,
+  prompt: { y: 66, size: 32, maxW: 1500 },
+  paper: { x: 680, y: 112, s: 560 },
+  title: { y: 748, size: 52 }, artist: { y: 800, size: 26 },
+  strip: { y: 872, s: 88, gap: 14 },
+  count: { y: 1005, size: 24 },
+  wall: { rows: [5, 5], s: 340, gap: 24, y: null },
+  end: { glowY: 500, iconY: 352, iconS: 190, wordY: 530, wordSize: 108,
+         tagY: 612, tagSize: 38, ctaY: 738, ctaW: 640, ctaH: 112, ctaSize: 38,
+         studioY: 1000, wgX: 912, wgY: 880, wgSize: 84 },
+};
+const MID = LAY.W / 2;
+
+const PAPER = LAY.paper;
+const STRIP = { y: LAY.strip.y, s: LAY.strip.s, gap: LAY.strip.gap };
+STRIP.x = (LAY.W - (CUTS * STRIP.s + (CUTS - 1) * STRIP.gap)) / 2;
 const stripSlot = i => ({ x: STRIP.x + i * (STRIP.s + STRIP.gap), y: STRIP.y, s: STRIP.s });
 
-const WALL = { s: 340, gap: 24 };
-WALL.x = (1920 - (5 * WALL.s + 4 * WALL.gap)) / 2;
-WALL.y = (1080 - (2 * WALL.s + WALL.gap)) / 2;
-const wallSlot = i => ({ x: WALL.x + (i % 5) * (WALL.s + WALL.gap), y: WALL.y + Math.floor(i / 5) * (WALL.s + WALL.gap), s: WALL.s });
+// Rows can be uneven, so each slot is worked out once up front.
+const WALL_SLOTS = (() => {
+  const { rows, s, gap } = LAY.wall;
+  const h = rows.length * s + (rows.length - 1) * gap;
+  const y0 = LAY.wall.y ?? (LAY.H - h) / 2;
+  const out = [];
+  rows.forEach((n, r) => {
+    const x0 = (LAY.W - (n * s + (n - 1) * gap)) / 2;
+    for (let c = 0; c < n; c++) out.push({ x: x0 + c * (s + gap), y: y0 + r * (s + gap), s });
+  });
+  return out;
+})();
+const wallSlot = i => WALL_SLOTS[i];
 
 function shadowed(fn) {
   g.save();
@@ -122,7 +164,7 @@ function shot(t, i) {
   g.globalAlpha = a;
 
   // the prompt this one is answering
-  promptText(960, 66, 1500, 32, 999, meta.prompt);
+  promptText(MID, LAY.prompt.y, LAY.prompt.maxW, LAY.prompt.size, 999, meta.prompt);
 
   const P = PAPER;
   g.save();
@@ -147,11 +189,11 @@ function shot(t, i) {
   const nu = back(win(t, last.t1 - .06, last.t1 + .20));
   if (nu > 0) {
     g.globalAlpha = a * clamp(nu, 0, 1);
-    text(meta.title, 960, 748, 52, C.primary, { spacing: 3, glow: 30, scale: nu, rot: -.015 });
+    text(meta.title, MID, LAY.title.y, LAY.title.size, C.primary, { spacing: 3, glow: 30, scale: nu, rot: -.015 });
     g.globalAlpha = a * clamp(win(t, last.t1 + .04, last.t1 + .22), 0, 1);
     g.fillStyle = ARTIST_COLOUR[i];
-    g.beginPath(); g.arc(960 - textWidth(meta.artist, 26, 3) / 2 - 22, 800, 10, 0, 7); g.fill();
-    text(meta.artist, 960 + 12, 800, 26, C.text, { spacing: 3 });
+    g.beginPath(); g.arc(MID - textWidth(meta.artist, LAY.artist.size, 3) / 2 - 22, LAY.artist.y, 10, 0, 7); g.fill();
+    text(meta.artist, MID + 12, LAY.artist.y, LAY.artist.size, C.text, { spacing: 3 });
   }
   g.globalAlpha = 1;
 }
@@ -183,7 +225,7 @@ function strip(t, current) {
   }
   // a quiet count, so "ten people" is stated and not just implied
   const n = LISTS.filter(l => t >= l[l.length - 1].t1).length;
-  text(`${n} / ${CUTS} DRAWINGS`, 960, 1005, 24, C.muted, { spacing: 5, weight: 700 });
+  text(`${n} / ${CUTS} DRAWINGS`, MID, LAY.count.y, LAY.count.size, C.muted, { spacing: 5, weight: 700 });
 }
 
 // --- the wall ---------------------------------------------------------------
@@ -201,36 +243,39 @@ function wall(t) {
 
   const wu = easeOut(win(t, REVEAL + .62, REVEAL + .95));
   if (wu <= 0) return;
-  const glow = g.createRadialGradient(960, 500, 0, 960, 500, 820);
+  const E = LAY.end;
+  const glow = g.createRadialGradient(MID, E.glowY, 0, MID, E.glowY, 820);
   glow.addColorStop(0, `rgba(255,197,61,${.26 * wu})`); glow.addColorStop(1, 'rgba(255,197,61,0)');
   g.fillStyle = glow; g.fillRect(0, 0, W, H);
 
-  const is = back(win(t, REVEAL + .6, REVEAL + .98)), size = 190 * is;
+  const is = back(win(t, REVEAL + .6, REVEAL + .98)), size = E.iconS * is;
   if (icon.complete && icon.naturalWidth) {
-    g.save(); g.translate(960, 352); g.rotate((1 - is) * .3);
+    g.save(); g.translate(MID, E.iconY); g.rotate((1 - is) * .3);
     g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 50; g.shadowOffsetY = 20;
     roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent';
     g.drawImage(icon, -size / 2, -size / 2, size, size); g.restore();
   }
-  text('GRAND CANVAS', 960, 530 + (1 - wu) * 30, 108, C.primary, { spacing: 9, glow: 44, alpha: wu });
+  text('GRAND CANVAS', MID, E.wordY + (1 - wu) * 30, E.wordSize, C.primary, { spacing: 9, glow: 44, alpha: wu });
   const tu = easeOut(win(t, REVEAL + .78, REVEAL + 1.1));
-  text('One prompt. Ten answers. Somebody gets funded.', 960, 612, 38, C.text, { weight: 700, alpha: tu });
+  text(PORTRAIT ? 'One prompt. Ten answers.' : 'One prompt. Ten answers. Somebody gets funded.',
+       MID, E.tagY, E.tagSize, C.text, { weight: 700, alpha: tu });
   const cu = back(win(t, REVEAL + .95, REVEAL + 1.4));
   if (cu > 0) {
-    g.save(); g.translate(960, 738); g.scale(cu, cu); g.globalAlpha = clamp(cu, 0, 1);
+    g.save(); g.translate(MID, E.ctaY); g.scale(cu, cu); g.globalAlpha = clamp(cu, 0, 1);
     g.shadowColor = 'rgba(255,197,61,.55)'; g.shadowBlur = 46;
-    g.fillStyle = C.primary; roundRect(-320, -56, 640, 112, 56); g.fill(); g.shadowColor = 'transparent';
-    text('FREE ON GOOGLE PLAY', 0, 2, 38, C.onPrimary, { spacing: 3 });
+    g.fillStyle = C.primary; roundRect(-E.ctaW / 2, -E.ctaH / 2, E.ctaW, E.ctaH, E.ctaH / 2); g.fill();
+    g.shadowColor = 'transparent';
+    text('FREE ON GOOGLE PLAY', 0, 2, E.ctaSize, C.onPrimary, { spacing: 3 });
     g.restore();
   }
-  text('a  W H O S E G A M E S  game', 960, 1000, 24, C.muted, { weight: 700, alpha: easeOut(win(t, REVEAL + .85, REVEAL + 1.2)) });
+  text('a  W H O S E G A M E S  game', MID, E.studioY, 24, C.muted, { weight: 700, alpha: easeOut(win(t, REVEAL + .85, REVEAL + 1.2)) });
 }
 
 // --- the frame --------------------------------------------------------------
 function galleryFrame(t) {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
   g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
-  const bg = g.createRadialGradient(960, 500, 0, 960, 500, 1050);
+  const bg = g.createRadialGradient(MID, H * .46, 0, MID, H * .46, Math.max(W, H) * .58);
   bg.addColorStop(0, 'rgba(255,197,61,.12)'); bg.addColorStop(1, 'rgba(255,197,61,0)');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
 
@@ -251,7 +296,7 @@ function galleryFrame(t) {
 // render-mp4.sh drives frame(t) by name.
 window.frame = galleryFrame;
 
-prepareStage(1920, 1080, { x: 912, y: 880, size: 84 });
+prepareStage(LAY.W, LAY.H, { x: LAY.end.wgX, y: LAY.end.wgY, size: LAY.end.wgSize });
 runPlayback(galleryFrame, RUN, [['bed', 'assets/rapid_bed.mp3', 0, .95]]);
 </script>
 </body>

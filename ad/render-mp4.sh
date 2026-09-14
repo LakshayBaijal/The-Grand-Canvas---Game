@@ -7,6 +7,7 @@
 #   ./ad/render-mp4.sh landscape       1920x1080, for YouTube and laptops
 #   ./ad/render-mp4.sh promo           1920x1080, 10s, for the Play listing
 #   ./ad/render-mp4.sh gallery         1920x1080, 10s, ten drawings, ten cuts
+#   ./ad/render-mp4.sh gallery-9x16    1080x1920, the same montage for phones
 #   ./ad/render-mp4.sh daily           1920x1080, 10s, the Daily
 #   ./ad/render-mp4.sh all             all five
 #
@@ -56,8 +57,8 @@ json.dump({"times": times, "total": t}, open(f"{work}/wg/timing.json", "w"))
 print(f"    {im.n_frames} frames, {t}ms loop")
 PY
 
-capture () {   # page, label, seconds -> frames in $WORK/frames
-  local page="$1" label="$2" secs="$3"
+capture () {   # page, label, seconds, [extra query] -> frames in $WORK/frames
+  local page="$1" label="$2" secs="$3" extra="${4:-}"
   echo ""
   echo "=================  $label  ================="
 
@@ -68,7 +69,7 @@ capture () {   # page, label, seconds -> frames in $WORK/frames
 
   "$CHROME" --headless=new --disable-gpu --disable-extensions --no-first-run --hide-scrollbars \
     --mute-audio --force-device-scale-factor=1 --remote-debugging-port=$PORT \
-    --user-data-dir="$WORK/profile" "file://$AD/$page?t=0" >"$WORK/chrome.log" 2>&1 &
+    --user-data-dir="$WORK/profile" "file://$AD/$page?t=0$extra" >"$WORK/chrome.log" 2>&1 &
   sleep 4
 
   # Pick the page target by URL. Taking the first one in the list is wrong --
@@ -149,7 +150,8 @@ alimiter=limit=0.95,atrim=0:10,asetpts=PTS-STARTPTS[a]" \
 # are baked into it at the exact cut times, so the edit and the music can't
 # drift apart. Change the cut rhythm and rebuild the bed to match.
 render_gallery () {
-  capture gallery.html "GALLERY  1920x1080 - 10s" 10.0
+  local out="${1:-GrandCanvas-gallery-10s.mp4}" extra="${2:-}" label="${3:-GALLERY  1920x1080 - 10s}"
+  capture gallery.html "$label" 10.0 "$extra"
   echo "==> Encoding"
   ffmpeg -y -hide_banner -loglevel error -stats \
     -framerate "$FPS" -i "$WORK/frames/f%05d.png" -i "$AD/assets/rapid_bed.mp3" \
@@ -158,8 +160,8 @@ afade=t=out:st=9.4:d=0.6,alimiter=limit=0.95[a]" \
     -map 0:v -map "[a]" \
     -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -profile:v high -level 4.2 \
     -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest \
-    "$AD/GrandCanvas-gallery-10s.mp4"
-  show GrandCanvas-gallery-10s.mp4
+    "$AD/$out"
+  show "$out"
 }
 
 # The Daily's bed carries its own chime and hearts, baked in at the times
@@ -183,6 +185,7 @@ case "$WHICH" in
   landscape) render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080" ;;
   promo)     render_promo ;;
   gallery)   render_gallery ;;
+  gallery-9x16) render_gallery GrandCanvas-gallery-10s-portrait.mp4 "&v=portrait" "GALLERY  1080x1920 - 10s" ;;
   daily)     render_daily ;;
   both)
     render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
@@ -193,16 +196,17 @@ case "$WHICH" in
     render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
     render_promo
     render_gallery
+    render_gallery GrandCanvas-gallery-10s-portrait.mp4 "&v=portrait" "GALLERY  1080x1920 - 10s"
     render_daily
     ;;
-  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|daily|both|all]"; exit 1 ;;
+  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|gallery-9x16|daily|both|all]"; exit 1 ;;
 esac
 
 # The soundtrack on its own, for anyone who wants to cut their own pictures to
 # it. Both spots share it, so it only needs writing once.
 echo ""
 echo "==> Soundtrack"
-case "$WHICH" in promo|gallery|daily) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
+case "$WHICH" in promo|gallery|gallery-9x16|daily) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
 if [ "$SKIP_MP3" = "0" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
   ffmpeg -y -hide_banner -loglevel error -i "$AD/GrandCanvas-ad.mp4" -vn -c:a libmp3lame -b:a 192k "$AD/GrandCanvas-ad.mp3"
   echo "    $AD/GrandCanvas-ad.mp3"
