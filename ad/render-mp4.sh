@@ -7,7 +7,8 @@
 #   ./ad/render-mp4.sh landscape       1920x1080, for YouTube and laptops
 #   ./ad/render-mp4.sh promo           1920x1080, 10s, for the Play listing
 #   ./ad/render-mp4.sh gallery         1920x1080, 10s, ten drawings, ten cuts
-#   ./ad/render-mp4.sh all             all four
+#   ./ad/render-mp4.sh daily           1920x1080, 10s, the Daily
+#   ./ad/render-mp4.sh all             all five
 #
 # How it works: index.html?t=N draws exactly the frame the ad shows at N
 # seconds and stops, so this drives one headless Chrome over the DevTools
@@ -161,11 +162,28 @@ afade=t=out:st=9.4:d=0.6,alimiter=limit=0.95[a]" \
   show GrandCanvas-gallery-10s.mp4
 }
 
+# The Daily's bed carries its own chime and hearts, baked in at the times
+# daily.html uses, so this is one track and nothing else.
+render_daily () {
+  capture daily.html "DAILY  1920x1080 - 10s" 10.0
+  echo "==> Encoding"
+  ffmpeg -y -hide_banner -loglevel error -stats \
+    -framerate "$FPS" -i "$WORK/frames/f%05d.png" -i "$AD/assets/daily_bed.mp3" \
+    -filter_complex "[1:a]atrim=0:10,asetpts=PTS-STARTPTS,volume=1.05,\
+afade=t=out:st=9.3:d=0.7,alimiter=limit=0.95[a]" \
+    -map 0:v -map "[a]" \
+    -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -profile:v high -level 4.2 \
+    -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest \
+    "$AD/GrandCanvas-daily-10s.mp4"
+  show GrandCanvas-daily-10s.mp4
+}
+
 case "$WHICH" in
   portrait)  render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920" ;;
   landscape) render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080" ;;
   promo)     render_promo ;;
   gallery)   render_gallery ;;
+  daily)     render_daily ;;
   both)
     render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
     render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
@@ -175,15 +193,17 @@ case "$WHICH" in
     render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
     render_promo
     render_gallery
+    render_daily
     ;;
-  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|both|all]"; exit 1 ;;
+  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|daily|both|all]"; exit 1 ;;
 esac
 
 # The soundtrack on its own, for anyone who wants to cut their own pictures to
 # it. Both spots share it, so it only needs writing once.
 echo ""
 echo "==> Soundtrack"
-if [ "$WHICH" != "promo" ] && [ "$WHICH" != "gallery" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
+case "$WHICH" in promo|gallery|daily) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
+if [ "$SKIP_MP3" = "0" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
   ffmpeg -y -hide_banner -loglevel error -i "$AD/GrandCanvas-ad.mp4" -vn -c:a libmp3lame -b:a 192k "$AD/GrandCanvas-ad.mp3"
   echo "    $AD/GrandCanvas-ad.mp3"
 fi

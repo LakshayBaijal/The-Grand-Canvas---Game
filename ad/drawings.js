@@ -311,3 +311,124 @@ function buildDrawing(key) {
   rand = rng(d.seed);
   return d.build({ S, C, line, arc, ellipse, curve, poly, coilBetween, wobble });
 }
+
+// ---------------------------------------------------------------------------
+// The Daily
+//
+// A round's prompt is a template with a blank in it; a Daily prompt is a whole
+// sentence, the same one for everybody on earth that day, with no clock and
+// nothing locked. So the film about it needs the opposite of variety: one
+// prompt and nine people's answers to it, which is far more convincing when
+// the answers rhyme. Nine chairs, each buried differently.
+//
+// Real prompt, from daily.ts.
+// ---------------------------------------------------------------------------
+const DAILY_PROMPT = 'The chair where all the clothes end up.';
+
+const DAILY_TAKES = [
+  { artist: 'RIYA',    top: .30, lumps: 5, accent: C.pink,    extra: 'sock'   },
+  { artist: 'ARJUN',   top: .21, lumps: 6, accent: C.cyan,    extra: 'sleeve' },
+  { artist: 'MEERA',   top: .13, lumps: 7, accent: C.purple,  extra: 'hat'    },
+  { artist: 'DEV',     top: .40, lumps: 4, accent: C.lime,    extra: 'cat'    },
+  { artist: 'SANA',    top: .26, lumps: 6, accent: C.primary, extra: 'sleeve' },
+  { artist: 'KABIR',   top: .34, lumps: 5, accent: C.cyan,    extra: 'sock'   },
+  { artist: 'NEHA',    top: .17, lumps: 7, accent: C.pink,    extra: 'hat'    },
+  { artist: 'OMAR',    top: .44, lumps: 4, accent: C.purple,  extra: 'none'   },
+  { artist: 'PRIYA',   top: .28, lumps: 6, accent: C.lime,    extra: 'cat'    },
+  { artist: 'YOU',     top: .24, lumps: 6, accent: C.primary, extra: 'sock'   },
+];
+
+/**
+ * One person's chair. The chair is roughly the same every time and the pile on
+ * it never is, which is exactly what nine people answering one prompt looks
+ * like. Drawn from the bottom up -- legs, seat, then the heap -- so it reads
+ * as a chair for the first second and as a problem after that.
+ */
+function buildDailyChair(i) {
+  const v = DAILY_TAKES[i % DAILY_TAKES.length];
+  rand = rng(1000 + i * 37);
+  const s = [];
+  const seat = .76;
+
+  // the chair, or what is left visible of it
+  s.push(S(poly([{ x: .17, y: seat - .04 }, { x: .83, y: seat - .04 }, { x: .83, y: seat + .03 },
+                 { x: .17, y: seat + .03 }, { x: .17, y: seat - .04 }]), C.ink, 7));    // seat
+  for (const [x, dx] of [[.20, .010], [.31, .006], [.69, -.006], [.80, -.010]])
+    s.push(S(line({ x, y: seat + .03 }, { x: x + dx, y: .935 }), C.ink, 7));            // legs
+  s.push(S(line({ x: .12, y: .942 }, { x: .88, y: .942 }, .5), C.ink, 5));              // the floor
+
+  // the heap. A dome with sub-lumps rather than a smooth arch -- a clean curve
+  // reads as a tent, and the whole joke is that it is obviously laundry.
+  const prof = u => {
+    const dome = Math.pow(Math.sin(Math.PI * clamp(u, 0, 1)), .55);
+    const bump = .11 * Math.sin(u * Math.PI * (3 + v.lumps)) + .07 * Math.sin(u * Math.PI * (5 + v.lumps) + 1.3);
+    return Math.max(.06, dome + bump * dome);
+  };
+  const mound = [{ x: .13, y: seat - .02 }];
+  const STEPS = 14;
+  for (let k = 0; k <= STEPS; k++) {
+    const u = k / STEPS;
+    mound.push({ x: lerp(.13, .87, u), y: seat - .03 - (seat - v.top) * prof(u) + (rand() * 2 - 1) * .012 });
+  }
+  mound.push({ x: .87, y: seat - .02 });
+  s.push(S(curve(mound), C.ink, 8));
+
+  // folds, so it is clothes and not a rock
+  for (let k = 0; k < 3; k++) {
+    const u = .26 + k * .24;
+    const top = seat - .03 - (seat - v.top) * prof(u);
+    const y = lerp(seat - .06, top + .06, .35 + rand() * .35);
+    s.push(S(curve([{ x: u - .06, y }, { x: u + .03, y: y + .045 }, { x: u + .12, y: y - .02 }]), C.ink, 5));
+  }
+  // Colour, laid on as separate garments rather than as bands across the whole
+  // heap: full-width stripes turn it into a layer cake, and the one thing this
+  // has to read as is a pile of individual clothes.
+  for (let k = 0; k < 7; k++) {
+    const f = .14 + k * .115;
+    const yy = lerp(seat - .05, v.top + .04, f);
+    // how wide the heap actually is at this height, so nothing spills out
+    let lo = .13, hi = .87;
+    for (let u = 0; u <= 1; u += .02) {
+      if (seat - .03 - (seat - v.top) * prof(u) < yy) { lo = lerp(.13, .87, u); break; }
+    }
+    for (let u = 1; u >= 0; u -= .02) {
+      if (seat - .03 - (seat - v.top) * prof(u) < yy) { hi = lerp(.13, .87, u); break; }
+    }
+    const span = hi - lo - .05;
+    if (span < .07) continue;
+    const frac = .34 + rand() * .38;
+    const x0 = lo + .025 + rand() * span * (1 - frac);
+    s.push(S(line({ x: x0, y: yy }, { x: x0 + span * frac, y: yy + (rand() * 2 - 1) * .013 }, .3),
+             v.accent, 8, 'marker'));
+  }
+
+  // one corner of the backrest, still holding out
+  const rail = v.top - .05;
+  s.push(S(line({ x: .70, y: v.top + .06 }, { x: .715, y: rail }), C.ink, 6));
+  s.push(S(line({ x: .715, y: rail }, { x: .80, y: rail + .015 }), C.ink, 6));
+
+  // whatever is escaping
+  if (v.extra === 'sock') {
+    s.push(S(curve([{ x: .84, y: seat - .10 }, { x: .90, y: seat - .01 }, { x: .875, y: seat + .08 }]), C.ink, 6));
+    s.push(S(ellipse(.882, seat + .112, .034, .027), C.ink, 6));
+    s.push(S(line({ x: .858, y: seat + .105 }, { x: .906, y: seat + .105 }, .3), v.accent, 7, 'marker'));
+  } else if (v.extra === 'sleeve') {
+    s.push(S(curve([{ x: .17, y: seat - .12 }, { x: .09, y: seat - .02 }, { x: .12, y: seat + .10 }]), C.ink, 7));
+    s.push(S(curve([{ x: .23, y: seat - .10 }, { x: .17, y: seat - .01 }, { x: .20, y: seat + .09 }]), C.ink, 7));
+    s.push(S(line({ x: .115, y: seat + .098 }, { x: .205, y: seat + .088 }), C.ink, 6));
+  } else if (v.extra === 'hat') {
+    s.push(S(ellipse(.30, v.top - .01, .105, .028), C.ink, 7));
+    s.push(S(curve([{ x: .225, y: v.top - .018 }, { x: .24, y: v.top - .095 },
+                    { x: .36, y: v.top - .095 }, { x: .375, y: v.top - .018 }]), C.ink, 7));
+    s.push(S(line({ x: .232, y: v.top - .042 }, { x: .368, y: v.top - .042 }), v.accent, 8, 'marker'));
+  } else if (v.extra === 'cat') {
+    const cy = v.top - .045;
+    s.push(S(ellipse(.44, cy, .070, .064), C.ink, 7));
+    s.push(S(poly([{ x: .387, y: cy - .036 }, { x: .376, y: cy - .102 }, { x: .434, y: cy - .060 }]), C.ink, 6));
+    s.push(S(poly([{ x: .493, y: cy - .036 }, { x: .504, y: cy - .102 }, { x: .446, y: cy - .060 }]), C.ink, 6));
+    s.push(S(ellipse(.419, cy - .004, .011, .013), C.ink, 5));
+    s.push(S(ellipse(.461, cy - .004, .011, .013), C.ink, 5));
+    s.push(S(curve([{ x: .508, y: cy + .038 }, { x: .572, y: cy + .018 }, { x: .578, y: cy - .048 }]), C.ink, 6));
+  }
+  return s;
+}

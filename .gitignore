@@ -44,3 +44,4 @@ app/android/key.properties
 # Downloads from Google Cloud etc. Never in git.
 Private Folder/
 client_secret_*.json
+ad/Ad Videos/

@@ -11,6 +11,9 @@
  *                          is a track they mute -- and a muted video sells
  *                          nothing.
  *
+ *   assets/daily_bed.mp3   10.4s, 92bpm, warm and almost drumless, with the
+ *                          notification chime and the hearts baked in.
+ *
  *   assets/rapid_bed.mp3   10.2s, 146bpm. The gallery cuts every two beats, so
  *                          the music is what the cuts are locked to rather
  *                          than the other way round: four-on-the-floor, a clap
@@ -251,5 +254,67 @@ function rapidBed() {
   console.log(`rapid_bed.mp3   10.4s, ${RAPID_BPM}bpm, a cut every ${RAPID_CUT.toFixed(3)}s`);
 }
 
+// ---------------------------------------------------------------------------
+// The Daily's bed: 92bpm, warm, and no drums to speak of. The Daily is the one
+// part of the game with no competition in it -- nothing is scored and nobody
+// is judged -- so the music shouldn't sound like a race. The chord turns on
+// each of the film's cuts, and the little bells are the notification and the
+// hearts landing, baked in at the times daily.html uses.
+// ---------------------------------------------------------------------------
+export const DAILY_CUTS = { draw: 1.70, wall: 4.80, midnight: 7.20, card: 8.50 };
+export const DAILY_HEARTS = [5.95, 6.20, 6.46, 6.74];
+
+function dailyBed() {
+  noiseRng = rng(5150);
+  const out = new Float32Array(Math.ceil(10.4 * SR));
+  const B = 60 / 92;
+  const K = DAILY_CUTS;
+  const SECTIONS = [
+    { at: 0.00,       to: K.draw,     chord: [N.C3, N.G3, N.C4, N.E4], walk: [N.C4, N.E4, N.G4, N.E4], amp: 0.70 },
+    { at: K.draw,     to: K.wall,     chord: [N.A2, N.E3, N.A3, N.C4], walk: [N.A3, N.C4, N.E4, N.C4], amp: 0.85 },
+    { at: K.wall,     to: K.midnight, chord: [N.F2, N.C3, N.F3, N.A3], walk: [N.F4, N.A4, N.C5, N.A4], amp: 0.95 },
+    { at: K.midnight, to: K.card,     chord: [N.G2, N.D4, N.G3, N.B3], walk: [N.G4, N.D4, N.B3, N.D4], amp: 1.00 },
+    { at: K.card,     to: 10.4,       chord: [N.C3, N.G3, N.C4, N.E4, N.G4], walk: [], amp: 1.00 },
+  ];
+  for (const s of SECTIONS) {
+    pad(out, s.at, s.chord, s.amp * 1.15, s.to - s.at);
+    let k = 0;
+    for (let t = s.at; t < s.to - 0.08 && s.walk.length; t += B) {
+      pluck(out, t, s.walk[k % s.walk.length], s.amp * (k % 2 ? 0.46 : 0.72), 0.62);
+      k++;
+    }
+  }
+  // A pulse rather than a beat: one soft kick a bar, and brushes on the offs.
+  for (let t = K.draw, i = 0; t < K.card; t += B, i++) {
+    if (i % 2 === 0) kick(out, t, 0.55, 1.3);
+    hat(out, t + B / 2, 0.38, 0.012);
+  }
+  // the notification, and the hearts
+  bell(out, 0.10, 1046.5, 0.85, 0.55);
+  bell(out, 0.20, 1568.0, 0.60, 0.50);
+  for (const t of DAILY_HEARTS) bell(out, t, 1318.5, 0.42, 0.30);
+  // midnight, and the names coming out
+  bell(out, K.midnight, 880.0, 0.55, 0.85);
+  bell(out, K.midnight + 0.10, 1318.5, 0.42, 0.75);
+  shimmer(out, K.card, 0.9, 1.7);
+  for (const [i, f] of [N.C5, N.E5, N.G5].entries()) pluck(out, K.card + i * 0.09, f, 0.60, 1.0);
+
+  write(out, 'daily_bed.mp3', 0.50);
+  console.log('daily_bed.mp3   10.4s, 92bpm, C -> Am -> F -> G -> C  (warm, no drums)');
+}
+
+/** A struck bell -- the notification and the hearts. */
+function bell(out, at, freq, amp, decay) {
+  for (const [mult, a, d] of [[0.56, 0.55, 0.9], [1.00, 1.00, 1.0], [1.71, 0.40, 0.5],
+                              [2.00, 0.30, 0.45], [2.74, 0.18, 0.3]]) {
+    const i0 = Math.round(at * SR), n = Math.min(out.length - i0, Math.ceil(decay * d * 6 * SR));
+    for (let i = 0; i < n; i++) {
+      const t = i / SR, e = Math.min(1, t / 0.004) * Math.exp(-t / (decay * d));
+      out[i0 + i] += Math.sin(2 * Math.PI * freq * mult * t) * a * amp * 0.16 * e;
+    }
+  }
+}
+
 promoBed();
 rapidBed();
+dailyBed();

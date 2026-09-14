@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — 10s Daily</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center;
+           transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 20px; opacity: 0;
+        box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer;
+           background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start">
+    <div>
+      <b>THE DAILY</b>
+      <span>10 seconds &middot; one prompt, the whole world<br><br>
+        <kbd>click</kbd> or <kbd>space</kbd> to play<br>
+        <kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span>
+    </div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script src="drawings.js"></script>
+<script>
+/**
+ * The Daily, in ten seconds.
+ *
+ * Worth saying what the Daily actually is, because it is the opposite of the
+ * rest of the game and the film has to feel that way too. A round has a
+ * template with a blank in it, a 75-second clock, money, trophies and a
+ * winner. The Daily has one whole sentence, the same one for every player on
+ * earth, no clock at all, nothing locked, nothing scored and nobody judged.
+ * You draw it, you submit, and then you get to see what everyone else made of
+ * the same idea.
+ *
+ *   0.00  the reminder      a notification, then today's prompt
+ *   1.70  you draw it       no timer, every colour and paper open
+ *   4.80  the wall          everyone else's answer, names hidden, hearts land
+ *   7.20  midnight          the day closes and the names come out
+ *   8.50  the card          a new one tomorrow
+ *
+ * Nine people answering one prompt is far more convincing when the answers
+ * rhyme, so they are nine chairs, each buried differently.
+ */
+
+// Must match make-music.mjs, which bakes the chime and the hearts in here.
+const K = { draw: 1.70, wall: 4.80, midnight: 7.20, card: 8.50 };
+const HEARTS = [5.95, 6.20, 6.46, 6.74];
+const RUN = 10.0;                   // engine.js already owns the name END
+
+const HERO_I = 9;                                             // 'YOU'
+const hero = buildDailyChair(HERO_I);
+const others = Array.from({ length: 9 }, (_, i) => buildDailyChair(i));
+
+// Your drawing arrives over the middle of its scene, unhurried -- there is no
+// clock in the Daily and the film shouldn't imply one.
+(() => {
+  const a = K.draw + .18, b = K.wall - .30;
+  const len = s => s.pts.reduce((acc, p, k) => k ? acc + Math.hypot(p.x - s.pts[k-1].x, p.y - s.pts[k-1].y) : 0, 0);
+  const w = hero.map(s => Math.max(.06, len(s) * 2.2) + .04);
+  const tot = w.reduce((x, y) => x + y, 0);
+  let t = a;
+  hero.forEach((s, k) => { const d = (w[k] / tot) * (b - a); s.t0 = t; s.t1 = t + d * .82; t += d; });
+})();
+
+// The nine on the wall are finished pictures, so paint each once and blit.
+const TH = 380;
+const thumbs9 = others.map(list => {
+  const c = document.createElement('canvas'); c.width = c.height = TH;
+  const main = g; g = c.getContext('2d');
+  paintPaper(0, 0, TH, TH);
+  for (const s of list) strokePath(s.pts, 1, s.color, s.width * (TH / 380) * .55, s.style, 0, 0, TH);
+  g.strokeStyle = 'rgba(0,0,0,.10)'; g.lineWidth = 3; g.strokeRect(1.5, 1.5, TH - 3, TH - 3);
+  g = main;
+  return c;
+});
+
+// --- pieces -----------------------------------------------------------------
+function sheetAt(x, y, s, pop = 1) {
+  g.save();
+  g.translate(x + s / 2, y + s / 2); g.scale(pop, pop); g.translate(-(x + s / 2), -(y + s / 2));
+  g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 40; g.shadowOffsetY = 16;
+  g.fillStyle = C.paper; g.fillRect(x, y, s, s);
+  g.shadowColor = 'transparent'; g.shadowOffsetY = 0;
+  paintPaper(x, y, s, s);
+  g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, s - 2, s - 2);
+}
+function heartAt(x, y, s, colour, alpha = 1) {
+  g.save(); g.globalAlpha = alpha; g.translate(x, y); g.scale(s / 24, s / 24);
+  g.beginPath();
+  g.moveTo(0, 8);
+  g.bezierCurveTo(-14, -3, -9, -14, 0, -7);
+  g.bezierCurveTo(9, -14, 14, -3, 0, 8);
+  g.closePath(); g.fillStyle = colour; g.fill();
+  g.restore();
+}
+function chipAt(x, y, w, h, label, size, colour = C.muted) {
+  g.fillStyle = C.surface; roundRect(x, y, w, h, h / 2); g.fill();
+  g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+  text(label, x + w / 2, y + h / 2, size, colour, { spacing: 3 });
+}
+/** Bottom line. The Daily is the part people have to be told about -- nobody
+ *  guesses "there is a new prompt every day" from a picture of a chair. */
+function say(str, t, from, to) {
+  const a = easeOut(win(t, from, from + .22)) * (1 - win(t, to - .18, to));
+  if (a > 0) text(str, 960, 995, 30, C.primary, { spacing: 5, alpha: a });
+}
+
+// --- 0.00  the reminder ------------------------------------------------------
+function sceneReminder(t) {
+  const out = 1 - win(t, K.draw - .22, K.draw);
+  g.globalAlpha = out;
+
+  // the notification, sliding down and then getting out of the way
+  const inn = back(win(t, .02, .46)), gone = win(t, 1.05, 1.35);
+  const ny = lerp(-170, 96, inn) - gone * 120;
+  g.globalAlpha = out * (1 - gone);
+  g.fillStyle = C.surface; roundRect(660, ny, 600, 128, 26); g.fill();
+  g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+  if (icon.complete && icon.naturalWidth) {
+    g.save(); roundRect(694, ny + 26, 76, 76, 18); g.clip();
+    g.drawImage(icon, 694, ny + 26, 76, 76); g.restore();
+  }
+  text('GRAND CANVAS', 798, ny + 50, 24, C.muted, { align: 'left', spacing: 3 });
+  text("Today's prompt is up.", 798, ny + 90, 30, C.text, { align: 'left', weight: 700 });
+  g.globalAlpha = out;
+
+  // today's prompt
+  const typed = win(t, .55, 1.22) * (DAILY_PROMPT.length + 2);
+  promptText(960, 480, 1500, 68, typed, { before: DAILY_PROMPT, blank: '', after: '' });
+  text('Everybody in the world gets the same one.', 960, 604, 32, C.muted,
+       { weight: 700, alpha: easeOut(win(t, 1.15, 1.45)) });
+  g.globalAlpha = 1;
+  say('A NEW PROMPT EVERY DAY', t, .5, K.draw);
+}
+
+// --- 1.70  you draw it -------------------------------------------------------
+const PALETTE = [C.ink, '#FDD835', '#E53935', '#FB8C00', '#43A047', '#1E88E5', '#8E24AA', '#6D4C41', '#FFFFFF'];
+
+function sceneDraw(t) {
+  const a = easeOut(win(t, K.draw, K.draw + .2)) * (1 - win(t, K.wall - .22, K.wall));
+  if (a <= 0) return;
+  g.globalAlpha = a;
+
+  text(DAILY_PROMPT, 960, 92, 40, C.text, { weight: 700 });
+
+  const P = { x: 235, y: 190, s: 560 };
+  sheetAt(P.x, P.y, P.s, back(win(t, K.draw, K.draw + .34)));
+  let tip = null;
+  for (const s of hero) {
+    if (t < s.t0) break;
+    const u = win(t, s.t0, s.t1);
+    const e = strokePath(s.pts, u, s.color, s.width * (P.s / 380) * .55, s.style, P.x, P.y, P.s);
+    if (u < 1 || t < s.t1 + .01) tip = e;
+  }
+  if (tip && t < hero[hero.length - 1].t1) pencil(P.x + tip.x * P.s, P.y + tip.y * P.s, P.s * .5, -0.9);
+  g.restore();
+
+  // Where a round would put a clock, the Daily puts nothing -- so say so.
+  const CX = 1330;
+  const cu = back(win(t, K.draw + .18, K.draw + .55));
+  if (cu > 0) {
+    g.save(); g.translate(CX, 252); g.scale(cu, cu); g.globalAlpha = a * clamp(cu, 0, 1);
+    g.fillStyle = C.surface; roundRect(-190, -42, 380, 84, 42); g.fill();
+    g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+    text('NO TIMER', 0, 2, 32, C.lime, { spacing: 5 });
+    g.restore(); g.globalAlpha = a;
+  }
+
+  // every colour, every paper, every pen -- free, in the Daily only
+  const pu = easeOut(win(t, K.draw + .45, K.draw + .85));
+  if (pu > 0) {
+    g.globalAlpha = a * pu;
+    text('EVERYTHING UNLOCKED', CX, 400, 30, C.primary, { spacing: 5 });
+    const n = PALETTE.length, gap = 74, x0 = CX - ((n - 1) * gap) / 2;
+    PALETTE.forEach((col, i) => {
+      const k = easeOut(win(t, K.draw + .52 + i * .035, K.draw + .78 + i * .035));
+      if (k <= 0) return;
+      g.globalAlpha = a * k;
+      g.fillStyle = col; g.beginPath(); g.arc(x0 + i * gap, 474, 26 * k, 0, 7); g.fill();
+      g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+    });
+    g.globalAlpha = a * pu;
+    text('9 colours · 5 papers · 4 pens', CX, 556, 30, C.text, { weight: 700 });
+    text('no ad to watch, no pass to buy', CX, 604, 26, C.muted, { weight: 700 });
+    g.globalAlpha = a;
+  }
+  g.globalAlpha = 1;
+  say('NO CLOCK. NOTHING LOCKED. TAKE ALL DAY.', t, K.draw + .3, K.wall);
+}
+
+// --- 4.80  the wall ----------------------------------------------------------
+const TILE = 236, GAPT = 20;
+const WX = (1920 - (3 * TILE + 2 * GAPT)) / 2, WY = 150;
+const tileAt = i => ({ x: WX + (i % 3) * (TILE + GAPT), y: WY + Math.floor(i / 3) * (TILE + GAPT), s: TILE });
+// which tiles the hearts land on, and what they finish at
+const HEART_ON = [4, 1, 6, 2];
+
+function sceneWall(t) {
+  const a = easeOut(win(t, K.wall, K.wall + .22)) * (1 - win(t, K.midnight - .2, K.midnight));
+  if (a <= 0) return;
+  g.globalAlpha = a;
+  text(DAILY_PROMPT, 960, 84, 38, C.text, { weight: 700 });
+
+  for (let i = 0; i < 9; i++) {
+    const s = tileAt(i);
+    const pop = back(win(t, K.wall + i * .045, K.wall + .34 + i * .045));
+    if (pop <= 0) continue;
+    const k = s.s * pop, o = (s.s - k) / 2;
+    g.save();
+    g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 26; g.shadowOffsetY = 10;
+    g.drawImage(thumbs9[i], s.x + o, s.y + o, k, k);
+    g.restore();
+    // the name plate, with nothing on it yet
+    g.globalAlpha = a * clamp(pop, 0, 1) * .95;
+    g.fillStyle = 'rgba(11,9,32,.86)';
+    roundRect(s.x + s.s / 2 - 52, s.y + s.s - 34, 104, 30, 15); g.fill();
+    text('— — —', s.x + s.s / 2, s.y + s.s - 19, 20, C.muted, { spacing: 3 });
+    g.globalAlpha = a;
+  }
+
+  // hearts landing on a few of them
+  HEARTS.forEach((ht, n) => {
+    if (t < ht) return;
+    const s = tileAt(HEART_ON[n]);
+    const u = win(t, ht, ht + .34), pop = back(u);
+    const rise = (1 - easeOut(u)) * 26;
+    heartAt(s.x + s.s - 34, s.y + 34 + rise, 34 * pop, C.pink, a * clamp(u * 4, 0, 1));
+  });
+  g.globalAlpha = 1;
+  say('SEE WHAT EVERYONE ELSE MADE OF IT', t, K.wall + .25, K.midnight);
+}
+
+// --- 7.20  midnight ----------------------------------------------------------
+// Laid out as a podium, not a list: second on the left, the winner in the
+// middle and highest, third on the right. They land third-second-first, so the
+// reveal builds instead of just appearing.
+const TOP3 = [
+  { i: 1, name: 'ARJUN', hearts: 186, place: 2, x: 420,  drop: 44 },
+  { i: 4, name: 'SANA',  hearts: 214, place: 1, x: 810,  drop: 0  },
+  { i: 6, name: 'NEHA',  hearts: 151, place: 3, x: 1200, drop: 66 },
+];
+
+function sceneMidnight(t) {
+  const a = easeOut(win(t, K.midnight, K.midnight + .2)) * (1 - win(t, K.card - .18, K.card));
+  if (a <= 0) return;
+  g.globalAlpha = a;
+
+  text('MIDNIGHT · THE DAY CLOSES', 960, 110, 32, C.primary, { spacing: 6 });
+  text('the names come out, and yesterday goes to the Hall of Fame', 960, 168, 28, C.muted,
+       { weight: 700, alpha: easeOut(win(t, K.midnight + .2, K.midnight + .5)) });
+
+  const S3 = 300;
+  TOP3.forEach((e) => {
+    const late = (3 - e.place) * .11;
+    const pop = back(win(t, K.midnight + .12 + late, K.midnight + .52 + late));
+    if (pop <= 0) return;
+    const x = e.x, y = 250 + e.drop;
+    g.save();
+    g.translate(x + S3 / 2, y + S3 / 2); g.scale(pop, pop); g.translate(-(x + S3 / 2), -(y + S3 / 2));
+    g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 34; g.shadowOffsetY = 14;
+    g.drawImage(thumbs9[e.i], x, y, S3, S3);
+    g.restore();
+    if (e.place === 1) {
+      g.strokeStyle = C.primary; g.lineWidth = 5;
+      roundRect(x - 6, y - 6, S3 + 12, S3 + 12, 10); g.stroke();
+    }
+    g.globalAlpha = a * clamp(pop, 0, 1);
+    text(e.name, x + S3 / 2, y + S3 + 48, 38, e.place === 1 ? C.primary : C.text, { spacing: 2 });
+    heartAt(x + S3 / 2 - 46, y + S3 + 96, 30, C.pink);
+    text(String(e.hearts), x + S3 / 2 + 22, y + S3 + 96, 32, C.text);
+    g.globalAlpha = a;
+  });
+  g.globalAlpha = 1;
+  say('AT MIDNIGHT, THE NAMES COME OUT', t, K.midnight + .25, K.card);
+}
+
+// --- 8.50  the card ----------------------------------------------------------
+function sceneCard(t) {
+  const u = win(t, K.card, K.card + .5);
+  const glow = g.createRadialGradient(960, 470, 0, 960, 470, 900);
+  glow.addColorStop(0, `rgba(255,197,61,${.32 * easeOut(u)})`); glow.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+
+  const s = back(win(t, K.card + .04, K.card + .46)), size = 330 * s;
+  if (icon.complete && icon.naturalWidth) {
+    g.save(); g.translate(520, 470); g.rotate((1 - s) * .3);
+    g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 60; g.shadowOffsetY = 26;
+    roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent';
+    g.drawImage(icon, -size / 2, -size / 2, size, size); g.restore();
+  }
+  const wu = easeOut(win(t, K.card + .2, K.card + .6));
+  text('THE DAILY', 772, 388 + (1 - wu) * 32, 92, C.primary, { spacing: 8, glow: 42, alpha: wu, align: 'left' });
+  const tu = easeOut(win(t, K.card + .34, K.card + .7));
+  text('A new prompt every morning. No timer, no score.', 772, 472 + (1 - tu) * 24, 36, C.text,
+       { weight: 700, alpha: tu, align: 'left' });
+  const fu = easeOut(win(t, K.card + .48, K.card + .82));
+  text('405 PROMPTS · A BLIND GALLERY · A HALL OF FAME', 772, 528, 25, C.muted,
+       { weight: 700, spacing: 2, alpha: fu, align: 'left' });
+
+  const cu = back(win(t, K.card + .6, K.card + 1.05));
+  if (cu > 0) {
+    g.save(); g.translate(1072, 630); g.scale(cu, cu); g.globalAlpha = clamp(cu, 0, 1);
+    g.shadowColor = 'rgba(255,197,61,.55)'; g.shadowBlur = 46;
+    g.fillStyle = C.primary; roundRect(-300, -56, 600, 112, 56); g.fill(); g.shadowColor = 'transparent';
+    text('FREE ON GOOGLE PLAY', 0, 2, 37, C.onPrimary, { spacing: 3 });
+    g.restore();
+  }
+  text('in  G R A N D   C A N V A S', 960, 880, 26, C.text,
+       { weight: 700, spacing: 2, alpha: easeOut(win(t, K.card + .4, K.card + .75)) });
+  text('a  W H O S E G A M E S  game', 960, 995, 23, C.muted,
+       { weight: 700, alpha: easeOut(win(t, K.card + .45, K.card + .8)) });
+}
+
+// --- the frame ---------------------------------------------------------------
+function dailyFrame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+  const bg = g.createRadialGradient(960, 480, 0, 960, 480, 1050);
+  bg.addColorStop(0, 'rgba(255,197,61,.11)'); bg.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+
+  if (t < K.draw) sceneReminder(t);
+  if (t >= K.draw - .25 && t < K.wall) sceneDraw(t);
+  if (t >= K.wall - .25 && t < K.midnight) sceneWall(t);
+  if (t >= K.midnight - .25 && t < K.card) sceneMidnight(t);
+  if (t >= K.card) sceneCard(t);
+
+  wg.style.opacity = t >= K.card ? easeOut(win(t, K.card + .45, K.card + .8)) : 0;
+}
+// render-mp4.sh drives frame(t) by name.
+window.frame = dailyFrame;
+
+prepareStage(1920, 1080, { x: 912, y: 916, size: 62 });
+runPlayback(dailyFrame, RUN, [['bed', 'assets/daily_bed.mp3', 0, .95]]);
+</script>
+</body>
+</html>

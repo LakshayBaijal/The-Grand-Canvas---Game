@@ -7,6 +7,7 @@ Three films, all finished and ready to upload. All H.264 + AAC with
 |---|---|---|
 | `GrandCanvas-store-10s.mp4` | 1920x1080, 10s | **the Play Store listing** — a tour of the game, quiet, captioned |
 | `GrandCanvas-gallery-10s.mp4` | 1920x1080, 10s | ten drawings, ten cuts — fast, for a feed or a site header |
+| `GrandCanvas-daily-10s.mp4` | 1920x1080, 10s | the Daily on its own — the reason to come back tomorrow |
 | `GrandCanvas-ad.mp4` | 1080x1920, 6.5s | phones — Shorts, Reels, TikTok |
 | `GrandCanvas-ad-landscape.mp4` | 1920x1080, 6.5s | laptops and TVs — YouTube, a site header, pre-roll |
 | `GrandCanvas-ad.mp3` | 192kbps | the ads' soundtrack alone, if you ever cut your own pictures to it |
@@ -52,6 +53,40 @@ Worth knowing before you commit to ten seconds: Google's own guidance suggests
 follow the recommendation, the structure here extends cleanly — give each beat
 longer and add a room-and-friends scene. Check the current specs in the
 Console, since Play changes them.
+
+---
+
+# The Daily
+
+`GrandCanvas-daily-10s.mp4` — the one part of the game that gets people back
+the next morning, so it is worth a film of its own.
+
+```
+0.00  the reminder    a notification, then today's prompt
+1.70  you draw it     no timer, every colour and paper open
+4.80  the wall        everyone else's answer, names hidden, hearts landing
+7.20  midnight        the day closes and the names come out
+8.50  the card        a new one tomorrow
+```
+
+The Daily is the **opposite** of a round, and the film is built to feel that
+way. A round is a template with a blank in it, a 75-second clock, money,
+trophies and a winner. The Daily is one whole sentence — the same one for every
+player on earth that day — with no clock, nothing locked, nothing scored and
+nobody judged. You draw it, you submit, and then you get to see what everyone
+else made of the same idea. So the music has almost no drums in it and nothing
+in the cut is in a hurry.
+
+Everything shown is real, from `server/src/daily.ts`: the prompt is one of the
+405 in the list, the gallery really is blind while the day is open (the server
+strips the names and the counts), a heart really is one per drawing and can
+never be taken back, the day really does roll over at midnight UTC everywhere
+at once, and the Daily really does unlock every colour, paper and pen for
+nothing.
+
+Nine people answering one prompt is far more convincing when the answers
+rhyme, so they're nine chairs, each buried differently — `buildDailyChair()` in
+`drawings.js` builds one chair and a different heap on it each time.
 
 ---
 
@@ -114,7 +149,8 @@ is invented.
 ./ad/render-mp4.sh              # the two ad cuts
 ./ad/render-mp4.sh promo        # just the store video
 ./ad/render-mp4.sh gallery      # just the ten-cut gallery
-./ad/render-mp4.sh all          # all four
+./ad/render-mp4.sh daily        # just the Daily
+./ad/render-mp4.sh all          # all five
 FPS=30 CRF=23 ./ad/render-mp4.sh   # smaller files
 ```
 
@@ -136,6 +172,9 @@ their own beds, both from `node ad/make-music.mjs`:
   rather than on a metronome, so it reads as scored rather than stuck under.
 * `assets/rapid_bed.mp3` — 146bpm, four-on-the-floor, a clap on two and four,
   a bass walking a bar per pair of drawings, and a pen-swish on every cut.
+* `assets/daily_bed.mp3` — 92bpm, warm, almost drumless, with the notification
+  chime and the hearts baked in at the times the film uses them. The Daily has
+  no competition in it, so it shouldn't sound like a race.
 
 Everything is synthesised, and the noise is seeded, so two runs give the same
 file.
