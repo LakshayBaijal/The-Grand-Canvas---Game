@@ -6,6 +6,7 @@ Three films, all finished and ready to upload. All H.264 + AAC with
 | file | | for |
 |---|---|---|
 | `GrandCanvas-store-10s.mp4` | 1920x1080, 10s | **the Play Store listing** — a tour of the game, quiet, captioned |
+| `GrandCanvas-gallery-10s.mp4` | 1920x1080, 10s | ten drawings, ten cuts — fast, for a feed or a site header |
 | `GrandCanvas-ad.mp4` | 1080x1920, 6.5s | phones — Shorts, Reels, TikTok |
 | `GrandCanvas-ad-landscape.mp4` | 1920x1080, 6.5s | laptops and TVs — YouTube, a site header, pre-roll |
 | `GrandCanvas-ad.mp3` | 192kbps | the ads' soundtrack alone, if you ever cut your own pictures to it |
@@ -54,6 +55,28 @@ Console, since Play changes them.
 
 ---
 
+# The gallery
+
+`GrandCanvas-gallery-10s.mp4` — ten people, ten drawings, ten cuts, ten
+seconds, no let-up.
+
+Every shot drops in on somebody already a third of the way through their
+drawing and races them to the finish, then cuts. You never watch a line start;
+you watch ten of them land. That's what a full table actually feels like from
+the inside — everyone drawing at once, and you only ever catch the ends — and
+it's the one thing the slower films can't show.
+
+The strip along the bottom fills in as each drawing is finished, so the canvas
+is visibly filling the whole way through. At 8.2s it opens out into the wall of
+all ten, which is the name of the game.
+
+The cuts are locked to the music rather than the other way round: 146bpm, two
+beats a drawing, so every finished line lands on a kick and a pen-swish. If you
+change the cut rhythm, rebuild `rapid_bed.mp3` to match — the swishes are baked
+in at the cut times so the edit and the music can't drift.
+
+---
+
 # The ad spots
 
 ## What happens
@@ -90,7 +113,8 @@ is invented.
 ```bash
 ./ad/render-mp4.sh              # the two ad cuts
 ./ad/render-mp4.sh promo        # just the store video
-./ad/render-mp4.sh all          # all three
+./ad/render-mp4.sh gallery      # just the ten-cut gallery
+./ad/render-mp4.sh all          # all four
 FPS=30 CRF=23 ./ad/render-mp4.sh   # smaller files
 ```
 
@@ -104,11 +128,17 @@ Needs Chrome, node 18+, and ffmpeg (`brew install ffmpeg`).
 
 ## The sounds
 
-The ads use the game's own music and stings. The store video uses its own bed,
-`assets/promo_bed.mp3`, from `make-music.mjs`: a soft kick, a brushed hat and a
-four-note pluck walking Am → F → G → C, with the chord turning on each cut
-rather than on a metronome, so it reads as scored rather than stuck under.
-Rebuild it with `node ad/make-music.mjs`.
+The ads use the game's own music and stings. The two ten-second films have
+their own beds, both from `node ad/make-music.mjs`:
+
+* `assets/promo_bed.mp3` — 110bpm, quiet, a soft kick and a four-note pluck
+  walking Am → F → G → C, with the chord turning on each of the film's cuts
+  rather than on a metronome, so it reads as scored rather than stuck under.
+* `assets/rapid_bed.mp3` — 146bpm, four-on-the-floor, a clap on two and four,
+  a bass walking a bar per pair of drawings, and a pen-swish on every cut.
+
+Everything is synthesised, and the noise is seeded, so two runs give the same
+file.
 
 The money is synthesised too, by `make-sfx.mjs`, and both films use it:
 
@@ -144,12 +174,15 @@ useful for checking layout, or for pulling a still for the store listing.
 ## Changing things
 
 `engine.js` is everything the films share: paper, pens, money, the FUNDED
-stamp, the end card, timing, playback. `index.html` and `landscape.html` are a
-config each — canvas size, where things sit, the prompt, and the drawing as a
-list of strokes in 0..1 paper coordinates. `promo.html` is different: it uses
-the same furniture but draws its own scenes, since a tour isn't one round.
+stamp, the end card, timing, playback. `drawings.js` is every invention any of
+them draws — a prompt, somebody's answer, and a dozen-odd strokes in 0..1 paper
+coordinates, each with its own seed so the same drawing is identical in every
+film it appears in. `index.html` and `landscape.html` are a config each;
+`promo.html` and `gallery.html` use the same furniture but draw their own
+scenes, since a tour and a montage aren't one round.
 
-To write a new invention, add strokes to that page's `build()`. The helpers
+To write a new invention, add an entry to `drawings.js` and put its key in
+`GALLERY_ORDER`. The helpers
 (`line`, `arc`, `ellipse`, `curve`, `poly`, `coilBetween`) all take clean
 geometry and add the same hand imperfections the server gives bot drawings.
 Timing is derived from stroke length, so adding one just makes the others a

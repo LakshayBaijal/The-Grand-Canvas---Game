@@ -6,7 +6,8 @@
 #   ./ad/render-mp4.sh portrait        1080x1920, for phones and Shorts
 #   ./ad/render-mp4.sh landscape       1920x1080, for YouTube and laptops
 #   ./ad/render-mp4.sh promo           1920x1080, 10s, for the Play listing
-#   ./ad/render-mp4.sh all             all three
+#   ./ad/render-mp4.sh gallery         1920x1080, 10s, ten drawings, ten cuts
+#   ./ad/render-mp4.sh all             all four
 #
 # How it works: index.html?t=N draws exactly the frame the ad shows at N
 # seconds and stops, so this drives one headless Chrome over the DevTools
@@ -143,10 +144,28 @@ alimiter=limit=0.95,atrim=0:10,asetpts=PTS-STARTPTS[a]" \
   show GrandCanvas-store-10s.mp4
 }
 
+# The gallery is one bed and nothing else: the pen-swishes that land each cut
+# are baked into it at the exact cut times, so the edit and the music can't
+# drift apart. Change the cut rhythm and rebuild the bed to match.
+render_gallery () {
+  capture gallery.html "GALLERY  1920x1080 - 10s" 10.0
+  echo "==> Encoding"
+  ffmpeg -y -hide_banner -loglevel error -stats \
+    -framerate "$FPS" -i "$WORK/frames/f%05d.png" -i "$AD/assets/rapid_bed.mp3" \
+    -filter_complex "[1:a]atrim=0:10,asetpts=PTS-STARTPTS,volume=1.25,\
+afade=t=out:st=9.4:d=0.6,alimiter=limit=0.95[a]" \
+    -map 0:v -map "[a]" \
+    -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -profile:v high -level 4.2 \
+    -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest \
+    "$AD/GrandCanvas-gallery-10s.mp4"
+  show GrandCanvas-gallery-10s.mp4
+}
+
 case "$WHICH" in
   portrait)  render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920" ;;
   landscape) render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080" ;;
   promo)     render_promo ;;
+  gallery)   render_gallery ;;
   both)
     render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
     render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
@@ -155,15 +174,16 @@ case "$WHICH" in
     render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
     render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
     render_promo
+    render_gallery
     ;;
-  *) echo "usage: render-mp4.sh [portrait|landscape|promo|both|all]"; exit 1 ;;
+  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|both|all]"; exit 1 ;;
 esac
 
 # The soundtrack on its own, for anyone who wants to cut their own pictures to
 # it. Both spots share it, so it only needs writing once.
 echo ""
 echo "==> Soundtrack"
-if [ "$WHICH" != "promo" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
+if [ "$WHICH" != "promo" ] && [ "$WHICH" != "gallery" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
   ffmpeg -y -hide_banner -loglevel error -i "$AD/GrandCanvas-ad.mp4" -vn -c:a libmp3lame -b:a 192k "$AD/GrandCanvas-ad.mp3"
   echo "    $AD/GrandCanvas-ad.mp3"
 fi

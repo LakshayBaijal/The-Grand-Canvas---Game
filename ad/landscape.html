@@ -38,6 +38,7 @@
 </div>
 
 <script src="engine.js"></script>
+<script src="drawings.js"></script>
 <script>
 /**
  * The landscape cut -- YouTube, a laptop, anything 16:9.
@@ -59,61 +60,7 @@ startSpot({
   title: 'THE SNOOZE-MITT',
   subtitle: "it punches the alarm so you don't have to",
 
-  build({ S, C, line, arc, ellipse, curve, poly, coilBetween }) {
-    const s = [];
-    const cx = .32, cy = .50, r = .185;
-
-    // -- the alarm clock: the thing the prompt is complaining about
-    s.push(S(ellipse(cx, cy, r, r), C.ink, 8));                              // case
-    s.push(S(ellipse(cx, cy, r * .80, r * .80), C.ink, 5));                  // inner rim
-    s.push(S(arc(.185, .275, .072, .068, Math.PI * .82, Math.PI * 2.18), C.ink, 7));   // bells
-    s.push(S(line({ x: .123, y: .300 }, { x: .247, y: .300 }), C.ink, 5));
-    s.push(S(arc(.455, .275, .072, .068, Math.PI * .82, Math.PI * 2.18), C.ink, 7));
-    s.push(S(line({ x: .393, y: .300 }, { x: .517, y: .300 }), C.ink, 5));
-    s.push(S(line({ x: .228, y: .332 }, { x: .258, y: .368 }), C.ink, 6));   // bell stems
-    s.push(S(line({ x: .412, y: .332 }, { x: .382, y: .368 }), C.ink, 6));
-    s.push(S(line({ x: .320, y: .222 }, { x: .320, y: .296 }), C.ink, 6));   // the hammer
-    s.push(S(ellipse(.320, .210, .021, .019), C.ink, 6));
-    s.push(S(line({ x: .215, y: .665 }, { x: .175, y: .768 }), C.ink, 7));   // legs
-    s.push(S(line({ x: .425, y: .665 }, { x: .465, y: .768 }), C.ink, 7));
-
-    // -- the face: it knows exactly what is coming
-    s.push(S(ellipse(.268, .455, .018, .021), C.ink, 6));
-    s.push(S(ellipse(.372, .455, .018, .021), C.ink, 6));
-    s.push(S(curve([{ x: .270, y: .585 }, { x: .320, y: .545 }, { x: .370, y: .585 }]), C.ink, 6));
-    s.push(S(curve([{ x: .140, y: .300 }, { x: .161, y: .334 }, { x: .140, y: .358 },
-                    { x: .121, y: .334 }, { x: .140, y: .300 }]), C.cyan, 7, 'marker'));   // sweat
-    s.push(S(line({ x: .075, y: .785 }, { x: .720, y: .785 }), C.ink, 7));   // the bedside table
-
-    // -- the invention, arriving from the right at speed
-    s.push(S(poly([{ x: .975, y: .405 }, { x: .905, y: .405 }, { x: .905, y: .595 }, { x: .975, y: .595 }]), C.ink, 7));
-    s.push(S(coilBetween({ x: .895, y: cy }, { x: .730, y: cy }, 4, .050), C.ink, 7));     // the spring
-    s.push(S(poly([{ x: .682, y: .448 }, { x: .730, y: .448 }, { x: .730, y: .552 },
-                   { x: .682, y: .552 }, { x: .682, y: .448 }]), C.ink, 6));               // cuff
-    s.push(S(ellipse(.595, .500, .085, .095), C.ink, 7));                                  // the mitt
-    s.push(S(curve([{ x: .548, y: .556 }, { x: .506, y: .578 }, { x: .504, y: .616 },
-                    { x: .546, y: .612 }]), C.ink, 7));                                    // thumb
-    s.push(S(curve([{ x: .556, y: .444 }, { x: .595, y: .436 }, { x: .634, y: .447 }]), C.ink, 5));  // knuckles
-    // Ink outline, marker fill -- the way everything in this game gets coloured.
-    // Spaced a hair closer than the marker is wide, so the strokes merge into
-    // a filled shape instead of reading as stripes, and shortened towards the
-    // top and bottom so the colour follows the mitt rather than sitting on it.
-    for (let i = 0; i < 11; i++) {
-      const yy = .428 + i * .0144;
-      const k = Math.sqrt(Math.max(0, 1 - Math.pow((yy - .500) / .095, 2))) * .88;
-      s.push(S(line({ x: .595 - .085 * k, y: yy }, { x: .595 + .085 * k, y: yy }, .3), C.pink, 7, 'marker'));
-    }
-    s.push(S(line({ x: .518, y: .588 }, { x: .540, y: .588 }, .3), C.pink, 7, 'marker'));   // thumb fill
-    s.push(S(line({ x: .516, y: .602 }, { x: .540, y: .602 }, .3), C.pink, 7, 'marker'));
-
-    // -- contact
-    for (const a of [.35, 1.05, 1.75, 2.45, 3.15, 3.85, 4.55, 5.25])
-      s.push(S(line({ x: .512 + Math.cos(a) * .038, y: .50 + Math.sin(a) * .038 },
-                    { x: .512 + Math.cos(a) * .082, y: .50 + Math.sin(a) * .082 }, .4), C.primary, 9, 'marker'));
-    for (const y of [.42, .50, .58])                                                       // knocked sideways
-      s.push(S(line({ x: .110, y }, { x: .030, y }, .4), C.cyan, 8, 'marker'));
-    return s;
-  },
+  build: () => buildDrawing('snoozeMitt'),
 
   layout: {
     chipX: 1030, chipW: 300, hudY: 90, hudH: 66, hudText: 26,

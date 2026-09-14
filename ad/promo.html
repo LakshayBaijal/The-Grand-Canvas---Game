@@ -35,6 +35,7 @@
 </div>
 
 <script src="engine.js"></script>
+<script src="drawings.js"></script>
 <script>
 /**
  * The ten-second video for the Play Store listing.
@@ -69,78 +70,10 @@ const ARTISTS = [
   { name: 'MEERA',   colour: C.purple,  title: 'THE SHREDDER SMILE' },
 ];
 
-// Four answers to one prompt, which is the whole game in a picture. Each is
-// kept to a dozen strokes -- they are drawn at 420px and have to read there.
-function buildAll() {
-  const out = [];
-
-  // 1. a bird that delivers the document instead
-  rand = rng(11);
-  out.push([
-    S(ellipse(.44, .55, .17, .125), C.ink, 7),                                     // body
-    S(ellipse(.67, .40, .088, .082), C.ink, 7),                                    // head
-    S(poly([{x:.745,y:.375},{x:.85,y:.405},{x:.745,y:.435}]), C.primary, 8, 'marker'), // beak
-    S(ellipse(.695, .378, .014, .014), C.ink, 6),                                  // eye
-    S(curve([{x:.38,y:.50},{x:.47,y:.44},{x:.56,y:.53},{x:.45,y:.575}]), C.ink, 6),// wing
-    S(poly([{x:.28,y:.545},{x:.145,y:.485},{x:.175,y:.565},{x:.135,y:.62},{x:.275,y:.60}]), C.ink, 6), // tail
-    S(line({x:.40,y:.665},{x:.385,y:.745}), C.ink, 6),
-    S(line({x:.52,y:.665},{x:.535,y:.745}), C.ink, 6),
-    S(line({x:.345,y:.752},{x:.425,y:.752}), C.ink, 6),
-    S(line({x:.495,y:.752},{x:.575,y:.752}), C.ink, 6),
-    S(poly([{x:.56,y:.70},{x:.79,y:.70},{x:.79,y:.86},{x:.56,y:.86},{x:.56,y:.70}]), C.ink, 6), // the document
-    S(line({x:.60,y:.755},{x:.75,y:.755}, .5), C.ink, 4),
-    S(line({x:.60,y:.805},{x:.75,y:.805}, .5), C.ink, 4),
-  ]);
-
-  // 2. a mallet on a spring, for when it jams again
-  rand = rng(23);
-  out.push([
-    S(poly([{x:.20,y:.60},{x:.80,y:.60},{x:.80,y:.85},{x:.20,y:.85},{x:.20,y:.60}]), C.ink, 8), // printer
-    S(line({x:.28,y:.695},{x:.72,y:.695}), C.ink, 5),                              // paper slot
-    S(ellipse(.30, .77, .022, .022), C.cyan, 7, 'marker'),                         // buttons
-    S(ellipse(.37, .77, .022, .022), C.ink, 6),
-    S(poly([{x:.34,y:.60},{x:.66,y:.60},{x:.66,y:.52},{x:.34,y:.52},{x:.34,y:.60}]), C.ink, 5), // jammed sheet
-    S(coilBetween({x:.50,y:.08},{x:.50,y:.30}, 4, .052), C.ink, 7),                // the spring
-    S(poly([{x:.34,y:.30},{x:.66,y:.30},{x:.66,y:.44},{x:.34,y:.44},{x:.34,y:.30}]), C.ink, 8), // mallet
-    ...[.34,.40,.46].map(y => S(line({x:.37,y:y+.02},{x:.63,y:y+.02}, .3), C.pink, 8, 'marker')),
-    ...[.6,1.4,2.2,3.0,3.8,4.6,5.4].map(a =>
-      S(line({x:.50+Math.cos(a)*.055,y:.475+Math.sin(a)*.045},
-             {x:.50+Math.cos(a)*.10, y:.475+Math.sin(a)*.085}, .4), C.primary, 8, 'marker')),
-  ]);
-
-  // 3. it was always going to do this eventually
-  rand = rng(37);
-  out.push([
-    S(poly([{x:.20,y:.58},{x:.80,y:.58},{x:.80,y:.86},{x:.20,y:.86},{x:.20,y:.58}]), C.ink, 8),
-    S(line({x:.28,y:.685},{x:.72,y:.685}), C.ink, 5),
-    S(ellipse(.31, .775, .022, .022), C.ink, 6),
-    S(curve([{x:.40,y:.58},{x:.34,y:.40},{x:.46,y:.22},{x:.58,y:.34},{x:.62,y:.20},{x:.70,y:.36},{x:.60,y:.58}]), C.cyan, 9, 'marker'),
-    ...[.44,.50,.56].map(y => S(line({x:.40,y},{x:.66,y}, .3), C.cyan, 9, 'marker')),
-    S(curve([{x:.24,y:.30},{x:.20,y:.36},{x:.26,y:.40},{x:.29,y:.33},{x:.24,y:.30}]), C.cyan, 7, 'marker'),
-    S(curve([{x:.80,y:.24},{x:.75,y:.30},{x:.81,y:.35},{x:.85,y:.28},{x:.80,y:.24}]), C.cyan, 7, 'marker'),
-    S(ellipse(.87, .46, .024, .024), C.cyan, 7, 'marker'),
-    S(ellipse(.15, .50, .020, .020), C.cyan, 7, 'marker'),
-  ]);
-
-  // 4. give it what it wants
-  rand = rng(53);
-  out.push([
-    S(poly([{x:.16,y:.42},{x:.84,y:.42},{x:.84,y:.86},{x:.16,y:.86},{x:.16,y:.42}]), C.ink, 8),
-    S(ellipse(.34, .53, .034, .038), C.ink, 7),                                    // eyes
-    S(ellipse(.66, .53, .034, .038), C.ink, 7),
-    S(ellipse(.345, .54, .012, .012), C.ink, 6),
-    S(ellipse(.665, .54, .012, .012), C.ink, 6),
-    S(curve([{x:.26,y:.66},{x:.50,y:.62},{x:.74,y:.66}]), C.ink, 7),               // grin
-    S(curve([{x:.26,y:.66},{x:.50,y:.80},{x:.74,y:.66}]), C.ink, 7),
-    S(poly([{x:.30,y:.665},{x:.345,y:.725},{x:.39,y:.665},{x:.44,y:.735},
-            {x:.49,y:.665},{x:.545,y:.735},{x:.60,y:.665},{x:.65,y:.72},{x:.70,y:.665}]), C.ink, 5),
-    S(poly([{x:.36,y:.06},{x:.64,y:.06},{x:.64,y:.30},{x:.36,y:.30},{x:.36,y:.06}]), C.ink, 6),  // the sheet going in
-    S(line({x:.41,y:.14},{x:.59,y:.14}, .5), C.ink, 4),
-    S(line({x:.41,y:.21},{x:.59,y:.21}, .5), C.ink, 4),
-    ...[.34, .50, .66].map(x => S(line({x, y:.325},{x, y:.395}, .4), C.primary, 8, 'marker')),
-  ]);
-  return out;
-}
+// Four answers to one prompt, which is the whole game in a picture. They live
+// in drawings.js with everything else the films draw.
+const PICKS = ['paperPigeon', 'smashOMatic', 'inkGeyser', 'shredderSmile'];
+const buildAll = () => PICKS.map(buildDrawing);
 
 /** Spreads a drawing's strokes across [t0, t1], long lines taking longer. */
 function schedule(list, t0, t1) {
@@ -152,11 +85,11 @@ function schedule(list, t0, t1) {
   return list;
 }
 
-const DRAWINGS = buildAll();
+const PAPERS = buildAll();
 // Staggered starts and slightly different speeds, so the four tables feel like
 // four people rather than one animation played four times.
 const SPANS = [[1.72, 4.40], [1.80, 4.52], [1.66, 4.30], [1.86, 4.58]];
-DRAWINGS.forEach((d, i) => schedule(d, SPANS[i][0], SPANS[i][1]));
+PAPERS.forEach((d, i) => schedule(d, SPANS[i][0], SPANS[i][1]));
 // The big one in the pitch shot is Riya's, redrawn on its own clock.
 const HERO = schedule(buildAll()[1], -9, -8);      // already finished by t=0
 
@@ -221,7 +154,7 @@ function scenePapers(t) {
   promptText(960, 168, 1300, 40, 999, PROMPT);
 
   const SIZE = 430, Y = 262, XS = [46, 512, 978, 1444];
-  DRAWINGS.forEach((d, i) => {
+  PAPERS.forEach((d, i) => {
     const pop = back(win(t, T.papers + i * .07, T.papers + i * .07 + .34));
     if (pop <= 0) return;
     sheet(XS[i], Y, SIZE, pop);

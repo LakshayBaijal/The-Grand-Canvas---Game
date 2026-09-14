@@ -41,6 +41,7 @@
 </div>
 
 <script src="engine.js"></script>
+<script src="drawings.js"></script>
 <script>
 /**
  * The portrait cut -- phones, Shorts, Reels, the Play Store listing video.
@@ -57,45 +58,7 @@ startSpot({
   title: 'THE PUP-BRELLA',
   subtitle: 'an umbrella hat for the dog',
 
-  build({ S, C, line, arc, ellipse, curve }) {
-    const s = [];
-    // -- the umbrella first: it's the joke, so it's what you see appear first.
-    const ux = .5, uy = .30, ur = .27;
-    s.push(S(arc(ux, uy, ur, ur * .62, Math.PI, Math.PI * 2), C.ink, 7));            // canopy
-    { const pts = []; for (let i = 0; i <= 5; i++) { const a = Math.PI + (i / 5) * Math.PI; pts.push({ x: ux + Math.cos(a) * ur, y: uy }); }
-      let edge = [];
-      for (let i = 0; i < 5; i++) { const a = pts[i], b = pts[i + 1], m = { x: (a.x + b.x) / 2, y: uy + .035 };
-        edge = edge.concat(curve([a, m, b]).slice(i ? 1 : 0)); }
-      s.push(S(edge, C.ink, 7)); }                                                    // scalloped edge
-    s.push(S(line({ x: ux, y: uy - ur * .62 }, { x: ux, y: uy - ur * .62 - .035 }), C.ink, 6));   // tip
-    for (const a of [Math.PI * 1.25, Math.PI * 1.5, Math.PI * 1.75])
-      s.push(S(line({ x: ux, y: uy }, { x: ux + Math.cos(a) * ur * .97, y: uy + Math.sin(a) * ur * .62 * .97 }), C.primary, 9, 'marker'));
-    s.push(S(line({ x: ux, y: uy + .01 }, { x: ux, y: .43 }), C.ink, 6));             // stick down to the head
-
-    // -- the dog
-    s.push(S(ellipse(.50, .52, .11, .10), C.ink, 7));                                 // head
-    s.push(S(curve([{ x: .41, y: .47 }, { x: .34, y: .55 }, { x: .38, y: .63 }, { x: .42, y: .58 }]), C.ink, 7));
-    s.push(S(curve([{ x: .59, y: .47 }, { x: .66, y: .55 }, { x: .62, y: .63 }, { x: .58, y: .58 }]), C.ink, 7));
-    s.push(S(arc(.465, .50, .012, .012, 0, Math.PI * 2), C.ink, 7));                  // eyes
-    s.push(S(arc(.535, .50, .012, .012, 0, Math.PI * 2), C.ink, 7));
-    s.push(S(curve([{ x: .485, y: .545 }, { x: .50, y: .535 }, { x: .515, y: .545 }, { x: .50, y: .56 }, { x: .485, y: .545 }]), C.ink, 7));
-    s.push(S(curve([{ x: .50, y: .56 }, { x: .50, y: .585 }]), C.ink, 6));
-    s.push(S(curve([{ x: .47, y: .585 }, { x: .50, y: .605 }, { x: .53, y: .585 }]), C.ink, 6));  // smile
-    s.push(S(curve([{ x: .505, y: .60 }, { x: .515, y: .635 }, { x: .535, y: .61 }]), C.pink, 9, 'marker')); // tongue
-    s.push(S(curve([{ x: .42, y: .57 }, { x: .50, y: .64 }, { x: .58, y: .57 }]), C.ink, 5));     // chin strap
-    s.push(S(curve([{ x: .43, y: .62 }, { x: .37, y: .74 }, { x: .40, y: .84 }, { x: .60, y: .84 }, { x: .63, y: .74 }, { x: .57, y: .62 }]), C.ink, 7));
-    for (const x of [.42, .48, .53, .59]) s.push(S(line({ x, y: .84 }, { x, y: .91 }), C.ink, 7));
-    for (const x of [.42, .48, .53, .59]) s.push(S(arc(x, .915, .02, .012, Math.PI, Math.PI * 2 + .3), C.ink, 6));
-    s.push(S(curve([{ x: .62, y: .76 }, { x: .70, y: .70 }, { x: .73, y: .62 }, { x: .69, y: .60 }]), C.ink, 7));  // tail
-    s.push(S(arc(.50, .655, .018, .018, 0, Math.PI * 2), C.primary, 7, 'marker'));     // collar tag
-
-    // -- rain, and the dry patch stays dry
-    for (const [x, y] of [[.14,.12],[.22,.30],[.10,.46],[.82,.10],[.88,.30],[.78,.48],[.30,.06],[.70,.06],[.18,.66],[.84,.66]])
-      s.push(S(line({ x, y }, { x: x - .02, y: y + .05 }, .6), C.cyan, 8, 'marker'));
-    s.push(S(curve([{ x: .25, y: .27 }, { x: .21, y: .22 }, { x: .19, y: .25 }]), C.cyan, 6, 'marker'));
-    s.push(S(curve([{ x: .75, y: .27 }, { x: .79, y: .22 }, { x: .81, y: .25 }]), C.cyan, 6, 'marker'));
-    return s;
-  },
+  build: () => buildDrawing('pupBrella'),
 
   layout: {
     chipX: 60, chipW: 300, hudY: 120, hudH: 72, hudText: 28,
