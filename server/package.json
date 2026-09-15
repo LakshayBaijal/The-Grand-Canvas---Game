@@ -10,7 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p .",
     "start": "node dist/index.js",
-    "test": "tsx --test test/accounts.test.ts test/daily.test.ts test/doodle.test.ts test/drawings.test.ts test/friends.test.ts test/hearts.test.ts test/investing.test.ts test/lobbies.test.ts test/profanity.test.ts test/ranking.test.ts test/reports.test.ts test/stall.test.ts test/validate.test.ts",
+    "test": "tsx --test test/accounts.test.ts test/daily.test.ts test/doodle.test.ts test/drawings.test.ts test/friends.test.ts test/hearts.test.ts test/investing.test.ts test/lobbies.test.ts test/profanity.test.ts test/ranking.test.ts test/reconnect.test.ts test/reports.test.ts test/stall.test.ts test/validate.test.ts",
     "test:e2e": "node test/e2e.mjs"
   },
   "dependencies": {

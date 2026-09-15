@@ -348,6 +348,11 @@ class _HomeScreenState extends State<HomeScreen> {
           _linking = false;
           _error = message;
         });
+      case WelcomeEvent():
+        // The server said hello back. Usually _ensureConnected already knows,
+        // but a reconnect made from inside a game bypasses it, and without
+        // this the menu would still believe the connection was down.
+        if (!_connected) setState(() => _connected = true);
       case DisconnectedEvent():
         setState(() {
           _busy = false;

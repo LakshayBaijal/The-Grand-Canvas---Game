@@ -51,9 +51,14 @@ import {
   everyoneDrew,
   everyoneVoted,
   getLobbyByPlayer,
+  holdSeat,
   joinLobby,
   kickPlayer,
   leaveLobby,
+  LOBBY_GRACE_MS,
+  ownsSeat,
+  RECONNECT_GRACE_MS,
+  reclaimSeat,
   lobbySockets,
   playerInfos,
   recordDrawing,
@@ -202,7 +207,43 @@ function sendError(ws: WebSocket, text: string) {
 }
 
 function broadcast(lobby: Lobby, message: ServerMessage) {
+  // Phase messages are remembered so someone reconnecting mid-game can be
+  // dropped straight onto the right screen (see resumeSeat). Everything else
+  // -- waiting counts, lobby state -- is either re-sent anyway or stale the
+  // moment after it goes out.
+  switch (message.type) {
+    case "round_start":
+    case "voting_phase":
+    case "round_reveal":
+    case "final_results":
+      lobby.lastPhase = message;
+      break;
+  }
   for (const ws of lobbySockets(lobby)) send(ws, message);
+}
+
+/**
+ * Puts a returning player back on the screen they were on. `lobby_state`
+ * first so the app knows it is seated at all, then whatever phase the table
+ * is in. The deadline in a cached message is an absolute time, so the clock
+ * the app draws is still right however long they were gone.
+ */
+function resumeSeat(lobby: Lobby, playerId: string, ws: WebSocket) {
+  send(ws, {
+    type: "lobby_state",
+    code: lobby.code,
+    hostId: lobby.hostId,
+    mode: lobby.mode,
+    players: playerInfos(lobby),
+    visibility: lobby.visibility,
+  });
+  const phase = lobby.lastPhase;
+  if (!phase) return;
+  if (phase.type === "prompt_writing") {
+    send(ws, { ...phase, isWriter: phase.writerId === playerId });
+  } else {
+    send(ws, phase);
+  }
 }
 
 function broadcastLobbyState(lobby: Lobby) {
@@ -340,6 +381,16 @@ function startWriterTurn(lobby: Lobby) {
       });
     }
   }
+  lobby.lastPhase = {
+    type: "prompt_writing",
+    template: lobby.currentTemplate,
+    writerId,
+    writerName: writer.nickname,
+    isWriter: false,
+    deadlineMs,
+    roundIndex: lobby.roundIndex,
+    totalRounds: totalRounds(lobby),
+  };
   console.log(`[phase] ${lobby.code} prompt_writing (${writer.nickname})`);
 }
 
@@ -570,7 +621,30 @@ queue.startMatchmaker({
 
 // --- connection handling ---------------------------------------------------
 
-wss.on("connection", (ws) => {
+// --- heartbeat ---------------------------------------------------------------
+// A socket whose far end has silently vanished (the usual way a phone leaves)
+// looks perfectly healthy until something is written to it, which can be a
+// long time in a quiet phase. So every socket is pinged on an interval and one
+// that hasn't answered by the next round is terminated -- which fires "close",
+// which starts the seat hold above. The pings also keep carrier NAT mappings
+// warm from this end, so an idle connection is far less likely to be dropped
+// in the first place.
+const HEARTBEAT_MS = 25_000;
+type LiveSocket = WebSocket & { isAlive?: boolean };
+setInterval(() => {
+  for (const client of wss.clients as Set<LiveSocket>) {
+    if (client.isAlive === false) {
+      client.terminate();
+      continue;
+    }
+    client.isAlive = false;
+    client.ping();
+  }
+}, HEARTBEAT_MS).unref();
+
+wss.on("connection", (ws: LiveSocket) => {
+  ws.isAlive = true;
+  ws.on("pong", () => { ws.isAlive = true; });
   const connectionId = randomUUID();
   const limit = new RateLimit();
   console.log(`[connect] ${connectionId}`);
@@ -631,6 +705,15 @@ wss.on("connection", (ws) => {
       sendAccount(ws, playerId);
       sendProfile(ws, playerId);
       console.log(`[hello] ${nickname} (${playerId.slice(0, 8)})`);
+      // Back from a dropped socket? Their seat was held; give it back and
+      // land them where the game is. Newest socket wins even if the old one
+      // is somehow still open -- a phone can hold a zombie connection for a
+      // while after the network has actually gone.
+      const seated = getLobbyByPlayer(playerId);
+      if (seated && reclaimSeat(seated, playerId, ws)) {
+        console.log(`[resume] ${nickname} -> ${seated.code} (${seated.phase})`);
+        resumeSeat(seated, playerId, ws);
+      }
       return;
     }
 
@@ -1172,16 +1255,34 @@ wss.on("connection", (ws) => {
     if (!identity) return;
 
     queue.dequeue(identity.playerId);
-    const lobby = leaveLobby(identity.playerId);
+    const lobby = getLobbyByPlayer(identity.playerId);
     if (!lobby) {
       notifyBrowsers();
       return;
     }
-    if (lobby.phase === "lobby") {
-      broadcastLobbyState(lobby);
-    } else {
-      recheckPhaseProgress(lobby);
-    }
+    // A socket that no longer owns the seat -- the player already came back
+    // on a new one -- has nothing to say about it. Without this check a
+    // zombie closing late would evict the person who just reconnected.
+    if (!ownsSeat(lobby, identity.playerId, ws)) return;
+
+    // Hold the seat. Most drops are not people leaving: a screen locking, a
+    // change of network, a carrier NAT timing out an idle mapping. They get
+    // the grace period to come back, and only if they don't do they leave.
+    const grace = lobby.phase === "lobby" ? LOBBY_GRACE_MS : RECONNECT_GRACE_MS;
+    const held = holdSeat(lobby, identity.playerId, grace, () => {
+      console.log(`[gone] ${identity.nickname} did not come back to ${lobby.code}`);
+      const left = leaveLobby(identity.playerId);
+      if (!left) {
+        notifyBrowsers();
+        return;
+      }
+      if (left.phase === "lobby") {
+        broadcastLobbyState(left);
+      } else {
+        recheckPhaseProgress(left);
+      }
+    });
+    if (held) console.log(`[hold] ${identity.nickname} in ${lobby.code}, ${grace / 1000}s to return`);
   });
 });
 

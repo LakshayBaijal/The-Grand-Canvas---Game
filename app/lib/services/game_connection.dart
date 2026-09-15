@@ -21,6 +21,25 @@ class GameConnection {
 
   Stream<GameEvent> get events => _eventController.stream;
 
+  /// Whether there is a live socket right now. Goes false the moment one
+  /// drops and true again once [reconnect] has re-made it.
+  bool get isConnected => _channel != null;
+
+  /// Where and as whom we last connected, so a dropped connection can be
+  /// re-made from inside a game without the home screen's help.
+  String? _address;
+  Identity? _identity;
+
+  /// A small message every so often, for two reasons. Carrier NATs drop the
+  /// mapping for a TCP connection that goes quiet -- on Indian mobile
+  /// networks often after 30 seconds or so -- and a phase where you are only
+  /// watching (the reveal, waiting on others) can easily go quieter than
+  /// that. And a connection that has died underneath us is only discovered
+  /// when something is written to it; better that be a ping than the drawing
+  /// you just spent a minute on.
+  Timer? _keepalive;
+  static const _keepaliveEvery = Duration(seconds: 20);
+
   GameEvent? _lastPhase;
 
   /// The most recent message that decides which screen a game should be on.
@@ -43,6 +62,7 @@ class GameConnection {
   /// live connection before sending their first action.
   Future<void> connect(String address) async {
     await disconnect();
+    _address = address;
     final channel = WebSocketChannel.connect(serverUri(address));
     _channel = channel;
 
@@ -68,10 +88,18 @@ class GameConnection {
         _eventController.add(ErrorEvent(_friendlyError(error)));
       },
       onDone: () {
+        _keepalive?.cancel();
+        _keepalive = null;
         if (!ready.isCompleted) {
           ready.completeError(StateError('Connection closed before handshake'));
         }
-        _eventController.add(const DisconnectedEvent());
+        // Only the connection that is still current gets to say it dropped.
+        // A replaced channel closing late (we reconnected on top of it) is
+        // old news, and announcing it would restart the reconnect dance.
+        if (identical(_channel, channel)) {
+          _channel = null;
+          _eventController.add(const DisconnectedEvent());
+        }
       },
       cancelOnError: true,
     );
@@ -80,9 +108,35 @@ class GameConnection {
       const Duration(seconds: 8),
       onTimeout: () => throw TimeoutException('Could not reach the server'),
     );
+
+    _keepalive?.cancel();
+    _keepalive = Timer.periodic(_keepaliveEvery, (_) => _send({'type': 'ping'}));
+  }
+
+  /// Re-makes the connection to wherever we last connected and signs back in
+  /// as whoever we were. The server holds a dropped player's seat for a
+  /// while and, on seeing the same id again, puts them straight back on the
+  /// screen the game is on -- so a successful reconnect is followed by
+  /// `lobby_state` and the current phase without anyone asking.
+  ///
+  /// Returns false if there is nothing to reconnect to, or the attempt
+  /// failed; the caller decides whether to try again.
+  Future<bool> reconnect() async {
+    final address = _address;
+    final identity = _identity;
+    if (address == null || identity == null) return false;
+    try {
+      await connect(address);
+    } catch (_) {
+      return false;
+    }
+    hello(identity);
+    return true;
   }
 
   Future<void> disconnect() async {
+    _keepalive?.cancel();
+    _keepalive = null;
     final channel = _channel;
     _channel = null;
     _lastPhase = null;
@@ -288,11 +342,14 @@ class GameConnection {
   }
 
   /// Identity handshake. Must be sent before anything except `request_doodle`.
-  void hello(Identity identity) => _send({
-    'type': 'hello',
-    'playerId': identity.playerId,
-    'nickname': identity.nickname,
-  });
+  void hello(Identity identity) {
+    _identity = identity;
+    _send({
+      'type': 'hello',
+      'playerId': identity.playerId,
+      'nickname': identity.nickname,
+    });
+  }
 
   void setNickname(String nickname) =>
       _send({'type': 'set_nickname', 'nickname': nickname});
@@ -448,6 +505,7 @@ class GameConnection {
       _channel?.sink.add(jsonEncode(message));
 
   void dispose() {
+    _keepalive?.cancel();
     _channel?.sink.close();
     _eventController.close();
   }

@@ -8,6 +8,7 @@ import type {
   PlayerInfo,
   RoundResult,
   ScoreRow,
+  ServerMessage,
   Stroke,
 } from "./types.js";
 import { fillTemplate, pickTemplate } from "./prompts.js";
@@ -105,7 +106,27 @@ export const PRESENT_SECONDS_PER_ENTRY = 3.5;
 /** Bots are ordinary lobby members with no socket — every phase check
  *  (`everyoneDrew`, scoring, rotation) treats them exactly like humans, so
  *  there is no separate bot code path through the game. */
-type Player = PlayerInfo & { ws: WebSocket | null; isBot: boolean };
+type Player = PlayerInfo & {
+  ws: WebSocket | null;
+  isBot: boolean;
+  /** Counting down while a human's socket is gone and their seat is being
+   *  held for them. Null when connected, and always null for bots. */
+  graceTimer: NodeJS.Timeout | null;
+};
+
+/**
+ * How long a seat is held for someone whose socket dropped.
+ *
+ * Mid-game it is generous: a phone locking its screen, a walk from Wi-Fi to
+ * cellular, or a carrier NAT quietly dropping an idle mapping all look
+ * identical to leaving, and the difference between "the round waits for you"
+ * and "you are gone and can't get back in" is this number. Ninety seconds
+ * covers a whole drawing phase. In the lobby it is short, because there a
+ * dropped socket usually *is* someone leaving, and a host shouldn't wait on a
+ * ghost seat to press start.
+ */
+export const RECONNECT_GRACE_MS = 90_000;
+export const LOBBY_GRACE_MS = 20_000;
 
 export type Phase = "lobby" | "prompt_writing" | "drawing" | "voting" | "reveal" | "results";
 
@@ -150,6 +171,14 @@ export type Lobby = {
   /** Pending bot actions for the current phase; cleared on every transition
    *  so a stale bot can't submit into the next phase. */
   botTimers: NodeJS.Timeout[];
+  /** The most recent phase message, kept so a player who reconnects
+   *  mid-game can be dropped straight onto the right screen. Two of the
+   *  phases (reveal, results) score the round as a side effect of building
+   *  their message, so they can't simply be rebuilt on demand -- caching the
+   *  broadcast is the only safe way to replay them. `prompt_writing` is the
+   *  one phase that differs per player (`isWriter`), and is patched on the
+   *  way out. Null in the lobby, where `lobby_state` alone is the whole story. */
+  lastPhase: ServerMessage | null;
 };
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
@@ -205,6 +234,7 @@ function emptyLobby(hostId: string, mode: GameMode, visibility: LobbyVisibility)
     deadlineMs: 0,
     timer: null,
     botTimers: [],
+    lastPhase: null,
   };
   lobbies.set(code, lobby);
   return lobby;
@@ -216,6 +246,7 @@ function seat(lobby: Lobby, member: Member): void {
     nickname: member.nickname,
     ws: member.ws,
     isBot: false,
+    graceTimer: null,
   });
   lobby.scores.set(member.playerId, 0);
 }
@@ -298,7 +329,7 @@ export function addBot(lobby: Lobby): Player | null {
   if (lobby.players.size >= (lobby.mode === "friendly" ? FRIENDLY_MAX_PLAYERS : MAX_PLAYERS)) return null;
   const taken = new Set(Array.from(lobby.players.values(), (p) => p.nickname));
   const { id, nickname } = createBot(taken);
-  const bot: Player = { id, nickname, ws: null, isBot: true };
+  const bot: Player = { id, nickname, ws: null, isBot: true, graceTimer: null };
   lobby.players.set(id, bot);
   lobby.scores.set(id, 0);
   return bot;
@@ -331,10 +362,52 @@ function humanCount(lobby: Lobby): number {
   return Array.from(lobby.players.values()).filter((p) => !p.isBot).length;
 }
 
+/**
+ * A human's socket has gone. Keep their seat, drop the dead socket, and start
+ * the clock; [onExpire] runs if they haven't come back in time and is where
+ * the actual leaving happens. Returns false if there was nothing to hold --
+ * a bot, or someone not in this lobby.
+ */
+export function holdSeat(lobby: Lobby, playerId: string, graceMs: number, onExpire: () => void): boolean {
+  const player = lobby.players.get(playerId);
+  if (!player || player.isBot) return false;
+  player.ws = null;
+  if (player.graceTimer) clearTimeout(player.graceTimer);
+  player.graceTimer = setTimeout(() => {
+    player.graceTimer = null;
+    // Belt and braces: if a reconnect landed in the same tick, do nothing.
+    if (player.ws) return;
+    onExpire();
+  }, graceMs);
+  return true;
+}
+
+/**
+ * The same person is back on a new socket. Cancels the hold and puts them
+ * back in their seat. Also the right thing when the old socket is still
+ * technically open (a phone with two apps, a zombie connection): newest wins,
+ * and the old one's eventual close is ignored because it no longer owns the
+ * seat -- see the close handler in index.ts.
+ */
+export function reclaimSeat(lobby: Lobby, playerId: string, ws: WebSocket): boolean {
+  const player = lobby.players.get(playerId);
+  if (!player || player.isBot) return false;
+  if (player.graceTimer) { clearTimeout(player.graceTimer); player.graceTimer = null; }
+  player.ws = ws;
+  return true;
+}
+
+/** Whether this socket is the one a seated player is currently using. */
+export function ownsSeat(lobby: Lobby, playerId: string, ws: WebSocket): boolean {
+  return lobby.players.get(playerId)?.ws === ws;
+}
+
 export function leaveLobby(playerId: string): Lobby | undefined {
   const lobby = getLobbyByPlayer(playerId);
   if (!lobby) return undefined;
 
+  const leaving = lobby.players.get(playerId);
+  if (leaving?.graceTimer) clearTimeout(leaving.graceTimer);
   lobby.players.delete(playerId);
   lobby.roundDrawings.delete(playerId);
   lobby.investments.delete(playerId);
@@ -372,6 +445,7 @@ export function kickPlayer(lobby: Lobby, targetId: string): Player | null {
   const target = lobby.players.get(targetId);
   if (!target) return null;
 
+  if (target.graceTimer) clearTimeout(target.graceTimer);
   lobby.players.delete(targetId);
   lobby.scores.delete(targetId);
   lobby.roundDrawings.delete(targetId);
@@ -804,4 +878,5 @@ export function resetToLobby(lobby: Lobby): void {
   lobby.roundBonus = new Map();
   lobby.roundPenalty = new Map();
   lobby.scores = new Map(Array.from(lobby.players.keys()).map((id) => [id, 0]));
+  lobby.lastPhase = null;
 }

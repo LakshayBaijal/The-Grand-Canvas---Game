@@ -49,7 +49,19 @@ class _GameScreenState extends State<GameScreen> {
 
   int _waitingSubmitted = 0;
   int _waitingTotal = 0;
+
+  // --- getting back in after the connection drops ---------------------------
+  // The server holds a dropped player's seat for a while (RECONNECT_GRACE_MS,
+  // ninety seconds mid-game), so a drop is something to recover from, not
+  // the end of the game. The retries below add up to just under that, so we
+  // never give up while the seat is still there for the taking.
   bool _disconnected = false;
+  bool _reconnectFailed = false;
+  int _attempt = 0;
+  Timer? _retryTimer;
+  Timer? _resumeTimer;
+  Timer? _settleTimer;
+  static const _retryDelays = [1, 2, 3, 5, 8, 8, 8, 8, 8, 8, 8, 8, 10];
 
   /// Server refusals so far, handed to the prompt box so it can unlock.
   int _rejections = 0;
@@ -83,6 +95,9 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _retryTimer?.cancel();
+    _resumeTimer?.cancel();
+    _settleTimer?.cancel();
     super.dispose();
   }
 
@@ -128,10 +143,55 @@ class _GameScreenState extends State<GameScreen> {
         ).showSnackBar(SnackBar(content: Text(message)));
         setState(() => _rejections++);
       case DisconnectedEvent():
-        setState(() => _disconnected = true);
+        if (_disconnected) break; // already on it
+        setState(() {
+          _disconnected = true;
+          _reconnectFailed = false;
+          _attempt = 0;
+        });
+        _scheduleReconnect();
       default:
         break;
     }
+  }
+
+  void _scheduleReconnect() {
+    _retryTimer?.cancel();
+    if (_attempt >= _retryDelays.length) {
+      // Longer than the server holds a seat: it's gone, and so is the game.
+      setState(() => _reconnectFailed = true);
+      return;
+    }
+    _retryTimer = Timer(Duration(seconds: _retryDelays[_attempt]), _tryReconnect);
+  }
+
+  Future<void> _tryReconnect() async {
+    if (!mounted || !_disconnected) return;
+    setState(() => _attempt++);
+    final ok = await widget.connection.reconnect();
+    if (!mounted || !_disconnected) return;
+    if (!ok) {
+      _scheduleReconnect();
+      return;
+    }
+    // Connected and signed in. If our seat was held, `lobby_state` follows
+    // straight away and _applyPhase brings us back; if it wasn't, nothing
+    // follows at all -- so give it a moment before concluding that.
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted || !_disconnected) return;
+      setState(() => _reconnectFailed = true);
+    });
+  }
+
+  /// Back in the game: stop every timer the drop started.
+  void _resumed() {
+    _retryTimer?.cancel();
+    _resumeTimer?.cancel();
+    _settleTimer?.cancel();
+    _disconnected = false;
+    _reconnectFailed = false;
+    _attempt = 0;
   }
 
   bool _applyPhaseWithSetState(GameEvent event) {
@@ -153,9 +213,35 @@ class _GameScreenState extends State<GameScreen> {
   /// [_handleEvent] so initState can replay a missed message without calling
   /// setState before the first build.
   bool _applyPhase(GameEvent event) {
+    if (_disconnected && event is! LobbyStateEvent) {
+      // Any phase message while we're reconnecting is the game telling us
+      // where it got to. Land there, and we're back.
+      _resumed();
+    }
     switch (event) {
       case LobbyStateEvent(:final lobby):
         _lobby = lobby;
+        if (_disconnected) {
+          // First thing back after a reconnect. On its own it means "you are
+          // seated", not "the table is in the lobby": if the game is mid-phase
+          // that phase follows a frame later and decides the screen. Only if
+          // nothing follows is the lobby really where the game is -- so wait
+          // a beat before acting, or a disconnect on the results screen would
+          // flash through the lobby on its way back to the results.
+          _settleTimer?.cancel();
+          _settleTimer = Timer(const Duration(milliseconds: 600), () {
+            if (!mounted || !_disconnected) return;
+            setState(() {
+              _resumed();
+              if (_phase != GamePhase.lobby) {
+                _phase = GamePhase.lobby;
+                _resetRoundState();
+                widget.connection.requestDoodle();
+              }
+            });
+          });
+          return true;
+        }
         // A fresh lobby_state after a game means the host hit "play again".
         if (_phase == GamePhase.results) {
           _phase = GamePhase.lobby;
@@ -195,9 +281,18 @@ class _GameScreenState extends State<GameScreen> {
   /// rejected with "You're already in a lobby" and the only way out is to
   /// restart the app. Both the button and the gesture come through here.
   void _leave() {
-    // A dead socket has already been cleaned up server-side by the close
-    // handler; sending into it would just throw.
-    if (!_disconnected) widget.connection.leaveLobby();
+    // On a dead socket there is nobody to tell, and the server's hold on our
+    // seat will lapse on its own. On a live one, say so, or the seat sits
+    // there for ninety seconds looking occupied.
+    _retryTimer?.cancel();
+    _resumeTimer?.cancel();
+    _settleTimer?.cancel();
+    // Keyed on the socket, not on _disconnected: a reconnect can have brought
+    // the socket back (and the server can have re-seated us) while this
+    // screen is still waiting to hear so. Leaving then without saying so
+    // would strand a live seat, and the next broadcast to it would reopen
+    // the game from the menu.
+    if (widget.connection.isConnected) widget.connection.leaveLobby();
     Navigator.of(context).pop();
   }
 
@@ -224,30 +319,51 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildBody(BuildContext context) {
     if (_disconnected) {
+      final failed = _reconnectFailed;
       return Scaffold(
-        appBar: AppBar(title: const Text('Disconnected')),
+        appBar: AppBar(title: Text(failed ? 'Disconnected' : 'Reconnecting')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(28),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.wifi_off,
-                  size: 56,
-                  color: GameColors.textMuted,
-                ),
+                if (failed)
+                  const Icon(Icons.wifi_off, size: 56, color: GameColors.textMuted)
+                else
+                  const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: CircularProgressIndicator(strokeWidth: 3.5),
+                  ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Lost connection to the game',
+                Text(
+                  failed
+                      ? "Couldn't get back into the game"
+                      : 'Lost the connection — getting you back in',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  failed
+                      ? 'Your seat was held for a minute and a half, and the table has moved on.'
+                      : 'Your seat is being held. This usually takes a few seconds.'
+                            '${_attempt > 1 ? '  (try $_attempt)' : ''}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: GameColors.textMuted, fontSize: 13),
                 ),
                 const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Back to menu'),
-                ),
+                if (failed)
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Back to menu'),
+                  )
+                else
+                  TextButton(
+                    onPressed: _leave,
+                    child: const Text('Leave the game'),
+                  ),
               ],
             ),
           ),

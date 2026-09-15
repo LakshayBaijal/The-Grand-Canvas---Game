@@ -18,6 +18,12 @@ import 'package:bad_mental_canvas/services/game_connection.dart';
 class _SpyConnection extends GameConnection {
   int leaveCount = 0;
 
+  // A game screen only ever exists on top of a live connection, and leaving
+  // only tells the server when the socket is up (on a dead one there is
+  // nobody to tell). The spy has no socket, so it says so explicitly.
+  @override
+  bool get isConnected => true;
+
   @override
   void leaveLobby() => leaveCount++;
 
