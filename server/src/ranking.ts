@@ -81,6 +81,51 @@ export function floorForLeague(id: string | null): number {
   return LEAGUES.find((l) => l.id === id)?.floor ?? 0;
 }
 
+// --- trophies and tiers ----------------------------------------------------
+//
+// Trophies are the number players *see* on each other. They move both ways
+// now, and where you sit decides how: at the bottom a loss barely stings and
+// a win pays well, so a new player climbs; at the top a win pays little and a
+// loss costs a lot, so staying there means keeping on winning. The tier badge
+// is derived from the current count, never floored -- fall under the line and
+// the badge goes with it, which is what stops anyone coasting on it.
+
+export const TIERS = [
+  { id: "bronze", name: "Bronze", floor: 0 },
+  { id: "silver", name: "Silver", floor: 500 },
+  { id: "gold", name: "Gold", floor: 1000 },
+] as const;
+
+export type TierId = (typeof TIERS)[number]["id"];
+
+export function tierFor(trophies: number): TierId {
+  let tier: TierId = "bronze";
+  for (const t of TIERS) if (trophies >= t.floor) tier = t.id;
+  return tier;
+}
+
+/** Trophy change for finishing 1st..5th at a five-seat table, by tier. */
+export const TROPHY_DELTAS: Record<TierId, readonly number[]> = {
+  bronze: [40, 25, 12, -4, -8],
+  silver: [30, 15, 0, -15, -30],
+  gold: [15, 5, -10, -25, -40],
+};
+
+/** Where a player who walks out of a ranked game is scored: dead last. */
+export const QUIT_PLACE = TROPHY_DELTAS.bronze.length - 1;
+
+/**
+ * Trophy change for one finish. [place] is 0 = winner among [seats] players;
+ * a smaller table is spread across the five-seat scale so a 3-player game
+ * still has a clear top and a clear bottom.
+ */
+export function trophyDelta(trophies: number, place: number, seats: number): number {
+  const table = TROPHY_DELTAS[tierFor(trophies)];
+  const last = table.length - 1;
+  const slot = seats <= 1 ? 0 : Math.round((place * last) / (seats - 1));
+  return table[Math.min(last, Math.max(0, slot))];
+}
+
 // --- rating maths ----------------------------------------------------------
 
 /** Standard Elo divisor: a 400-point gap means the favourite is expected to

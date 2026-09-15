@@ -4,6 +4,7 @@ import '../models/game_event.dart';
 import '../models/round_models.dart';
 import '../theme.dart';
 import '../widgets/sketch_icons.dart';
+import '../widgets/name_tag.dart';
 import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/presentation_sequence.dart';
@@ -569,8 +570,11 @@ class _EntryRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  'by ${entry.artistName}',
+                NameTag(
+                  prefix: 'by ',
+                  name: entry.artistName,
+                  tier: entry.artistTier,
+                  crown: entry.artistCrown,
                   style: const TextStyle(
                     color: GameColors.textMuted,
                     fontSize: 12,

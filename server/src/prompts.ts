@@ -1,177 +1,135 @@
-/** Mad-Libs-style "homework problem" templates. Each round one random
- *  player fills in the blank (marked "___"); the completed sentence becomes
- *  the problem everyone else draws a solution to — the same structure as
- *  Jackbox's Patently Stupid.
+/** Fill-in-the-blank prompts. Each round one random player fills in the
+ *  blank (marked "___"); the completed sentence is what everyone else draws.
  *
- *  Kept deliberately plain and everyday rather than dramatic ("Scientists
- *  discover...", "Breaking news...") — ordinary annoyances give players more
- *  to actually latch onto than hype language does. Phrased impersonally
- *  ("everyone", "nobody", "there's never...") rather than as first-person
- *  "I need"/"I wish" statements.
+ *  Every one of these is a saying people already know -- a proverb, an
+ *  idiom, a line from a song or a story -- with the punchline taken out.
+ *  That does two things the earlier "everyday annoyance" sentences didn't:
  *
- *  Two blank shapes, deliberately mixed so it doesn't always read as "a way
- *  to ___":
- *    - noun blanks   ("deals with ___", "solves ___") — filled with a
- *      concrete annoying thing, e.g. "loud chewing", "traffic". Usually the
- *      fastest to think of and the easiest to draw.
- *    - verb blanks    ("a way to ___", "before having to ___") — filled with
- *      a short action, e.g. "find my keys".
- *  Keep both flavors when adding more, rather than drifting back to one. */
+ *    - The writer has somewhere to start. "An apple a day keeps ___ away"
+ *      asks for exactly one word and half the table already has a joke for
+ *      it; "the most annoying part of waking up is usually ___" asked for an
+ *      essay. Forty seconds is not long.
+ *    - The word in the blank is the whole subject, so the bots' drawings
+ *      (which key off the filled-in answer) land on the right thing.
+ *
+ *  Keep them short, universally known, and clean, with one blank each. Vary
+ *  what the blank asks for -- a thing, a creature, a place, a person -- so a
+ *  game doesn't feel like the same question five times. */
 export const PROMPT_TEMPLATES: string[] = [
-  // morning routine
-  "The most annoying part of waking up is usually ___.",
-  "Nobody should have to ___ before they've even had coffee.",
-  "Mornings would be so much easier without ___.",
-  "It shouldn't take this long to ___ before work.",
-  "The snooze button exists because of ___.",
-  "Every morning comes down to a rushed fight against ___.",
+  // proverbs
+  "An apple a day keeps ___ away.",
+  "The early bird catches the ___.",
+  "Don't count your ___ before they hatch.",
+  "A picture is worth a thousand ___.",
+  "When life gives you lemons, make ___.",
+  "Every cloud has a ___ lining.",
+  "Rome wasn't built in a ___.",
+  "All that glitters is not ___.",
+  "Home is where the ___ is.",
+  "Too many cooks spoil the ___.",
+  "The grass is always greener on the other side of the ___.",
+  "Don't put all your eggs in one ___.",
+  "Actions speak louder than ___.",
+  "Curiosity killed the ___.",
+  "Never judge a book by its ___.",
+  "Laughter is the best ___.",
+  "Money can't buy ___.",
+  "The pen is mightier than the ___.",
+  "Practice makes ___.",
+  "A watched pot never ___.",
+  "Good things come to those who ___.",
+  "There's no place like ___.",
+  "Let sleeping ___ lie.",
+  "The best things in life are ___.",
+  "You can't teach an old dog new ___.",
+  "Birds of a feather ___ together.",
+  "A rolling stone gathers no ___.",
+  "Beauty is in the eye of the ___.",
+  "Two heads are better than ___.",
+  "The elephant in the room is ___.",
+  "One man's trash is another man's ___.",
+  "Slow and steady wins the ___.",
+  "Don't bite the hand that ___ you.",
+  "Every dog has its ___.",
+  "What goes around comes ___.",
+  "Blood is thicker than ___.",
 
-  // commute and travel
-  "Nothing ruins a commute faster than ___.",
-  "There's no reason anyone should still have to ___ in traffic.",
-  "Every parking lot has the same problem: ___.",
-  "Long car rides always come down to somebody having to ___.",
-  "Airports would be so much better without ___.",
-  "Every bus stop eventually deals with ___.",
+  // idioms
+  "It's raining ___ and dogs.",
+  "That costs an arm and a ___.",
+  "Let the ___ out of the bag.",
+  "Don't cry over spilled ___.",
+  "Once in a blue ___.",
+  "The last straw that broke the ___'s back.",
+  "A piece of ___.",
+  "Kill two ___ with one stone.",
+  "Hit the ___ running.",
+  "Put a ___ in it.",
+  "Cool as a ___.",
+  "Busy as a ___.",
+  "Blind as a ___.",
+  "Sleeping like a ___.",
+  "Eating like a ___.",
+  "Happy as a ___.",
+  "Stubborn as a ___.",
+  "Fits like a ___.",
+  "As light as a ___.",
+  "Wolf in ___'s clothing.",
+  "The ___ is on fire.",
+  "Barking up the wrong ___.",
+  "A ___ in a china shop.",
+  "Like a ___ in headlights.",
+  "Living on ___ street.",
+  "Spill the ___.",
+  "Under the ___.",
+  "Over the ___.",
 
-  // work and school
-  "Every office has an ongoing problem with ___.",
-  "Nobody wants to be the one who has to ___ in a meeting.",
-  "Video calls get ruined by ___ more often than not.",
-  "It's about time somebody solved ___ once and for all.",
-  "Deadlines always come down to somebody having to ___ at the last minute.",
-  "Every classroom eventually has to deal with ___.",
+  // songs, rhymes and stories everybody knows
+  "Twinkle twinkle little ___.",
+  "Old MacDonald had a ___.",
+  "Row, row, row your ___.",
+  "Humpty Dumpty sat on a ___.",
+  "Jack and Jill went up the ___.",
+  "Mary had a little ___.",
+  "The wheels on the ___ go round and round.",
+  "Somewhere over the ___.",
+  "We all live in a yellow ___.",
+  "Hey diddle diddle, the cat and the ___.",
+  "Baa baa black ___.",
+  "Hickory dickory dock, the mouse ran up the ___.",
+  "Little Miss Muffet sat on a ___.",
+  "Three blind ___.",
+  "The itsy bitsy ___ climbed up the water spout.",
+  "Happy birthday to ___.",
+  "Jingle bells, jingle bells, jingle all the ___.",
+  "London Bridge is falling ___.",
+  "Ring around the ___.",
+  "Head, shoulders, knees and ___.",
+  "If you're happy and you know it, clap your ___.",
+  "Do you want to build a ___?",
 
-  // home and chores
-  "Laundry day is really just an ongoing battle against ___.",
-  "Nobody enjoys ___, but somebody always has to deal with it.",
-  "Every kitchen eventually has a problem with ___.",
-  "Cleaning day always means somebody has to ___.",
-  "Roommates always end up arguing about ___.",
-  "It's always tricky to ___ without waking up the neighbors.",
-
-  // food and eating
-  "Breakfast always gets ruined by ___.",
-  "Cooking dinner always comes down to having to ___.",
-  "The worst part of eating out is usually ___.",
-  "Late-night snacking always means having to ___ quietly.",
-  "Every dinner table eventually deals with ___.",
-
-  // phone and technology
-  "Half of modern life is just dealing with ___.",
-  "Nobody has found a good way to stop ___.",
-  "Video calls always get interrupted by ___.",
-  "It shouldn't be this hard to ___ without the phone dying.",
-  "Every group chat eventually runs into ___.",
-  "Autocorrect always turns a simple text into ___.",
-
-  // social and relationships
-  "Every family gathering eventually runs into ___.",
-  "Small talk always turns awkward because of ___.",
-  "Nobody wants to be the one who has to ___ at a party.",
-  "In-laws always have something to say about ___.",
-  "Every group project comes down to somebody having to ___.",
-  "There's never a graceful way to deal with ___.",
-
-  // sleep and rest
-  "Falling asleep is hard enough without ___.",
-  "Nobody wants to be the one who has to ___ at 2am.",
-  "Boring lectures are mostly just a fight against ___.",
-  "Every nap gets interrupted by ___.",
-
-  // money and shopping
-  "Nobody wants to spend money on ___, but everyone eventually does.",
-  "Grocery shopping always comes down to dealing with ___.",
-  "The days before payday always mean dealing with ___.",
-
-  // pets
-  "Dog owners everywhere deal with ___ on a daily basis.",
-  "Cats always seem to have a problem with ___.",
-  "Walking the dog always means dealing with ___.",
-
-  // kids and family
-  "Every road trip with kids eventually comes down to ___.",
-  "Bedtime always turns into a fight about ___.",
-  "Parenting is mostly just dealing with ___ all day.",
-
-  // fitness and health
-  "Nobody wants to go to the gym and deal with ___.",
-  "Every workout eventually gets derailed by ___.",
-  "Eating healthy always falls apart because of ___.",
-
-  // weather and outdoors
-  "Rainy days always mean dealing with ___.",
-  "Every winter comes with the exact same problem: ___.",
-  "Summer would be perfect if it weren't for ___.",
-
-  // everyday annoyances
-  "Nothing wastes more time than ___.",
-  "Everyone has lost something important to ___ at least once.",
-  "There's nothing more frustrating than ___.",
-  "Every junk drawer is full of ___.",
-  "Nobody has ever enjoyed dealing with ___.",
-  "Every year, people waste hours dealing with ___.",
-  "Losing your keys always means dealing with ___.",
-  "Tangled headphones always lead to ___.",
-  "A dead Wi-Fi connection always causes ___.",
-  "Long lines always leave people thinking about ___.",
-  "An hour on hold is plenty of time to think about ___.",
-
-  // plain and simple
-  "The world still doesn't have a good solution for ___.",
-  "Somebody really needs to invent something for ___.",
-  "Everyone agrees ___ is a real problem.",
-  "If there's one thing that needs fixing, it's ___.",
-  "Nobody has cracked the problem of ___ yet.",
-  "There's a real market for anything that solves ___.",
-  "Every household could use a gadget that finally deals with ___.",
-  "A bit of decent homework would put an end to ___.",
-
-  // shopping and errands
-  "Every supermarket trip ends the same way: ___.",
-  "Self-checkout machines exist purely to ___.",
-  "Nobody has ever had a good experience trying to ___.",
-  "Online shopping always goes wrong at the point of ___.",
-
-  // repairs and stuff breaking
-  "Everything works fine right up until ___.",
-  "Assembling furniture always comes down to ___.",
-  "Every rented flat has the same unfixable problem: ___.",
-  "It's never worth the money to fix ___.",
-
-  // admin and bureaucracy
-  "Every form ever printed eventually asks you to ___.",
-  "Renewing anything official means dealing with ___.",
-  "Nothing makes an afternoon disappear like ___.",
-
-  // hobbies and downtime
-  "Every hobby eventually turns into ___.",
-  "Nobody warns you that a holiday involves ___.",
-  "Movie night always gets derailed by ___.",
-  "Every board game ends in an argument about ___.",
-
-  // health
-  "The doctor's waiting room is really just ___.",
-  "Getting a decent night's sleep is impossible with ___.",
-  "Every new year's resolution dies because of ___.",
-
-  // seasonal
-  "The first hot day of the year always means ___.",
-  "Every holiday season comes down to ___.",
-  "Nobody is ever prepared for ___.",
-
-  // neighbours and shared spaces
-  "Shared bins are just an invitation to ___.",
-  "Every block of flats has one person who insists on ___.",
-  "Communal kitchens always end up with ___.",
-
-  // more verb blanks, to keep the mix even
-  "There should be an easier way to ___.",
-  "Somebody should be paid handsomely to ___.",
-  "Nobody should have to ___ more than once a year.",
-  "It takes a special kind of patience to ___.",
-  "The hardest part of any morning is having to ___.",
-  "You should never have to ___ in front of other people.",
+  // modern sayings
+  "Keep calm and ___.",
+  "Netflix and ___.",
+  "Sorry, my ___ died.",
+  "New phone, who ___?",
+  "It's not a bug, it's a ___.",
+  "Have you tried turning your ___ off and on again?",
+  "Coffee first, then ___.",
+  "Monday is just a ___.",
+  "There's an app for ___.",
+  "Never skip ___ day.",
+  "The customer is always ___.",
+  "Fake it till you ___.",
+  "Diamonds are a ___'s best friend.",
+  "May the ___ be with you.",
+  "Winter is ___.",
+  "Life is like a box of ___.",
+  "I'll be ___.",
+  "With great power comes great ___.",
+  "To infinity and ___.",
+  "Hakuna ___.",
+  "You shall not ___.",
 ];
 
 /** Already-completed sentences used only for the ambient "someone is doodling"

@@ -4,7 +4,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { advertiseOnLocalNetwork } from "./discovery.js";
 import { googleEnabled, verifyGoogle } from "./google.js";
 import type { ClientMessage, HallDay, LeagueInfo, Profile, ServerMessage } from "./types.js";
-import { leagueFor, PLACEMENT_GAMES, seasonEndsAt } from "./ranking.js";
+import { leagueFor, PLACEMENT_GAMES, seasonEndsAt, tierFor } from "./ranking.js";
 import {
   botDelayMs,
   botDrawing,
@@ -76,6 +76,8 @@ import {
   totalRounds,
   ratingsForGame,
   trophiesForGame,
+  quitPenalty,
+  updateTrophies,
   voteCount,
   type Lobby,
   type Member,
@@ -321,6 +323,7 @@ function profileFor(playerId: string): Profile | null {
   return {
     ...rest,
     rank: store.rankOf(playerId),
+    tier: tierFor(p.trophies),
     league: leagueFor(p.rating),
     placementsLeft: Math.max(0, PLACEMENT_GAMES - p.games),
     seasonEndsMs: seasonEndsAt(),
@@ -334,6 +337,40 @@ function sendAccount(ws: WebSocket, playerId: string) {
     linked: store.getProfile(playerId)?.linked ?? false,
     googleAvailable: googleEnabled,
   });
+}
+
+/** A seat request carrying what the table gets to see: the badge and the
+ *  crown come from the profile, not from the client's say-so. */
+function memberFor(playerId: string, ws: WebSocket, nickname: string): Member {
+  const p = store.getProfile(playerId);
+  return { playerId, ws, nickname, trophies: p?.trophies ?? 0, crown: p?.crown ?? false };
+}
+
+/**
+ * Someone is leaving a ranked game that is still running. Charged as a last
+ * place -- see quitPenalty -- and the game goes on without them. Called with
+ * the player still seated, before leaveLobby.
+ */
+function chargeQuit(lobby: Lobby, playerId: string): void {
+  const ratings = new Map<string, { rating: number; gamesPlayed: number }>();
+  for (const id of lobby.players.keys()) {
+    const p = store.getProfile(id);
+    if (p) ratings.set(id, { rating: p.rating, gamesPlayed: p.games });
+  }
+  const penalty = quitPenalty(lobby, playerId, ratings);
+  if (!penalty) return;
+  const updated = store.recordRankedResult(playerId, {
+    trophies: penalty.trophies,
+    won: false,
+    score: lobby.scores.get(playerId) ?? 0,
+    rating: penalty.rating.after,
+  });
+  if (updated) {
+    console.log(
+      `[quit] ${updated.nickname} left ${lobby.code} mid-game: ${penalty.trophies} trophies, ` +
+        `${updated.rating - penalty.rating.before} rating`,
+    );
+  }
 }
 
 function sendProfile(ws: WebSocket, playerId: string) {
@@ -549,6 +586,8 @@ function finishGame(lobby: Lobby) {
       // someone they lost 14 points when protection absorbed it would be a lie.
       ratingDeltas[change.playerId] = updated.rating - change.before;
       leagues[change.playerId] = leagueFor(updated.rating);
+      // The badge next game reflects this one.
+      updateTrophies(lobby, change.playerId, updated.trophies);
     }
   }
 
@@ -984,6 +1023,8 @@ wss.on("connection", (ws: LiveSocket) => {
             id: row.id,
             nickname: row.nickname,
             trophies: row.trophies,
+            tier: tierFor(row.trophies),
+            crown: row.crown,
             games: row.games,
             wins: row.wins,
             rating: row.rating,
@@ -996,7 +1037,7 @@ wss.on("connection", (ws: LiveSocket) => {
 
       case "find_match": {
         if (getLobbyByPlayer(playerId)) return sendError(ws, "You're already in a game");
-        queue.enqueue({ playerId, ws, nickname: identity.nickname });
+        queue.enqueue(memberFor(playerId, ws, identity.nickname));
         send(ws, {
           type: "queue_status",
           waiting: queue.queued().length,
@@ -1019,7 +1060,7 @@ wss.on("connection", (ws: LiveSocket) => {
         // Opening a lobby means you have stopped shopping for one.
         browsers.delete(ws);
         const lobby = createFriendlyLobby(
-          { playerId, ws, nickname: identity.nickname },
+          memberFor(playerId, ws, identity.nickname),
           message.visibility ?? "public",
         );
         console.log(`[create_lobby] ${identity.nickname} -> ${lobby.code} (${lobby.visibility})`);
@@ -1031,8 +1072,7 @@ wss.on("connection", (ws: LiveSocket) => {
         if (getLobbyByPlayer(playerId)) return sendError(ws, "You're already in a lobby");
         queue.dequeue(playerId);
         try {
-          const member: Member = { playerId, ws, nickname: identity.nickname };
-          const lobby = joinLobby(cleanText(message.code, 8), member);
+          const lobby = joinLobby(cleanText(message.code, 8), memberFor(playerId, ws, identity.nickname));
           browsers.delete(ws);
           console.log(`[join_lobby] ${identity.nickname} -> ${lobby.code}`);
           broadcastLobbyState(lobby);
@@ -1232,7 +1272,22 @@ wss.on("connection", (ws: LiveSocket) => {
         break;
       }
 
+      case "set_crown": {
+        const owned = message.owned === true;
+        store.setCrown(playerId, owned);
+        // Already at a table? The crown shows up there without re-seating.
+        const lobby = getLobbyByPlayer(playerId);
+        const seated = lobby?.players.get(playerId);
+        if (lobby && seated && seated.crown !== owned) {
+          seated.crown = owned;
+          broadcastLobbyState(lobby);
+        }
+        break;
+      }
+
       case "leave_lobby": {
+        const seated = getLobbyByPlayer(playerId);
+        if (seated) chargeQuit(seated, playerId);
         const lobby = leaveLobby(playerId);
         if (lobby) {
           if (lobby.phase === "lobby") broadcastLobbyState(lobby);
@@ -1271,6 +1326,9 @@ wss.on("connection", (ws: LiveSocket) => {
     const grace = lobby.phase === "lobby" ? LOBBY_GRACE_MS : RECONNECT_GRACE_MS;
     const held = holdSeat(lobby, identity.playerId, grace, () => {
       console.log(`[gone] ${identity.nickname} did not come back to ${lobby.code}`);
+      // Ninety seconds is the benefit of the doubt; past it, not coming
+      // back is the same as leaving, and is charged the same.
+      chargeQuit(lobby, identity.playerId);
       const left = leaveLobby(identity.playerId);
       if (!left) {
         notifyBrowsers();

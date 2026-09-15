@@ -10,6 +10,7 @@ import '../models/lobby_state.dart';
 import '../models/round_models.dart';
 import '../models/stroke.dart';
 import '../models/styles.dart';
+import 'entitlements.dart';
 import 'identity.dart';
 import 'reminder_plan.dart';
 
@@ -368,7 +369,13 @@ class GameConnection {
       'playerId': identity.playerId,
       'nickname': identity.nickname,
     });
+    // The crown is the app's to report: the purchase lives in Play, and the
+    // server only needs to know so the rest of the table can see it.
+    setCrown(Entitlements.instance.hasLifetime);
   }
+
+  /// Whether this player owns the Grand Pass, for the crown by their name.
+  void setCrown(bool owned) => _send({'type': 'set_crown', 'owned': owned});
 
   void setNickname(String nickname) =>
       _send({'type': 'set_nickname', 'nickname': nickname});

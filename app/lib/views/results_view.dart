@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/round_models.dart';
 import '../theme.dart';
 import '../widgets/sketch_icons.dart';
+import '../widgets/name_tag.dart';
 import '../widgets/celebration.dart';
 import '../services/audio_service.dart';
 
@@ -129,8 +130,10 @@ class _ResultsViewState extends State<ResultsView> {
                                 ),
                               ),
                               Expanded(
-                                child: Text(
-                                  row.nickname,
+                                child: NameTag(
+                                  name: row.nickname,
+                                  tier: row.tier,
+                                  crown: row.crown,
                                   style: const TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.w700,

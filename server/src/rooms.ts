@@ -16,8 +16,11 @@ import { createBot, isBotId } from "./bots.js";
 import { archiveDrawings } from "./store.js";
 import {
   BOT_RATING,
+  QUIT_PLACE,
   rateGame,
   START_RATING,
+  tierFor,
+  trophyDelta,
   type Contender,
   type RatingChange,
 } from "./ranking.js";
@@ -32,9 +35,8 @@ export const MIN_PLAYERS_TO_START = 1;
 /** Places a friendly-game voter picks, best first, and what each is worth. */
 export const RANKING_POINTS = [3, 2, 1];
 
-/** Trophies for finishing 1st..5th in a ranked game (index 0 = 1st). Trophies
- *  only ever accumulate — see store.recordRankedResult. */
-export const TROPHIES_BY_PLACE = [30, 18, 10, 5, 2];
+/** How many seats the trophy scale is written for — see TROPHY_DELTAS. */
+export const TROPHY_SEATS = 5;
 
 /** Beat between a ranked lobby forming and its first prompt, so players can
  *  see the table they were dealt. */
@@ -109,6 +111,9 @@ export const PRESENT_SECONDS_PER_ENTRY = 3.5;
 type Player = PlayerInfo & {
   ws: WebSocket | null;
   isBot: boolean;
+  /** Trophy count as of sitting down (refreshed when a game ends), which is
+   *  what the tier badge shown to the table is derived from. */
+  trophies: number;
   /** Counting down while a human's socket is gone and their seat is being
    *  held for them. Null when connected, and always null for bots. */
   graceTimer: NodeJS.Timeout | null;
@@ -207,7 +212,13 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
-export type Member = { playerId: string; ws: WebSocket; nickname: string };
+export type Member = {
+  playerId: string;
+  ws: WebSocket;
+  nickname: string;
+  trophies?: number;
+  crown?: boolean;
+};
 
 function emptyLobby(hostId: string, mode: GameMode, visibility: LobbyVisibility): Lobby {
   const code = generateCode();
@@ -243,11 +254,15 @@ function emptyLobby(hostId: string, mode: GameMode, visibility: LobbyVisibility)
 }
 
 function seat(lobby: Lobby, member: Member): void {
+  const trophies = member.trophies ?? 0;
   lobby.players.set(member.playerId, {
     id: member.playerId,
     nickname: member.nickname,
     ws: member.ws,
     isBot: false,
+    trophies,
+    tier: tierFor(trophies),
+    crown: member.crown ?? false,
     graceTimer: null,
   });
   lobby.scores.set(member.playerId, 0);
@@ -331,7 +346,9 @@ export function addBot(lobby: Lobby): Player | null {
   if (lobby.players.size >= (lobby.mode === "friendly" ? FRIENDLY_MAX_PLAYERS : MAX_PLAYERS)) return null;
   const taken = new Set(Array.from(lobby.players.values(), (p) => p.nickname));
   const { id, nickname } = createBot(taken);
-  const bot: Player = { id, nickname, ws: null, isBot: true, graceTimer: null };
+  const bot: Player = {
+    id, nickname, ws: null, isBot: true, trophies: 0, tier: "bronze", crown: false, graceTimer: null,
+  };
   lobby.players.set(id, bot);
   lobby.scores.set(id, 0);
   return bot;
@@ -457,11 +474,23 @@ export function kickPlayer(lobby: Lobby, targetId: string): Player | null {
 }
 
 export function playerInfos(lobby: Lobby): PlayerInfo[] {
-  return Array.from(lobby.players.values()).map(({ id, nickname, isBot }) => ({
+  return Array.from(lobby.players.values()).map(({ id, nickname, isBot, tier, crown }) => ({
     id,
     nickname,
     isBot,
+    tier,
+    crown,
   }));
+}
+
+/** A player's trophies changed (a game ended): the badge they show the
+ *  table follows the new count, so a tilt is visible next game, not next
+ *  install. Unknown ids (already left) are ignored. */
+export function updateTrophies(lobby: Lobby, playerId: string, trophies: number): void {
+  const player = lobby.players.get(playerId);
+  if (!player) return;
+  player.trophies = trophies;
+  player.tier = tierFor(trophies);
 }
 
 /** Only real players have sockets; bots are skipped when broadcasting. */
@@ -567,6 +596,8 @@ export function drawingEntries(lobby: Lobby): DrawingEntry[] {
       return {
         artistId: id,
         artistName: p.nickname,
+        artistTier: p.tier,
+        artistCrown: p.crown,
         title: d.title,
         strokes: d.strokes,
         paper: d.paper,
@@ -764,26 +795,79 @@ function buildResults(
 }
 
 /**
- * Trophies each human takes away from a finished ranked game, by final
- * placement.
+ * Trophy change for each human in a finished ranked game, by final placement
+ * and by the tier they are in (see TROPHY_DELTAS: the bottom loses little and
+ * gains a lot, the top the reverse).
  *
  * Scaled by how much of the lobby was real people: beating four bots is not
  * the same achievement as beating four humans, and without this any player
- * could farm the leaderboard by queueing alone until the bot backfill fired.
- * Everyone who finishes still gets at least 1, so a game is never wasted time.
+ * could farm the badge by queueing alone until the bot backfill fired. The
+ * scaling is symmetric -- losing to bots costs as little as beating them pays.
  */
 export function trophiesForGame(lobby: Lobby): Record<string, number> {
   if (lobby.mode !== "ranked") return {};
-  const humans = humanCount(lobby);
-  const share = lobby.players.size > 0 ? humans / lobby.players.size : 0;
+  const share = botShare(lobby);
   const awards: Record<string, number> = {};
+  const seats = lobby.players.size;
 
   scoreRows(lobby).forEach((row, place) => {
-    if (isBot(lobby, row.playerId)) return;
-    const base = TROPHIES_BY_PLACE[place] ?? TROPHIES_BY_PLACE[TROPHIES_BY_PLACE.length - 1];
-    awards[row.playerId] = Math.max(1, Math.round(base * share));
+    const player = lobby.players.get(row.playerId);
+    if (!player || player.isBot) return;
+    awards[row.playerId] = Math.round(trophyDelta(player.trophies, place, seats) * share);
   });
   return awards;
+}
+
+function botShare(lobby: Lobby): number {
+  return lobby.players.size > 0 ? humanCount(lobby) / lobby.players.size : 0;
+}
+
+/**
+ * What walking out of a ranked game costs: last place, in trophies and in
+ * rating, measured against the table as it stands. Worked out *before* the
+ * seat is given up, while the player is still in the lobby's books.
+ *
+ * Without this, leaving was free -- a player watching a round go badly could
+ * quit and dodge the loss, and the four people left behind ate it. Null for
+ * bots, for friendly games, and outside a running game (leaving a lobby or a
+ * finished game is not quitting).
+ */
+export function quitPenalty(
+  lobby: Lobby,
+  playerId: string,
+  ratings: Map<string, { rating: number; gamesPlayed: number }>,
+): { trophies: number; rating: RatingChange } | null {
+  const quitter = lobby.players.get(playerId);
+  if (!quitter || quitter.isBot || lobby.mode !== "ranked") return null;
+  if (lobby.phase === "lobby" || lobby.phase === "results") return null;
+
+  const trophies = Math.round(trophyDelta(quitter.trophies, QUIT_PLACE, TROPHY_SEATS) * botShare(lobby));
+
+  // Everyone else keeps their current standing; the quitter goes below all
+  // of them. Only the quitter's change is wanted -- the others are rated
+  // when the game they are still playing ends.
+  const others = scoreRows(lobby).filter((r) => r.playerId !== playerId);
+  const contenders: Contender[] = others.map((row) => {
+    const known = ratings.get(row.playerId);
+    return {
+      playerId: row.playerId,
+      rating: isBot(lobby, row.playerId) ? BOT_RATING : known?.rating ?? START_RATING,
+      isBot: isBot(lobby, row.playerId),
+      // Equal scores share a place, as in ratingsForGame.
+      place: others.findIndex((r) => r.score === row.score),
+      gamesPlayed: known?.gamesPlayed ?? 0,
+    };
+  });
+  const mine = ratings.get(playerId);
+  contenders.push({
+    playerId,
+    rating: mine?.rating ?? START_RATING,
+    isBot: false,
+    place: others.length,
+    gamesPlayed: mine?.gamesPlayed ?? 0,
+  });
+  const change = rateGame(contenders).find((c) => c.playerId === playerId)!;
+  return { trophies, rating: change };
 }
 
 /**
@@ -825,6 +909,8 @@ export function scoreRows(lobby: Lobby): ScoreRow[] {
     .map((p) => ({
       playerId: p.id,
       nickname: p.nickname,
+      tier: p.tier,
+      crown: p.crown,
       score: lobby.scores.get(p.id) ?? 0,
       delta: lobby.roundDeltas.get(p.id) ?? 0,
       raised: lobby.roundRaised.get(p.id) ?? 0,

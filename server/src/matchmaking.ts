@@ -7,12 +7,13 @@ import { MAX_PLAYERS, type Member } from "./rooms.js";
  * to be able to hold players back until there are enough of them, which a
  * join-the-first-open-room approach can't do.
  *
- * Backfill exists so nobody ever stares at a spinner forever — two minutes is
- * the window most matchmade games give before they stop holding out for a
- * perfect lobby. Players are never told the difference: the queue screen shows
- * a plain countdown, and a filled seat looks like any other player.
+ * Backfill exists so nobody ever stares at a spinner forever. Fifty seconds:
+ * long enough for a second person who pressed play at about the same time to
+ * land, short enough that nobody gives up waiting. Players are never told the
+ * difference: the queue screen shows a plain countdown, and a filled seat
+ * looks like any other player.
  */
-export const BOT_FILL_SECONDS = 120;
+export const BOT_FILL_SECONDS = 50;
 
 /** Games start the moment this many humans are queued, without waiting. */
 export const MATCH_SIZE = MAX_PLAYERS;

@@ -6,6 +6,7 @@ import '../models/game_event.dart';
 import '../models/round_models.dart';
 import '../theme.dart';
 import '../widgets/sketch_icons.dart';
+import '../widgets/name_tag.dart';
 import '../widgets/celebration.dart';
 import '../widgets/drawing_actions.dart';
 import '../widgets/drawing_canvas.dart';
@@ -320,8 +321,11 @@ class _EntryCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      'by ${entry.artistName}',
+                    NameTag(
+                      prefix: 'by ',
+                      name: entry.artistName,
+                      tier: entry.artistTier,
+                      crown: entry.artistCrown,
                       style: const TextStyle(
                         color: GameColors.textMuted,
                         fontSize: 12,
@@ -377,8 +381,10 @@ class _ScoreLine extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  row.nickname,
+                NameTag(
+                  name: row.nickname,
+                  tier: row.tier,
+                  crown: row.crown,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

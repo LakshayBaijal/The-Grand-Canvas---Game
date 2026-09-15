@@ -33,7 +33,9 @@ void main() {
 
     // Never asked for a name again.
     expect(find.text("LET'S GO"), findsNothing);
-    expect(find.text('Lakshay'), findsOneWidget);
+    // The name is a NameTag now -- a rich span with the tier medal in
+    // front of it -- so match on the text it contains.
+    expect(find.textContaining('Lakshay'), findsOneWidget);
 
     // Both modes are offered, and they're clearly separate things.
     expect(find.text('QUICK\nMATCH'), findsOneWidget);

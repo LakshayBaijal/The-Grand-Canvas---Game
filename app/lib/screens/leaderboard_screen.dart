@@ -7,6 +7,7 @@ import '../models/round_models.dart';
 import '../services/game_connection.dart';
 import '../theme.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/name_tag.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/celebration.dart';
 import '../services/audio_service.dart';
@@ -229,10 +230,10 @@ class _Row extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  entry.nickname,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                NameTag(
+                  name: entry.nickname,
+                  tier: entry.tier,
+                  crown: entry.crown,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

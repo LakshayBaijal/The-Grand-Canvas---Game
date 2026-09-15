@@ -1,16 +1,29 @@
 import 'round_models.dart';
 
 class Player {
-  const Player({required this.id, required this.nickname, required this.isBot});
+  const Player({
+    required this.id,
+    required this.nickname,
+    required this.isBot,
+    this.tier = 'bronze',
+    this.crown = false,
+  });
 
   final String id;
   final String nickname;
   final bool isBot;
 
+  /// Trophy tier badge ('bronze' / 'silver' / 'gold') and Grand Pass crown:
+  /// what the rest of the table gets to see next to the name.
+  final String tier;
+  final bool crown;
+
   factory Player.fromJson(Map<String, dynamic> json) => Player(
         id: json['id'] as String,
         nickname: json['nickname'] as String,
         isBot: json['isBot'] as bool? ?? false,
+        tier: json['tier'] as String? ?? 'bronze',
+        crown: json['crown'] as bool? ?? false,
       );
 }
 

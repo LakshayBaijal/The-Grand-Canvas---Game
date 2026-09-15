@@ -9,6 +9,7 @@ import '../theme.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/doodle_stage.dart';
+import '../widgets/name_tag.dart';
 
 // Kept in sync with MIN_PLAYERS_TO_START on the server (temporarily 1 for
 // solo testing — bump back to 3 for real games).
@@ -127,8 +128,10 @@ class LobbyView extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(
-                  player.nickname,
+                child: NameTag(
+                  name: player.nickname,
+                  tier: player.tier,
+                  crown: player.crown,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
@@ -452,10 +455,10 @@ class _PlayerChip extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 7),
-        Text(
-          isMe ? 'YOU' : player.nickname,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        NameTag(
+          name: isMe ? 'YOU' : player.nickname,
+          tier: player.tier,
+          crown: player.crown,
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 11,

@@ -13,6 +13,7 @@ import '../services/identity.dart';
 import '../services/server_discovery.dart';
 import '../theme.dart';
 import '../widgets/sketch_icons.dart';
+import '../widgets/name_tag.dart';
 import '../widgets/doodle_stage.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/friends_sheet.dart';
@@ -125,7 +126,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _sub = widget.connection.events.listen(_handleEvent);
+    // A pass bought (or restored) while the app is open puts the crown on
+    // straight away, without waiting for the next sign-in.
+    Entitlements.instance.addListener(_syncCrown);
     _boot();
+  }
+
+  void _syncCrown() {
+    if (_connected) widget.connection.setCrown(Entitlements.instance.hasLifetime);
+    if (mounted) setState(() {});
   }
 
   /// Load the account, find a server, sign in, start the idle canvas. The
@@ -256,6 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    Entitlements.instance.removeListener(_syncCrown);
     _nicknameController.dispose();
     _codeController.dispose();
     _addressController.dispose();
@@ -974,10 +984,12 @@ class _ProfileBar extends StatelessWidget {
                   Row(
                     children: [
                       Flexible(
-                        child: Text(
-                          identity.nickname,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: NameTag(
+                          name: identity.nickname,
+                          tier: profile?.tier,
+                          // Own crown comes from the purchase itself, not
+                          // the server's echo of it, so it never lags.
+                          crown: Entitlements.instance.hasLifetime,
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,

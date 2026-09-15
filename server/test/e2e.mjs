@@ -12,6 +12,7 @@
  * It takes a few minutes on purpose: bots deliberately take most of the phase
  * clock to act, and the run waits them out rather than faking the timings.
  */
+import { TROPHY_DELTAS } from "../src/ranking.ts";
 import WebSocket from "ws";
 
 const URL = process.env.E2E_URL ?? "ws://127.0.0.1:8090";
@@ -186,14 +187,14 @@ async function main() {
   check(ranked.mode === "ranked", "the final results say ranked");
   const awards = Object.values(ranked.trophies);
   check(Object.keys(ranked.trophies).length === 2, `only humans earn trophies (${awards.length})`);
-  check(awards.every((t) => t >= 1), "everyone who finishes earns at least 1");
-  check(Math.max(...awards) < 30, "trophies scale down in a bot-heavy lobby");
+  check(awards.every((t) => Number.isInteger(t)), "every human gets a trophy change (up or down)");
+  check(Math.max(...awards) < TROPHY_DELTAS.bronze[0], "trophies scale down in a bot-heavy lobby");
 
   const updated = await alpha.wait(
     (m) => m.type === "profile" && m.profile.games === startingGames + 1,
   );
   check(
-    updated.profile.trophies === startingTrophies + ranked.trophies["e2e-device-aaa"],
+    updated.profile.trophies === Math.max(0, startingTrophies + ranked.trophies["e2e-device-aaa"]),
     "trophies are banked to the profile",
   );
   // A rank only exists once placement games are done (PLACEMENT_GAMES on the

@@ -34,8 +34,11 @@ import {
 export type Profile = {
   id: string;
   nickname: string;
-  /** Career total. Never goes down — see recordRankedResult. */
+  /** The visible number. Moves both ways by tier -- see ranking.ts -- and
+   *  never below zero. */
   trophies: number;
+  /** Grand Pass owner: a crown by the name wherever it is shown. */
+  crown: boolean;
   games: number;
   wins: number;
   bestScore: number;
@@ -113,6 +116,8 @@ export function openStore(path: string): void {
   // profile rather than the phone so that a Google-linked account isn't
   // offered it again on a second device, and a reinstall doesn't reset it.
   addColumn("players", "thanked_ms", "INTEGER NOT NULL DEFAULT 0");
+  // Grand Pass owner, as reported by the app. Cosmetic: a crown by the name.
+  addColumn("players", "crown", "INTEGER NOT NULL DEFAULT 0");
 
   addColumn("players", "google_sub", "TEXT");
   // Partial index: unlinked profiles all have NULL here, and NULLs would
@@ -242,6 +247,7 @@ type Row = {
   season_games: number;
   google_sub: string | null;
   thanked_ms: number;
+  crown: number;
 };
 
 function toProfile(row: Row): Profile {
@@ -249,6 +255,7 @@ function toProfile(row: Row): Profile {
     id: row.id,
     nickname: row.nickname,
     trophies: row.trophies,
+    crown: row.crown === 1,
     games: row.games,
     wins: row.wins,
     bestScore: row.best_score,
@@ -299,6 +306,10 @@ export function upsertPlayer(id: string, nickname: string): Profile {
      ON CONFLICT(id) DO UPDATE SET nickname = excluded.nickname, seen_ms = excluded.seen_ms`,
   ).run(id, nickname, now, now);
   return getProfile(id)!;
+}
+
+export function setCrown(id: string, owned: boolean): void {
+  db.prepare("UPDATE players SET crown = ? WHERE id = ?").run(owned ? 1 : 0, id);
 }
 
 export function getProfile(id: string): Profile | null {
@@ -416,7 +427,7 @@ export function recordRankedResult(
 
   db.prepare(
     `UPDATE players
-        SET trophies     = trophies + ?,
+        SET trophies     = MAX(0, trophies + ?),
             games        = games + 1,
             wins         = wins + ?,
             best_score   = MAX(best_score, ?),
@@ -427,7 +438,7 @@ export function recordRankedResult(
             seen_ms      = ?
       WHERE id = ?`,
   ).run(
-    Math.max(0, Math.round(result.trophies)),
+    Math.round(result.trophies),
     result.won ? 1 : 0,
     result.score,
     settled,

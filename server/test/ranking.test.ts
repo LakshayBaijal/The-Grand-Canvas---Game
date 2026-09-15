@@ -166,3 +166,36 @@ test("the soft reset compresses the field without wiping it", () => {
   assert.ok(low >= LEAGUES[1].floor, "nobody is pushed below the Doodler floor");
   assert.ok(softReset(1900) > softReset(1400), "order is preserved");
 });
+
+// --- trophies and tiers ------------------------------------------------------
+
+import { tierFor, trophyDelta, TROPHY_DELTAS, QUIT_PLACE } from "../src/ranking.js";
+
+test("the tier badge follows the count both ways", () => {
+  assert.equal(tierFor(0), "bronze");
+  assert.equal(tierFor(499), "bronze");
+  assert.equal(tierFor(500), "silver");
+  assert.equal(tierFor(999), "silver");
+  assert.equal(tierFor(1000), "gold");
+  assert.equal(tierFor(5000), "gold");
+});
+
+test("bronze gains a lot and loses a little; gold the reverse; silver is even", () => {
+  const sum = (t: readonly number[]) => t.reduce((a, b) => a + b, 0);
+  assert.ok(sum(TROPHY_DELTAS.bronze) > 0, "a bronze table is net positive: new players climb");
+  assert.ok(sum(TROPHY_DELTAS.gold) < 0, "a gold table is net negative: staying up means winning");
+  assert.equal(sum(TROPHY_DELTAS.silver), 0, "silver is zero-sum");
+  assert.ok(TROPHY_DELTAS.bronze[0] > TROPHY_DELTAS.gold[0], "a win pays more at the bottom");
+  assert.ok(TROPHY_DELTAS.bronze[4] > TROPHY_DELTAS.gold[4], "a loss costs less at the bottom");
+});
+
+test("a smaller table is spread over the same scale", () => {
+  // 3 players: 1st, middle, last.
+  assert.equal(trophyDelta(0, 0, 3), TROPHY_DELTAS.bronze[0]);
+  assert.equal(trophyDelta(0, 1, 3), TROPHY_DELTAS.bronze[2]);
+  assert.equal(trophyDelta(0, 2, 3), TROPHY_DELTAS.bronze[4]);
+  // Solo: nothing to beat, so it's a "win" — the bot share scales it away.
+  assert.equal(trophyDelta(0, 0, 1), TROPHY_DELTAS.bronze[0]);
+  // Quitting is dead last.
+  assert.equal(trophyDelta(1200, QUIT_PLACE, 5), TROPHY_DELTAS.gold[4]);
+});

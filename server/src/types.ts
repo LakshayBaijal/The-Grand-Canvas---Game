@@ -1,6 +1,10 @@
 // Wire protocol between Flutter clients and the game server.
 
-export type PlayerInfo = { id: string; nickname: string; isBot: boolean };
+/** What everyone at the table can see about a player. `tier` is the trophy
+ *  badge (bronze/silver/gold) and `crown` marks a Grand Pass owner -- both
+ *  travel with the name everywhere it is shown, because the point of a badge
+ *  is that other people see it. */
+export type PlayerInfo = { id: string; nickname: string; isBot: boolean; tier: string; crown: boolean };
 
 /** Ranked games are matchmade with strangers and move the global leaderboard.
  *  Friendly games are private, code-joined, bot-fillable, and score nothing —
@@ -29,6 +33,8 @@ export type Stroke = {
 export type DrawingEntry = {
   artistId: string;
   artistName: string;
+  artistTier?: string;
+  artistCrown?: boolean;
   title: string;
   strokes: Stroke[];
   /** The sheet the artist drew on. Cosmetic, passed through untouched. */
@@ -62,6 +68,8 @@ export type RoundResult = DrawingEntry & {
 export type ScoreRow = {
   playerId: string;
   nickname: string;
+  tier: string;
+  crown: boolean;
   score: number;
   delta: number;
   /** This round's breakdown of `delta`, for the reveal screen to explain it:
@@ -93,6 +101,8 @@ export type Profile = {
   id: string;
   nickname: string;
   trophies: number;
+  tier: string;
+  crown: boolean;
   games: number;
   wins: number;
   bestScore: number;
@@ -113,6 +123,8 @@ export type LeaderboardEntry = {
   id: string;
   nickname: string;
   trophies: number;
+  tier: string;
+  crown: boolean;
   games: number;
   wins: number;
   rating: number;
@@ -148,6 +160,9 @@ export type ClientMessage =
    *  sent before anything else. */
   | { type: "hello"; playerId: string; nickname: string }
   | { type: "set_nickname"; nickname: string }
+  /** The app owns the Grand Pass (or stopped owning it). Cosmetic only --
+   *  it puts a crown by the name -- so the client's word is taken for it. */
+  | { type: "set_crown"; owned: boolean }
   /** Attaches a Google account to this profile, so trophies survive losing
    *  the phone and follow the player onto other devices. The token is a
    *  Google id token; the server verifies its signature rather than trusting

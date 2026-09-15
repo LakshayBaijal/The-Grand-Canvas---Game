@@ -8,10 +8,14 @@ class DrawingEntry {
     required this.title,
     required this.strokes,
     this.paper = PaperStyle.plain,
+    this.artistTier = 'bronze',
+    this.artistCrown = false,
   });
 
   final String artistId;
   final String artistName;
+  final String artistTier;
+  final bool artistCrown;
   final String title;
   final List<Stroke> strokes;
 
@@ -22,6 +26,8 @@ class DrawingEntry {
   factory DrawingEntry.fromJson(Map<String, dynamic> json) => DrawingEntry(
         artistId: json['artistId'] as String,
         artistName: json['artistName'] as String,
+        artistTier: json['artistTier'] as String? ?? 'bronze',
+        artistCrown: json['artistCrown'] as bool? ?? false,
         title: json['title'] as String,
         paper: PaperStyle.fromId(json['paper'] as String?),
         strokes: (json['strokes'] as List)
@@ -51,10 +57,14 @@ class RoundResult {
     required this.total,
     required this.backers,
     this.paper = PaperStyle.plain,
+    this.artistTier = 'bronze',
+    this.artistCrown = false,
   });
 
   final String artistId;
   final String artistName;
+  final String artistTier;
+  final bool artistCrown;
   final String title;
   final List<Stroke> strokes;
   final PaperStyle paper;
@@ -66,6 +76,8 @@ class RoundResult {
   factory RoundResult.fromJson(Map<String, dynamic> json) => RoundResult(
         artistId: json['artistId'] as String,
         artistName: json['artistName'] as String,
+        artistTier: json['artistTier'] as String? ?? 'bronze',
+        artistCrown: json['artistCrown'] as bool? ?? false,
         title: json['title'] as String,
         paper: PaperStyle.fromId(json['paper'] as String?),
         strokes: (json['strokes'] as List)
@@ -87,10 +99,14 @@ class ScoreRow {
     required this.raised,
     required this.bonus,
     required this.penalty,
+    this.tier = 'bronze',
+    this.crown = false,
   });
 
   final String playerId;
   final String nickname;
+  final String tier;
+  final bool crown;
   final int score;
   final int delta;
 
@@ -102,6 +118,8 @@ class ScoreRow {
   factory ScoreRow.fromJson(Map<String, dynamic> json) => ScoreRow(
         playerId: json['playerId'] as String,
         nickname: json['nickname'] as String,
+        tier: json['tier'] as String? ?? 'bronze',
+        crown: json['crown'] as bool? ?? false,
         score: json['score'] as int,
         delta: json['delta'] as int,
         raised: json['raised'] as int,
@@ -194,13 +212,19 @@ class Profile {
     required this.season,
     required this.seasonEndsMs,
     required this.thanksDue,
+    this.tier = 'bronze',
+    this.crown = false,
   });
 
   final String id;
   final String nickname;
 
-  /// Career total. Only ever goes up.
+  /// The number everyone sees. Moves both ways by tier, never below zero.
   final int trophies;
+
+  /// 'bronze' / 'silver' / 'gold', from [trophies]; and the Grand Pass crown.
+  final String tier;
+  final bool crown;
   final int games;
   final int wins;
   final int bestScore;
@@ -243,6 +267,8 @@ class Profile {
         season: (json['season'] as num?)?.toInt() ?? 0,
         seasonEndsMs: (json['seasonEndsMs'] as num?)?.toInt() ?? 0,
         thanksDue: json['thanksDue'] as bool? ?? false,
+        tier: json['tier'] as String? ?? 'bronze',
+        crown: json['crown'] as bool? ?? false,
       );
 }
 
@@ -256,12 +282,16 @@ class LeaderboardEntry {
     required this.wins,
     required this.rating,
     required this.league,
+    this.tier = 'bronze',
+    this.crown = false,
   });
 
   final int rank;
   final String id;
   final String nickname;
   final int trophies;
+  final String tier;
+  final bool crown;
   final int games;
   final int wins;
   final int rating;
@@ -272,6 +302,8 @@ class LeaderboardEntry {
         id: json['id'] as String,
         nickname: json['nickname'] as String,
         trophies: json['trophies'] as int,
+        tier: json['tier'] as String? ?? 'bronze',
+        crown: json['crown'] as bool? ?? false,
         games: json['games'] as int,
         wins: json['wins'] as int,
         rating: (json['rating'] as num?)?.toInt() ?? 0,
