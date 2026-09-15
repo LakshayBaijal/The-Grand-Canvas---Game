@@ -444,6 +444,7 @@ function finishPromptWriting(lobby: Lobby) {
   broadcast(lobby, {
     type: "round_start",
     prompt: lobby.completedPrompt,
+    answer: lobby.promptAnswer,
     deadlineMs,
     roundIndex: lobby.roundIndex,
     totalRounds: totalRounds(lobby),

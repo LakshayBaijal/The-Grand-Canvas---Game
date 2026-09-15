@@ -99,9 +99,14 @@ class RoundStartEvent extends GameEvent {
     required this.deadlineMs,
     required this.roundIndex,
     required this.totalRounds,
+    this.answer = '',
   });
 
   final String prompt;
+
+  /// The words the writer put in the blank -- the part of [prompt] that
+  /// is actually the thing to draw. Empty on a timed-out blank.
+  final String answer;
   final int deadlineMs;
   final int roundIndex;
   final int totalRounds;

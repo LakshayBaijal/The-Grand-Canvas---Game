@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
+import '../widgets/lively_prompt.dart';
 import '../widgets/paper_frame.dart';
 import '../widgets/summon_keyboard.dart';
 import '../widgets/customize_sheet.dart';
@@ -26,6 +27,7 @@ class DrawView extends StatefulWidget {
   const DrawView({
     super.key,
     required this.prompt,
+    this.answer = '',
     required this.onSubmit,
     this.deadlineMs,
     this.roundIndex,
@@ -38,6 +40,9 @@ class DrawView extends StatefulWidget {
   });
 
   final String prompt;
+
+  /// The filled-in blank, lit up inside the prompt. Empty when unknown.
+  final String answer;
 
   /// No deadline means no clock: the drawing is done when the player says so.
   final int? deadlineMs;
@@ -242,16 +247,9 @@ class _DrawViewState extends State<DrawView> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          widget.prompt,
-                          textAlign: TextAlign.center,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: GameColors.primary,
-                          ),
+                        LivelyPrompt(
+                          text: widget.prompt,
+                          answer: widget.answer,
                         ),
                       ],
                     ),

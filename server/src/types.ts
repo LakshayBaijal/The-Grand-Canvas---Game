@@ -309,6 +309,9 @@ export type ServerMessage =
   | {
       type: "round_start";
       prompt: string;
+      /** Just the words the writer typed into the blank, so the app can
+       *  light them up inside the sentence: they are the thing to draw. */
+      answer: string;
       deadlineMs: number;
       roundIndex: number;
       totalRounds: number;

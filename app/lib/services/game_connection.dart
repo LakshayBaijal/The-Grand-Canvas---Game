@@ -214,6 +214,7 @@ class GameConnection {
       case 'round_start':
         return RoundStartEvent(
           prompt: json['prompt'] as String,
+          answer: json['answer'] as String? ?? '',
           deadlineMs: json['deadlineMs'] as int,
           roundIndex: json['roundIndex'] as int,
           totalRounds: json['totalRounds'] as int,

@@ -422,6 +422,7 @@ class _GameScreenState extends State<GameScreen> {
       GamePhase.drawing => DrawView(
         key: ValueKey('draw-${_round!.roundIndex}'),
         prompt: _round!.prompt,
+        answer: _round!.answer,
         deadlineMs: _round!.deadlineMs,
         roundIndex: _round!.roundIndex,
         totalRounds: _round!.totalRounds,
