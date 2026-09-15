@@ -439,33 +439,61 @@ export function recordRankedResult(
   return getProfile(id);
 }
 
-/** Players below this many ranked games this season are still placing, and are
- *  held off the public board so it isn't full of provisional ratings. */
+/**
+ * Players below this many ranked games -- ever, not this season -- are still
+ * placing, and are held off the public board so it isn't full of provisional
+ * ratings.
+ *
+ * It used to be per season, which meant every player lost their rank on the
+ * first day of every season and had to grind five games to get it back, and
+ * the board emptied out at each rollover until they did. The first report of
+ * "my rank disappeared" arrived the day season 9 began, which was also the
+ * day the game was first deployed. Placement is now something you do once.
+ * Seasons still do their job -- every rating is pulled halfway back toward
+ * the middle at rollover, so the top is contestable again every four weeks --
+ * but nobody is asked to prove they exist again to see where they stand.
+ */
 const LEADERBOARD_MIN_GAMES = PLACEMENT_GAMES;
 
+/**
+ * Season rollover is applied lazily, on the next read of each profile. A
+ * board that simply selected rows would therefore show anyone not seen since
+ * last season at their old, un-reset rating, sitting above people who have
+ * been reset. So the board rolls every stale row first. Cheap: it is a no-op
+ * except once per player per season.
+ */
+function rollAllStale(): void {
+  const stale = db
+    .prepare(`SELECT * FROM players WHERE season <> ? AND games >= ?`)
+    .all(seasonAt(), LEADERBOARD_MIN_GAMES) as Row[];
+  for (const row of stale) rollSeason(row);
+}
+
 export function leaderboard(limit = 50): LeaderboardRow[] {
+  rollAllStale();
   const rows = db
     .prepare(
       `SELECT * FROM players
-        WHERE season = ? AND season_games >= ?
+        WHERE games >= ?
         ORDER BY rating DESC, created_ms ASC
         LIMIT ?`,
     )
-    .all(seasonAt(), LEADERBOARD_MIN_GAMES, limit) as Row[];
+    .all(LEADERBOARD_MIN_GAMES, limit) as Row[];
   return rows.map((row, i) => ({ ...toProfile(row), rank: i + 1 }));
 }
 
 /** Where this player sits globally, or null while still placing. */
 export function rankOf(id: string): number | null {
   const profile = getProfile(id);
-  if (!profile || profile.seasonGames < LEADERBOARD_MIN_GAMES) return null;
+  if (!profile || profile.games < LEADERBOARD_MIN_GAMES) return null;
+  rollAllStale();
   const row = db
     .prepare(
       `SELECT COUNT(*) AS ahead FROM players
-        WHERE season = ? AND season_games >= ?
+        WHERE games >= ?
           AND (rating > ? OR (rating = ? AND created_ms < (SELECT created_ms FROM players WHERE id = ?)))`,
     )
-    .get(seasonAt(), LEADERBOARD_MIN_GAMES, profile.rating, profile.rating, id) as { ahead: number };
+    .get(LEADERBOARD_MIN_GAMES, profile.rating, profile.rating, id) as { ahead: number };
   return row.ahead + 1;
 }
 

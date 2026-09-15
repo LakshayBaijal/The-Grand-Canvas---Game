@@ -322,7 +322,7 @@ function profileFor(playerId: string): Profile | null {
     ...rest,
     rank: store.rankOf(playerId),
     league: leagueFor(p.rating),
-    placementsLeft: Math.max(0, PLACEMENT_GAMES - p.seasonGames),
+    placementsLeft: Math.max(0, PLACEMENT_GAMES - p.games),
     seasonEndsMs: seasonEndsAt(),
   };
 }
@@ -528,7 +528,7 @@ function finishGame(lobby: Lobby) {
     const before = new Map<string, { rating: number; gamesPlayed: number }>();
     for (const row of rows) {
       const profile = store.getProfile(row.playerId);
-      if (profile) before.set(row.playerId, { rating: profile.rating, gamesPlayed: profile.seasonGames });
+      if (profile) before.set(row.playerId, { rating: profile.rating, gamesPlayed: profile.games });
     }
 
     const changes = ratingsForGame(lobby, before);
