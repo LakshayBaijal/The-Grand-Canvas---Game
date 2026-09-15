@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/stroke.dart';
 import '../models/styles.dart';
+import 'shape_tools.dart';
 
 const paperColor = Color(0xFFFAF3E3);
 
@@ -172,8 +175,52 @@ class DrawingController extends ChangeNotifier {
   static const _eraserWidth = 26.0;
 
   final List<WorkingStroke> _strokes = [];
+  final List<WorkingStroke> _redo = [];
   WorkingStroke? _current;
   Color _color = Colors.black;
+
+  // --- tools ---------------------------------------------------------------
+  DrawTool _tool = DrawTool.freehand;
+  StampShape _stamp = StampShape.circle;
+  bool _steadyHand = false;
+  /// Where the current drag started; the anchor for lines and stamps.
+  Offset? _anchor;
+  /// Fires when the finger has held still mid-stroke: the Steady Hand cue.
+  Timer? _holdTimer;
+  /// Set once a stroke has been snapped to a shape; further movement in the
+  /// same touch is ignored so the shape does not get a tail.
+  bool _snapped = false;
+  /// Where the finger actually is. The recorded freehand point trails it
+  /// (see [steadied]); on lift the stroke is pinned to this so it ends where
+  /// the finger did.
+  Offset? _raw;
+
+  DrawTool get tool => _tool;
+  StampShape get stamp => _stamp;
+  bool get steadyHand => _steadyHand;
+
+  set tool(DrawTool value) {
+    _tool = value;
+    _erasing = false;
+    notifyListeners();
+  }
+
+  set stamp(StampShape value) {
+    _stamp = value;
+    _tool = DrawTool.stamp;
+    _erasing = false;
+    notifyListeners();
+  }
+
+  set steadyHand(bool value) {
+    _steadyHand = value;
+    notifyListeners();
+  }
+
+  /// A finished stroke is the only thing a stamp or a line can become, so
+  /// after one the tool goes back to the pen. Drawing five circles in a row
+  /// is rarer than drawing one and getting on with it.
+  static const _oneShotTools = {DrawTool.line, DrawTool.stamp};
   double _brushWidth = 6;
   bool _erasing = false;
   PenStyle _pen = PenStyle.pen;
@@ -188,6 +235,7 @@ class DrawingController extends ChangeNotifier {
   double get brushWidth => _erasing ? _eraserWidth : _brushWidth;
   bool get isErasing => _erasing;
   bool get canUndo => _strokes.isNotEmpty;
+  bool get canRedo => _redo.isNotEmpty;
   List<WorkingStroke> get strokes => List.unmodifiable(_strokes);
   WorkingStroke? get currentStroke => _current;
 
@@ -220,6 +268,7 @@ class DrawingController extends ChangeNotifier {
 
   void selectEraser() {
     _erasing = true;
+    _tool = DrawTool.freehand;
     notifyListeners();
   }
 
@@ -232,28 +281,98 @@ class DrawingController extends ChangeNotifier {
     // Use the public getters, not the raw fields — while erasing, those
     // resolve to the paper color/width instead of whatever was last picked.
     _current = WorkingStroke(color: color, width: brushWidth, points: [point]);
+    _anchor = point;
+    _snapped = false;
     notifyListeners();
   }
 
   void addPoint(Offset point) {
-    _current?.points.add(point);
+    final current = _current;
+    if (current == null || _snapped) return;
+    _raw = point;
+    final anchor = _anchor ?? point;
+    switch (_erasing ? DrawTool.freehand : _tool) {
+      case DrawTool.freehand:
+        final next = steadied(current.points.last, point);
+        if (next == null) return;
+        current.points.add(next);
+        _armHold();
+      case DrawTool.line:
+        current.points
+          ..clear()
+          ..addAll([anchor, point]);
+      case DrawTool.stamp:
+        current.points
+          ..clear()
+          ..addAll(stampPoints(_stamp, Rect.fromPoints(anchor, point)));
+    }
     notifyListeners();
   }
 
+  /// Steady Hand: hold the finger still for a beat and the stroke so far
+  /// snaps to the shape it was trying to be. The pause is the signal --
+  /// nobody holds still in the middle of a scribble, but everyone pauses
+  /// for a moment before lifting off a circle they've just closed.
+  void _armHold() {
+    _holdTimer?.cancel();
+    if (!_steadyHand || _erasing) return;
+    _holdTimer = Timer(const Duration(milliseconds: 380), () {
+      final current = _current;
+      if (current == null || _snapped) return;
+      final shape = recognise(current.points);
+      if (shape == null) return;
+      current.points
+        ..clear()
+        ..addAll(shape);
+      _snapped = true;
+      HapticFeedback.mediumImpact();
+      notifyListeners();
+    });
+  }
+
   void endStroke() {
+    _holdTimer?.cancel();
     final current = _current;
+    if (current != null && _raw != null && !_snapped && _tool == DrawTool.freehand) {
+      // End exactly where the finger lifted, not a fraction short of it.
+      if ((current.points.last - _raw!).distance > 0.01) current.points.add(_raw!);
+    }
     if (current != null && current.points.length > 1) {
+      if (!_snapped && !_erasing && _tool == DrawTool.freehand) {
+        final calm = smooth(current.points);
+        current.points
+          ..clear()
+          ..addAll(calm);
+      }
       _strokes.add(current);
+      _redo.clear();
     }
     _current = null;
+    _anchor = null;
+    _raw = null;
+    _snapped = false;
+    if (_oneShotTools.contains(_tool)) _tool = DrawTool.freehand;
     notifyListeners();
   }
 
   void undo() {
     if (_strokes.isNotEmpty) {
-      _strokes.removeLast();
+      _redo.add(_strokes.removeLast());
       notifyListeners();
     }
+  }
+
+  void redo() {
+    if (_redo.isNotEmpty) {
+      _strokes.add(_redo.removeLast());
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
   }
 
   List<Stroke> toNormalizedStrokes(Size canvasSize) {

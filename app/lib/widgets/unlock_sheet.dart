@@ -220,6 +220,28 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                 ),
               ),
               const _Perk(
+                label: 'STEADY HAND',
+                note:
+                    'Hold still and a wobbly circle becomes a circle. Plus a '
+                    'straight-line tool and perfect shapes -- stars, hearts, '
+                    'arrows -- you stretch into place. Draw like the bots do.',
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_fix_high_rounded, size: 18, color: GameColors.pink),
+                    SizedBox(width: 8),
+                    Icon(Icons.horizontal_rule_rounded, size: 18, color: GameColors.textMuted),
+                    SizedBox(width: 8),
+                    Icon(Icons.circle_outlined, size: 18, color: GameColors.textMuted),
+                    SizedBox(width: 8),
+                    Icon(Icons.star_outline_rounded, size: 18, color: GameColors.textMuted),
+                    SizedBox(width: 8),
+                    Icon(Icons.favorite_border_rounded, size: 18, color: GameColors.textMuted),
+                    SizedBox(width: 8),
+                    Icon(Icons.arrow_forward_rounded, size: 18, color: GameColors.textMuted),
+                  ],
+                ),
+              ),
+              const _Perk(
                 label: 'NO ADS',
                 note: 'The banner goes away for good.',
                 child: SizedBox.shrink(),

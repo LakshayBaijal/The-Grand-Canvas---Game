@@ -53,7 +53,8 @@ class Entitlements extends ChangeNotifier {
       hasThanksPass ||
       DateTime.now().millisecondsSinceEpoch < _dayPassUntilMs;
 
-  /// Paper and pen styles are purchase-only — an ad never grants them. The
+  /// Paper and pen styles, and the Steady Hand tools, are purchase-only — an
+  /// ad never grants them. The
   /// thank-you is the one exception, and it is the whole point of it: a day
   /// of the real thing is a far better argument for buying the pass than a
   /// screenshot of it.
