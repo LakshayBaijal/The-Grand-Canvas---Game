@@ -318,7 +318,31 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
-    if (_disconnected) {
+    // Phases are whole screens swapping under the player, so cross-fade
+    // rather than cutting. Keyed by phase so the switcher knows it changed.
+    final phase = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      child: KeyedSubtree(key: ValueKey(_phase), child: _buildPhase(context)),
+    );
+    // The reconnect notice is laid over the phase view, not put in its
+    // place. Replacing it disposed the drawing view, and with it the
+    // drawing: a two-second blip mid-round came back to a blank canvas.
+    // Underneath, the view keeps its strokes, its picks and its clock; when
+    // the same phase arrives again on resume it is the same widget and
+    // nothing is lost. The Stack is always there, so the phase view's
+    // ancestors never change -- wrapping it only while disconnected would
+    // remount it just the same.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        phase,
+        if (_disconnected) _buildReconnectOverlay(context),
+      ],
+    );
+  }
+
+  Widget _buildReconnectOverlay(BuildContext context) {
+    {
       final failed = _reconnectFailed;
       return Scaffold(
         appBar: AppBar(title: Text(failed ? 'Disconnected' : 'Reconnecting')),
@@ -347,7 +371,7 @@ class _GameScreenState extends State<GameScreen> {
                 const SizedBox(height: 8),
                 Text(
                   failed
-                      ? 'Your seat was held for a minute and a half, and the table has moved on.'
+                      ? 'Your seat was held for as long as it could be, and the table has moved on.'
                       : 'Your seat is being held. This usually takes a few seconds.'
                             '${_attempt > 1 ? '  (try $_attempt)' : ''}',
                   textAlign: TextAlign.center,
@@ -370,13 +394,6 @@ class _GameScreenState extends State<GameScreen> {
         ),
       );
     }
-
-    // Phases are whole screens swapping under the player, so cross-fade
-    // rather than cutting. Keyed by phase so the switcher knows it changed.
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 320),
-      child: KeyedSubtree(key: ValueKey(_phase), child: _buildPhase(context)),
-    );
   }
 
   Widget _buildPhase(BuildContext context) {

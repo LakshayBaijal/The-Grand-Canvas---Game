@@ -354,12 +354,17 @@ class _HomeScreenState extends State<HomeScreen> {
         // this the menu would still believe the connection was down.
         if (!_connected) setState(() => _connected = true);
       case DisconnectedEvent():
+        final wasQueued = _queued;
         setState(() {
           _busy = false;
           _connected = false;
-          _queued = false;
           _doodle = null;
         });
+        // A drop while waiting for a match used to put the menu back with
+        // no word about why -- and the server had already taken us out of
+        // the queue. Get back in on the player's behalf; only give up and
+        // say so if the network is really gone.
+        if (wasQueued) _requeue();
       default:
         break;
     }
@@ -438,6 +443,29 @@ class _HomeScreenState extends State<HomeScreen> {
       widget.connection.hello(identity);
       widget.connection.requestDoodle();
     }
+  }
+
+  /// Back into the ranked queue after the socket dropped. The wait starts
+  /// over on the server -- it can't know this is the same wait -- but the
+  /// screen never leaves, which is the thing that was wrong.
+  Future<void> _requeue() async {
+    const delays = [1, 2, 3, 5, 8];
+    for (final seconds in delays) {
+      await Future<void>.delayed(Duration(seconds: seconds));
+      if (!mounted || !_queued) return;
+      if (_connected) return; // something else reconnected us meanwhile
+      if (await widget.connection.reconnect()) {
+        if (!mounted || !_queued) return;
+        setState(() => _connected = true);
+        widget.connection.findMatch();
+        return;
+      }
+    }
+    if (!mounted || !_queued) return;
+    setState(() {
+      _queued = false;
+      _error = "Lost the connection while finding a match — try again";
+    });
   }
 
   Future<void> _playRanked() async {

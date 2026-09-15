@@ -42,6 +42,19 @@ class GameConnection {
 
   GameEvent? _lastPhase;
 
+  /// Game moves sent while the socket was down, replayed once it is back.
+  ///
+  /// The one that matters is the drawing: the clock can run out during a
+  /// blip, the view force-submits, and without this the minute of work goes
+  /// into a dead socket. The server holds the seat, so on reconnect the
+  /// move is still wanted -- or the phase has moved on and it is ignored
+  /// there, which is the right outcome either way. Only moves are kept;
+  /// anything else (pings, lobby browsing) is meaningless after a gap.
+  final List<Map<String, dynamic>> _pendingMoves = [];
+  static const _moveTypes = {
+    'submit_prompt', 'submit_drawing', 'submit_investment', 'submit_ranking',
+  };
+
   /// The most recent message that decides which screen a game should be on.
   ///
   /// A broadcast stream drops anything sent before a listener attaches, and a
@@ -131,6 +144,12 @@ class GameConnection {
       return false;
     }
     hello(identity);
+    // After hello, so the server knows who is moving; the seat is reclaimed
+    // synchronously on its side when hello lands.
+    for (final move in _pendingMoves) {
+      _send(move);
+    }
+    _pendingMoves.clear();
     return true;
   }
 
@@ -394,6 +413,7 @@ class GameConnection {
   void leaveLobby() {
     // Nothing to replay into the next game we join.
     _lastPhase = null;
+    _pendingMoves.clear();
     _send({'type': 'leave_lobby'});
   }
 
@@ -501,8 +521,18 @@ class GameConnection {
   void dailyGallery({int? day, int? beforeId}) =>
       _send({'type': 'daily_gallery', 'day': ?day, 'beforeId': ?beforeId});
 
-  void _send(Map<String, dynamic> message) =>
-      _channel?.sink.add(jsonEncode(message));
+  void _send(Map<String, dynamic> message) {
+    final channel = _channel;
+    if (channel == null) {
+      if (_moveTypes.contains(message['type'])) {
+        // One of each: a newer move for the same phase replaces the older.
+        _pendingMoves.removeWhere((m) => m['type'] == message['type']);
+        _pendingMoves.add(message);
+      }
+      return;
+    }
+    channel.sink.add(jsonEncode(message));
+  }
 
   void dispose() {
     _keepalive?.cancel();

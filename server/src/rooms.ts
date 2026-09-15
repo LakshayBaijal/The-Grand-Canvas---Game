@@ -121,12 +121,14 @@ type Player = PlayerInfo & {
  * cellular, or a carrier NAT quietly dropping an idle mapping all look
  * identical to leaving, and the difference between "the round waits for you"
  * and "you are gone and can't get back in" is this number. Ninety seconds
- * covers a whole drawing phase. In the lobby it is short, because there a
- * dropped socket usually *is* someone leaving, and a host shouldn't wait on a
- * ghost seat to press start.
+ * covers a whole drawing phase. In the lobby it is shorter, because there a
+ * dropped socket is more often someone leaving, and a host shouldn't wait
+ * long on a ghost seat to press start -- but not shorter than the app's own
+ * retry schedule (it tries for ~20s before the first long pause), or a blip
+ * in the lobby is a blip the app never gets to recover from.
  */
 export const RECONNECT_GRACE_MS = 90_000;
-export const LOBBY_GRACE_MS = 20_000;
+export const LOBBY_GRACE_MS = 45_000;
 
 export type Phase = "lobby" | "prompt_writing" | "drawing" | "voting" | "reveal" | "results";
 
