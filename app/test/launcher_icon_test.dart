@@ -22,7 +22,17 @@ import 'package:bad_mental_canvas/widgets/launcher_mark.dart';
 ///
 /// Then `dart run flutter_launcher_icons` turns them into every mipmap. Not
 /// a test of anything; a build step that happens to need a widget tester.
+///
+/// It only writes when asked:
+///
+///     REGEN_ICONS=1 flutter test test/launcher_icon_test.dart
+///
+/// Left to run on every `flutter test` it rewrote both PNGs each time, and
+/// since antialiasing differs by a few pixels between machines, every test
+/// run on every laptop left the tree dirty with a change nobody could see.
 void main() {
+  final regen = Platform.environment['REGEN_ICONS'] == '1';
+
   Future<void> shoot(
     WidgetTester tester,
     String name,
@@ -51,6 +61,7 @@ void main() {
       );
       final image = await boundary.toImage(pixelRatio: 1);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (!regen) return;
       final out = Directory('assets/icon')..createSync(recursive: true);
       File(
         '${out.path}/$name.png',
