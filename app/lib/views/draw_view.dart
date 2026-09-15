@@ -8,6 +8,7 @@ import '../widgets/sketch_icons.dart';
 import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/paper_frame.dart';
+import '../widgets/summon_keyboard.dart';
 import '../widgets/customize_sheet.dart';
 import '../widgets/unlock_sheet.dart';
 
@@ -343,6 +344,20 @@ class _TitlePopup extends StatefulWidget {
 }
 
 class _TitlePopupState extends State<_TitlePopup> {
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    summonKeyboard(_focus);
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final canSubmit = widget.controller.text.trim().isNotEmpty;
@@ -389,7 +404,7 @@ class _TitlePopupState extends State<_TitlePopup> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: widget.controller,
-                  autofocus: true,
+                  focusNode: _focus,
                   maxLength: 40,
                   textCapitalization: TextCapitalization.words,
                   onChanged: (_) => setState(() {}),

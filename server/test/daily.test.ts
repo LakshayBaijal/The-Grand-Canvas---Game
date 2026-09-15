@@ -74,6 +74,15 @@ test("one entry per player per day; drawing again replaces it", () => {
     assert.equal(store.hasSubmittedDaily(day, "p3"), false);
     // A different day is a different gallery.
     assert.equal(store.hasSubmittedDaily(day + 1, "p1"), false);
+
+    // Your own card counts the hearts it has been given. It once didn't:
+    // the bare row query hardcoded zero, so a drawing with hearts showed
+    // none to the one person allowed to see the number.
+    const mine = store.myDailyEntry(day, "p1")!;
+    store.heartDaily(day, mine.id, "p2");
+    store.heartDaily(day, mine.id, "p3");
+    assert.equal(store.myDailyEntry(day, "p1")?.hearts, 2);
+    assert.equal(store.myDailyEntry(day, "p2")?.hearts, 0);
   } finally {
     store.closeStore();
     rmSync(dir, { recursive: true, force: true });

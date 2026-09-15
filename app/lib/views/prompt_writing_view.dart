@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/game_event.dart';
 import '../theme.dart';
 import '../widgets/countdown.dart';
+import '../widgets/summon_keyboard.dart';
 
 /// Keep in sync with PROMPT_SECONDS on the server.
 const _promptSeconds = 40;
@@ -32,18 +33,27 @@ class PromptWritingView extends StatefulWidget {
 
 class _PromptWritingViewState extends State<PromptWritingView> {
   final _controller = TextEditingController();
+  final _focus = FocusNode();
   bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.event.isWriter) summonKeyboard(_focus);
+  }
 
   @override
   void didUpdateWidget(PromptWritingView old) {
     super.didUpdateWidget(old);
     if (widget.rejections != old.rejections && _submitted) {
       setState(() => _submitted = false);
+      summonKeyboard(_focus);
     }
   }
 
   @override
   void dispose() {
+    _focus.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -121,7 +131,7 @@ class _PromptWritingViewState extends State<PromptWritingView> {
               if (event.isWriter && !_submitted) ...[
                 TextField(
                   controller: _controller,
-                  autofocus: true,
+                  focusNode: _focus,
                   maxLength: 60,
                   textCapitalization: TextCapitalization.sentences,
                   onChanged: (_) => setState(() {}),

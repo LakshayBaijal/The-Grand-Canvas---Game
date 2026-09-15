@@ -722,11 +722,15 @@ export function hasSubmittedDaily(day: number, playerId: string): boolean {
   return row !== undefined;
 }
 
+/** The viewer's own drawing for the day, with its heart count. Your own
+ *  count is never blinded -- it is the one number the wall lets you see
+ *  while the day is open -- so this has to actually count, not return the
+ *  bare row's zero. */
 export function myDailyEntry(day: number, playerId: string): DailyEntry | null {
   const row = db
-    .prepare(`${DAILY_SELECT} WHERE day = ? AND player_id = ?`)
-    .get(day, playerId) as DailyRow | undefined;
-  return row ? toDailyEntry(row) : null;
+    .prepare(`${DAILY_SELECT_WITH_HEARTS} WHERE e.day = ? AND e.player_id = ?`)
+    .get(playerId, day, playerId) as DailyRowWithHearts | undefined;
+  return row ? toDailyEntryH(row) : null;
 }
 
 export function countDaily(day: number): number {
