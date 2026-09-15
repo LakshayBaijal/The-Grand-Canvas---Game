@@ -35,7 +35,9 @@ const WORDS: readonly string[] = [
   "slut", "sluts", "whore", "whores", "hoe", "hoes",
   "twat", "twats", "wanker", "wankers", "wank",
   "prick", "pricks", "bollocks", "tits", "boobs", "boob",
-  "cum", "jizz", "dildo", "porn", "porno",
+  "cum", "jizz", "dildo", "porn", "porno", "penis", "vagina", "boobies", "titties",
+  "sex", "sexy", "nude", "nudes", "naked", "horny", "orgasm", "anal", "blowjob", "handjob",
+  "rape", "rapist", "molest", "pedo", "paedo",
   "nigger", "nigga", "niggers", "niggas", "fag", "faggot", "fags", "faggots",
   "retard", "retarded", "retards",
   "damn", "goddamn", "crap",
@@ -94,13 +96,73 @@ function tokens(text: string): string[] {
     .filter(Boolean);
 }
 
+/** A token this short is not a word on its own in a written answer; a run
+ *  of them is somebody spelling something out. */
+const FRAGMENT_LEN = 3;
+/** Short tokens that are ordinary words, not fragments of anything. "The
+ *  pen is mightier" joins to "penis" without this, and that sentence is a
+ *  prompt. Somebody spelling a word out uses letters, not these. */
+const SHORT_WORDS = new Set([
+  "a", "an", "the", "is", "it", "in", "on", "at", "of", "to", "be", "as", "or", "and",
+  "if", "so", "do", "go", "no", "up", "by", "my", "me", "we", "he", "us", "am", "i",
+  "its", "are", "was", "for", "but", "not", "you", "all", "any", "can", "had", "has",
+  "her", "him", "his", "how", "new", "now", "old", "one", "our", "out", "own", "say",
+  "she", "too", "two", "use", "way", "who", "why", "yes", "yet", "off", "put", "get",
+  "let", "may", "did", "big", "bad", "top", "end", "day", "man", "men",
+  // Common short nouns and verbs. Not exhaustive -- it can't be -- but the
+  // point is that a real word is a word, and the next token is a new one.
+  "pen", "cat", "dog", "hat", "sun", "sea", "bus", "car", "ant", "log", "tie", "fan",
+  "bit", "red", "cup", "tea", "pie", "egg", "ice", "oil", "box", "bag", "bed", "key",
+  "map", "net", "pan", "pot", "rat", "cow", "pig", "hen", "bee", "fly", "fox", "owl",
+  "leg", "arm", "eye", "ear", "toe", "lip", "hip", "jaw", "gym", "job", "war", "art",
+  "sky", "air", "gas", "mud", "ash", "fog", "dew", "wet", "dry", "hot", "raw", "low",
+  "run", "sit", "eat", "cut", "dig", "fix", "hit", "mix", "pay", "see", "try", "win",
+  "ago", "far", "few", "lot", "odd", "per", "via", "nor", "ok", "hi", "oh", "ah",
+]);
+const isFragment = (t: string) => t.length <= FRAGMENT_LEN && !SHORT_WORDS.has(t);
+/** How many tokens a spelled-out word can be spread across. */
+const MAX_JOIN = 8;
+
+/**
+ * Words hidden by splitting them: "D icks", "Di cks", "d.i.c.k.s", "c-u-n-t".
+ *
+ * Squashing the whole sentence would catch these, but it also invents words
+ * that were never typed: "the grass hit" squashes to "...asshit...". So
+ * instead only *runs of short tokens* are joined back together -- a real
+ * sentence almost never has three one-to-three-letter tokens in a row that
+ * spell a rude word, and a split word always does. Each run is joined with
+ * each of its neighbours in turn ("di"+"cks", "d"+"i"+"c"+"k"+"s") and the
+ * joined form is checked as a whole word only, never as a fragment, so the
+ * innocent joins ("an"+"assistant") stay innocent.
+ */
+function findSplitWord(toks: string[]): string | null {
+  for (let i = 0; i < toks.length; i++) {
+    let joined = "";
+    let shortOnes = 0;
+    for (let j = i; j < toks.length && j < i + MAX_JOIN; j++) {
+      joined += toks[j];
+      if (isFragment(toks[j])) shortOnes++;
+      // A join has to involve at least one fragment to be a split at all,
+      // and needs two tokens to be a join.
+      if (j === i || shortOnes === 0) continue;
+      if (WORD_SET.has(joined)) return joined;
+      const f = fold(joined);
+      if (f.length >= 4 && FOLDED_WORD_SET.has(f)) return joined;
+    }
+  }
+  return null;
+}
+
 /** The first offending term, or null if the text is clean. */
 export function findProfanity(text: string): string | null {
-  for (const t of tokens(text)) {
+  const toks = tokens(text);
+  for (const t of toks) {
     if (WORD_SET.has(t)) return t;
     const f = fold(t);
     if (f.length >= 4 && FOLDED_WORD_SET.has(f)) return t;
   }
+  const split = findSplitWord(toks);
+  if (split) return split;
   const flat = squash(text);
   const flatFolded = fold(flat);
   for (const frag of FRAGMENTS) {

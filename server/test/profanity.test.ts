@@ -73,3 +73,33 @@ test("empty and odd input is safe", () => {
   assert.equal(findProfanity("!!!???"), null);
   assert.equal(maskProfanity(""), "");
 });
+
+test("spelling a word out with spaces or dots does not get it through", () => {
+  for (const s of [
+    "D icks", "Di cks", "d.i.c.k.s", "D I C K", "c-u-n-t", "p u s s y",
+    "ni gger", "pe nis", "s e x", "chut iya", "ma dar chod", "bhos dike",
+  ]) {
+    assert.ok(hasProfanity(s), `should be caught: ${JSON.stringify(s)}`);
+  }
+});
+
+test("short ordinary words next to each other are not a split word", () => {
+  for (const s of [
+    "the grass hit the fan", "I am a big fan of it", "a cat in a hat", "he is at the bus stop",
+    "one of a kind", "it is a tie", "a big red bus", "as it is", "up and at em",
+    "to be or not to be a cat", "an ant on a log", "the ball is in your court",
+  ]) {
+    assert.equal(findProfanity(s), null, `false positive on ${JSON.stringify(s)}`);
+  }
+});
+
+test("the prompt files are clean and well formed", async () => {
+  const { PROMPT_TEMPLATES, DEMO_PROMPTS } = await import("../src/prompts.js");
+  assert.ok(PROMPT_TEMPLATES.length >= 100);
+  for (const p of [...PROMPT_TEMPLATES, ...DEMO_PROMPTS]) {
+    assert.equal(findProfanity(p), null, `a prompt trips the filter: ${JSON.stringify(p)}`);
+  }
+  for (const p of PROMPT_TEMPLATES) {
+    assert.equal(p.split("___").length, 2, `not exactly one blank: ${JSON.stringify(p)}`);
+  }
+});

@@ -1,0 +1,63 @@
+# Pre-filled sentences for the idle "someone is doodling" canvas on the home
+# and lobby screens.
+#
+# Real rounds get their blank filled in by a player; there is nobody to write
+# one while people are just waiting around, so these ship complete. One per
+# line, # for comments, blank lines ignored.
+#
+# Deliberately weighted toward things the doodle engine can actually depict
+# (see TOPIC_WORDS in src/doodle/compose.ts) -- coffee, dogs, traffic, phones
+# -- so the drawing that appears looks connected to the sentence above it.
+
+Nothing ruins a commute faster than traffic that never moves.
+Every office has an ongoing problem with the coffee machine.
+Falling asleep is hard enough without the neighbour's dog.
+The most annoying part of waking up is usually the alarm.
+Mornings would be so much easier without cold showers.
+Every kitchen eventually has a problem with burnt toast.
+Somebody really needs to invent something for tangled cables.
+Video calls always get interrupted by a cat on the keyboard.
+Laundry day is really just an ongoing battle against missing socks.
+Half of modern life is just dealing with a phone at 1% battery.
+Dog owners everywhere deal with muddy paws on a daily basis.
+Every road trip with kids eventually comes down to snacks.
+Nobody wants to go to the gym and deal with the treadmill.
+Rainy days always mean dealing with a broken umbrella.
+Every winter comes with the exact same problem: frozen car doors.
+Summer would be perfect if it weren't for melting ice cream.
+The worst part of eating out is splitting the bill.
+Grocery shopping always comes down to dealing with heavy bags.
+Every group chat eventually runs into someone sending 40 photos.
+Nothing wastes more time than looking for lost keys.
+Every parking lot has the same problem: nowhere to park.
+Cooking dinner always comes down to having to wash up after.
+Every nap gets interrupted by the doorbell.
+A dead wifi connection always causes a very long meeting.
+Late-night snacking always means opening a loud packet quietly.
+Cats always seem to have a problem with a closed door.
+Every supermarket trip ends with one wobbly trolley.
+The worst part of any restaurant is splitting the receipt.
+An hour on hold is plenty of time to think about the queue.
+Every office printer jams at the worst possible moment.
+Nobody has ever remembered a single password.
+Every birthday cake has one candle that won't blow out.
+The neighbour's guitar practice starts at exactly 11pm.
+Rainy days always mean staring out of a foggy window.
+Every winter comes down to building one sad snowman.
+Nothing ruins a morning like a bathroom mirror.
+Renewing anything official means another clipboard of forms.
+Cleaning day always comes down to one empty spray bottle.
+Every shared flat argues about the thermostat.
+Getting anywhere with a pram takes three times as long.
+Every party ends with somebody's abandoned wine glass.
+Assembling furniture always means finding the right spanner.
+Nobody enjoys wearing a helmet that doesn't fit.
+Every games night ends in a fight over one controller.
+The days before payday always mean hiding the credit card.
+Saving money is mostly just ignoring the piggy bank.
+Laundry day ends with a washing line in the rain.
+Every kitchen has one teapot nobody ever uses.
+Every commute comes down to one very slow traffic light.
+Every kitchen fire starts with a forgotten pan.
+Nobody has ever assembled a toolbox and kept it tidy.
+Every fridge eventually contains one mystery leftover.
