@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/styles.dart';
@@ -222,24 +223,11 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               const _Perk(
                 label: 'STEADY HAND',
                 note:
-                    'Hold still and a wobbly circle becomes a circle. Plus a '
-                    'straight-line tool and perfect shapes -- stars, hearts, '
-                    'arrows -- you stretch into place. Draw like the bots do.',
-                child: Row(
-                  children: [
-                    Icon(Icons.auto_fix_high_rounded, size: 18, color: GameColors.pink),
-                    SizedBox(width: 8),
-                    Icon(Icons.horizontal_rule_rounded, size: 18, color: GameColors.textMuted),
-                    SizedBox(width: 8),
-                    Icon(Icons.circle_outlined, size: 18, color: GameColors.textMuted),
-                    SizedBox(width: 8),
-                    Icon(Icons.star_outline_rounded, size: 18, color: GameColors.textMuted),
-                    SizedBox(width: 8),
-                    Icon(Icons.favorite_border_rounded, size: 18, color: GameColors.textMuted),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 18, color: GameColors.textMuted),
-                  ],
-                ),
+                    'Drawing with a finger is hard. Turn on STEADY, draw a '
+                    'circle, a box, a line -- anything -- and hold your finger '
+                    'still for a moment. Your wobbly shape snaps into a clean '
+                    'one. Scribbles stay scribbles; only real shapes snap.',
+                child: SizedBox(height: 64, child: _SteadyHandPicture()),
               ),
               const _Perk(
                 label: 'NO ADS',
@@ -309,13 +297,15 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                         ),
                   icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
                   label: const Text(
-                    'WATCH A SHORT VIDEO — COLOURS FOR 24 HOURS',
+                    'WATCH A SHORT VIDEO — COLOURS + STEADY HAND FOR 24 HOURS',
+                    textAlign: TextAlign.center,
                   ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'A video unlocks the colours only. Papers, pens and no '
-                  'ads are pass-only.',
+                  'One short video gives you every colour and Steady Hand '
+                  'until this time tomorrow. Papers, pens and no ads are '
+                  'pass-only.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: GameColors.textMuted,
@@ -325,9 +315,9 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                 ),
               ] else
                 Text(
-                  'Your colours are unlocked for another ${_hm(dayLeft)}. '
-                  'The pass makes that permanent, and adds the papers, the '
-                  'pens and no ads.',
+                  'Your colours and Steady Hand are unlocked for another '
+                  '${_hm(dayLeft)}. The pass makes that permanent, and adds '
+                  'the papers, the pens and no ads.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: GameColors.textMuted,
@@ -487,4 +477,71 @@ class _Swatch extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// Before and after, as a picture: the same circle drawn by a shaky finger,
+/// then with Steady Hand. Painted rather than shipped as an image so it is
+/// crisp at any size and in the game's own colours.
+class _SteadyHandPicture extends StatelessWidget {
+  const _SteadyHandPicture();
+
+  @override
+  Widget build(BuildContext context) {
+    return const CustomPaint(painter: _SteadyHandPainter(), size: Size.infinite);
+  }
+}
+
+class _SteadyHandPainter extends CustomPainter {
+  const _SteadyHandPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final h = size.height;
+    final r = h * 0.36;
+    final y = h / 2;
+    final leftC = Offset(r + 6, y);
+    final rightC = Offset(size.width - r - 6, y);
+    final ink = Paint()
+      ..color = GameColors.textPrimary
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // The shaky one: a circle with a hand's tremor baked in.
+    final shaky = Path();
+    for (var i = 0; i <= 60; i++) {
+      final a = i / 60 * 2 * math.pi;
+      final wob = 1 + 0.11 * math.sin(a * 7) + 0.07 * math.cos(a * 3 + 1);
+      final p = Offset(leftC.dx + math.cos(a) * r * wob, leftC.dy + math.sin(a) * r * wob);
+      if (i == 0) {
+        shaky.moveTo(p.dx, p.dy);
+      } else {
+        shaky.lineTo(p.dx, p.dy);
+      }
+    }
+    canvas.drawPath(shaky, ink);
+
+    // Arrow between, with the wand.
+    final mid = Offset(size.width / 2, y);
+    final arrow = Paint()
+      ..color = GameColors.pink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(mid + const Offset(-22, 0), mid + const Offset(18, 0), arrow);
+    canvas.drawLine(mid + const Offset(18, 0), mid + const Offset(10, -7), arrow);
+    canvas.drawLine(mid + const Offset(18, 0), mid + const Offset(10, 7), arrow);
+    final sparkle = Paint()..color = GameColors.pink;
+    for (final d in const [Offset(-4, -16), Offset(8, -19), Offset(2, -11)]) {
+      canvas.drawCircle(mid + d, 1.8, sparkle);
+    }
+
+    // The steady one.
+    canvas.drawCircle(rightC, r, ink..color = GameColors.primary);
+  }
+
+  @override
+  bool shouldRepaint(_SteadyHandPainter old) => false;
 }

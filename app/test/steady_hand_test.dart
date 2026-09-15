@@ -4,7 +4,6 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bad_mental_canvas/widgets/drawing_canvas.dart';
-import 'package:bad_mental_canvas/widgets/shape_tools.dart';
 
 /// The Steady Hand tools, at the controller: what a drag becomes.
 void main() {
@@ -48,46 +47,22 @@ void main() {
     });
   });
 
-  test('the line tool draws start to finger, and goes back to the pen after', () {
-    final c = DrawingController()..tool = DrawTool.line;
-    c.startStroke(const Offset(10, 10));
-    c.addPoint(const Offset(50, 80));
-    c.addPoint(const Offset(200, 120));
-    c.endStroke();
-    expect(c.strokes.single.points, const [Offset(10, 10), Offset(200, 120)]);
-    expect(c.tool, DrawTool.freehand, reason: 'one shot');
-  });
-
-  test('a stamp is stretched over the drag', () {
-    final c = DrawingController()..stamp = StampShape.square;
-    expect(c.tool, DrawTool.stamp);
-    c.startStroke(const Offset(20, 30));
-    c.addPoint(const Offset(220, 130));
-    c.endStroke();
-    final pts = c.strokes.single.points;
-    expect(pts.first, const Offset(20, 30));
-    expect(pts[2], const Offset(220, 130));
-    expect(c.tool, DrawTool.freehand);
-  });
-
   test('undo then redo brings the stroke back; a new stroke clears redo', () {
-    final c = DrawingController()..tool = DrawTool.line;
-    c.startStroke(Offset.zero);
-    c.addPoint(const Offset(100, 100));
-    c.endStroke();
+    DrawingController draw(DrawingController c, Offset to) {
+      c.startStroke(Offset.zero);
+      c.addPoint(to);
+      c.endStroke();
+      return c;
+    }
+    final c = draw(DrawingController(), const Offset(100, 100));
     c.undo();
     expect(c.strokes, isEmpty);
     expect(c.canRedo, isTrue);
     c.redo();
     expect(c.strokes, hasLength(1));
-    c.tool = DrawTool.line;
-    c.startStroke(Offset.zero);
-    c.addPoint(const Offset(50, 50));
-    c.endStroke();
+    draw(c, const Offset(50, 50));
     c.undo();
-    c.startStroke(Offset.zero);
-    c.addPoint(const Offset(70, 70));
-    c.endStroke();
+    draw(c, const Offset(70, 70));
     expect(c.canRedo, isFalse);
   });
 }

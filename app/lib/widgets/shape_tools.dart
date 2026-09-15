@@ -10,28 +10,13 @@ import 'package:flutter/material.dart';
 /// other half of that -- the maths that turns a shaky stroke into the shape
 /// it was trying to be.
 ///
-///   * [smooth]        takes the jitter out of freehand input (free, always).
-///   * [recognise]     what a stroke is a wobbly version of: a line, circle,
-///                     ellipse, rectangle or triangle -- or nothing, in which
-///                     case it is left alone. Used by the Steady Hand tool.
-///   * [stampPoints]   a perfect shape, sized to a drag.
+///   * [smooth]     takes the jitter out of freehand input (free, always).
+///   * [recognise]  what a stroke is a wobbly version of: a line, circle,
+///                  ellipse, rectangle or triangle -- or nothing, in which
+///                  case it is left alone. This is Steady Hand.
 ///
 /// Everything here works in canvas pixels and returns polylines, because
 /// that is the only thing a drawing can be made of on the wire.
-
-/// What a drag on the canvas does.
-enum DrawTool {
-  /// A stroke that follows the finger (smoothed).
-  freehand,
-
-  /// A straight line from where the finger went down to where it is.
-  line,
-
-  /// A shape stretched over the dragged box -- see [StampShape].
-  stamp,
-}
-
-enum StampShape { circle, square, triangle, star, heart, arrow, cloud }
 
 // --- smoothing ---------------------------------------------------------------
 
@@ -218,74 +203,6 @@ Rect _bounds(List<Offset> points) {
     maxX = max(maxX, p.dx); maxY = max(maxY, p.dy);
   }
   return Rect.fromLTRB(minX, minY, maxX, maxY);
-}
-
-// --- stamps ------------------------------------------------------------------
-
-/// A perfect [shape] filling [box], as a closed (or, for the arrow, open)
-/// polyline. Dense enough on curves that a round thing looks round at full
-/// canvas size.
-List<Offset> stampPoints(StampShape shape, Rect box) {
-  final b = box.width < 2 || box.height < 2
-      ? Rect.fromCenter(center: box.center, width: max(box.width, 2), height: max(box.height, 2))
-      : box;
-  final c = b.center;
-  final rx = b.width / 2;
-  final ry = b.height / 2;
-  switch (shape) {
-    case StampShape.circle:
-      return _ellipse(c, rx, ry);
-    case StampShape.square:
-      return [b.topLeft, b.topRight, b.bottomRight, b.bottomLeft, b.topLeft];
-    case StampShape.triangle:
-      return [b.topCenter, b.bottomRight, b.bottomLeft, b.topCenter];
-    case StampShape.star:
-      final out = <Offset>[];
-      for (var i = 0; i < 10; i++) {
-        final a = -pi / 2 + i * pi / 5;
-        final k = i.isEven ? 1.0 : 0.45;
-        out.add(Offset(c.dx + cos(a) * rx * k, c.dy + sin(a) * ry * k));
-      }
-      return [...out, out.first];
-    case StampShape.heart:
-      // Two lobes and a point, on a parametric heart curve.
-      final out = <Offset>[];
-      for (var i = 0; i <= 64; i++) {
-        final t = i / 64 * 2 * pi;
-        final x = 16 * pow(sin(t), 3);
-        final y = 13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t);
-        out.add(Offset(c.dx + x / 16 * rx, c.dy - (y - 1) / 15.5 * ry));
-      }
-      return out;
-    case StampShape.arrow:
-      // Shaft along the box's long axis, head at the far end.
-      final horizontal = b.width >= b.height;
-      final head = 0.35;
-      if (horizontal) {
-        final y = c.dy;
-        final tip = Offset(b.right, y);
-        final neck = Offset(b.right - b.width * head, y);
-        return [
-          Offset(b.left, y), tip, Offset(neck.dx, b.top), tip, Offset(neck.dx, b.bottom), tip,
-        ];
-      }
-      final x = c.dx;
-      final tip = Offset(x, b.bottom);
-      final neck = Offset(x, b.bottom - b.height * head);
-      return [
-        Offset(x, b.top), tip, Offset(b.left, neck.dy), tip, Offset(b.right, neck.dy), tip,
-      ];
-    case StampShape.cloud:
-      // A ring of bumps around an ellipse.
-      final out = <Offset>[];
-      const bumps = 7;
-      for (var i = 0; i <= 140; i++) {
-        final t = i / 140 * 2 * pi;
-        final bump = 1 + 0.16 * cos(t * bumps).abs() * 1.4;
-        out.add(Offset(c.dx + cos(t) * rx * 0.82 * bump, c.dy + sin(t) * ry * 0.82 * bump));
-      }
-      return out;
-  }
 }
 
 List<Offset> _ellipse(Offset c, double rx, double ry) {

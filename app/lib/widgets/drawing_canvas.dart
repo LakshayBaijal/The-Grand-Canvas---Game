@@ -179,12 +179,8 @@ class DrawingController extends ChangeNotifier {
   WorkingStroke? _current;
   Color _color = Colors.black;
 
-  // --- tools ---------------------------------------------------------------
-  DrawTool _tool = DrawTool.freehand;
-  StampShape _stamp = StampShape.circle;
+  // --- Steady Hand -----------------------------------------------------------
   bool _steadyHand = false;
-  /// Where the current drag started; the anchor for lines and stamps.
-  Offset? _anchor;
   /// Fires when the finger has held still mid-stroke: the Steady Hand cue.
   Timer? _holdTimer;
   /// Set once a stroke has been snapped to a shape; further movement in the
@@ -195,32 +191,12 @@ class DrawingController extends ChangeNotifier {
   /// the finger did.
   Offset? _raw;
 
-  DrawTool get tool => _tool;
-  StampShape get stamp => _stamp;
   bool get steadyHand => _steadyHand;
-
-  set tool(DrawTool value) {
-    _tool = value;
-    _erasing = false;
-    notifyListeners();
-  }
-
-  set stamp(StampShape value) {
-    _stamp = value;
-    _tool = DrawTool.stamp;
-    _erasing = false;
-    notifyListeners();
-  }
 
   set steadyHand(bool value) {
     _steadyHand = value;
     notifyListeners();
   }
-
-  /// A finished stroke is the only thing a stamp or a line can become, so
-  /// after one the tool goes back to the pen. Drawing five circles in a row
-  /// is rarer than drawing one and getting on with it.
-  static const _oneShotTools = {DrawTool.line, DrawTool.stamp};
   double _brushWidth = 6;
   bool _erasing = false;
   PenStyle _pen = PenStyle.pen;
@@ -268,7 +244,6 @@ class DrawingController extends ChangeNotifier {
 
   void selectEraser() {
     _erasing = true;
-    _tool = DrawTool.freehand;
     notifyListeners();
   }
 
@@ -281,7 +256,6 @@ class DrawingController extends ChangeNotifier {
     // Use the public getters, not the raw fields — while erasing, those
     // resolve to the paper color/width instead of whatever was last picked.
     _current = WorkingStroke(color: color, width: brushWidth, points: [point]);
-    _anchor = point;
     _snapped = false;
     notifyListeners();
   }
@@ -290,22 +264,10 @@ class DrawingController extends ChangeNotifier {
     final current = _current;
     if (current == null || _snapped) return;
     _raw = point;
-    final anchor = _anchor ?? point;
-    switch (_erasing ? DrawTool.freehand : _tool) {
-      case DrawTool.freehand:
-        final next = steadied(current.points.last, point);
-        if (next == null) return;
-        current.points.add(next);
-        _armHold();
-      case DrawTool.line:
-        current.points
-          ..clear()
-          ..addAll([anchor, point]);
-      case DrawTool.stamp:
-        current.points
-          ..clear()
-          ..addAll(stampPoints(_stamp, Rect.fromPoints(anchor, point)));
-    }
+    final next = steadied(current.points.last, point);
+    if (next == null) return;
+    current.points.add(next);
+    _armHold();
     notifyListeners();
   }
 
@@ -333,12 +295,12 @@ class DrawingController extends ChangeNotifier {
   void endStroke() {
     _holdTimer?.cancel();
     final current = _current;
-    if (current != null && _raw != null && !_snapped && _tool == DrawTool.freehand) {
+    if (current != null && _raw != null && !_snapped) {
       // End exactly where the finger lifted, not a fraction short of it.
       if ((current.points.last - _raw!).distance > 0.01) current.points.add(_raw!);
     }
     if (current != null && current.points.length > 1) {
-      if (!_snapped && !_erasing && _tool == DrawTool.freehand) {
+      if (!_snapped && !_erasing) {
         final calm = smooth(current.points);
         current.points
           ..clear()
@@ -348,10 +310,8 @@ class DrawingController extends ChangeNotifier {
       _redo.clear();
     }
     _current = null;
-    _anchor = null;
     _raw = null;
     _snapped = false;
-    if (_oneShotTools.contains(_tool)) _tool = DrawTool.freehand;
     notifyListeners();
   }
 

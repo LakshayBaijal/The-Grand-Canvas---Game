@@ -104,16 +104,4 @@ void main() {
     expect(wobble(calm), lessThan(wobble(wobbly) * 0.8));
   });
 
-  test('every stamp fills its box and closes', () {
-    const box = Rect.fromLTWH(10, 20, 200, 120);
-    for (final shape in StampShape.values) {
-      final pts = stampPoints(shape, box);
-      expect(pts.length, greaterThan(3), reason: '$shape');
-      final b = _bounds(pts);
-      expect(b.width, closeTo(box.width, box.width * 0.2), reason: '$shape spans the box');
-      if (shape != StampShape.arrow) {
-        expect((pts.first - pts.last).distance, lessThan(1), reason: '$shape closes');
-      }
-    }
-  });
 }

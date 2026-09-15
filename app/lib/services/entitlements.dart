@@ -53,6 +53,12 @@ class Entitlements extends ChangeNotifier {
       hasThanksPass ||
       DateTime.now().millisecondsSinceEpoch < _dayPassUntilMs;
 
+  /// Steady Hand -- hold still and a shaky shape snaps clean -- unlocks with
+  /// the colours: the pass, or a watched video for the day. It is the thing
+  /// most worth trying for a day, which is exactly why it's on the free
+  /// route and not held back for the pass.
+  bool get hasSteadyHand => hasFullPalette;
+
   /// Paper and pen styles, and the Steady Hand tools, are purchase-only — an
   /// ad never grants them. The
   /// thank-you is the one exception, and it is the whole point of it: a day

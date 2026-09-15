@@ -9,7 +9,6 @@ import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/lively_prompt.dart';
 import '../widgets/paper_frame.dart';
-import '../widgets/shape_tools.dart';
 import '../widgets/summon_keyboard.dart';
 import '../widgets/customize_sheet.dart';
 import '../widgets/unlock_sheet.dart';
@@ -467,14 +466,6 @@ class _DrawToolbar extends StatelessWidget {
       listenable: Listenable.merge([controller, Entitlements.instance]),
       builder: (context, _) => Column(
         children: [
-          _ToolRow(
-            controller: controller,
-            // The Steady Hand tools go with the pass. Colour is decoration;
-            // this is the first thing in the pass that changes what a
-            // drawing can be, and the sheet says so.
-            owned: unlocked || Entitlements.instance.hasStyles,
-          ),
-          const SizedBox(height: 6),
           SizedBox(
             height: 44,
             child: ListView.separated(
@@ -527,6 +518,10 @@ class _DrawToolbar extends StatelessWidget {
           ),
           Row(
             children: [
+              _SteadyChip(
+                controller: controller,
+                owned: unlocked || Entitlements.instance.hasSteadyHand,
+              ),
               const Icon(
                 Icons.brush_rounded,
                 size: 16,
@@ -581,115 +576,45 @@ class _DrawToolbar extends StatelessWidget {
   }
 }
 
-/// The Steady Hand tools: what a drag on the canvas does.
+/// The one drawing aid: Steady Hand.
 ///
-/// Pen is the free one and the default. The rest -- a straight line, a row
-/// of perfect shapes stretched over a drag, and the Steady toggle that snaps
-/// a held stroke to the shape it was trying to be -- are how a finger on
-/// glass produces something as clean as the bots do. A locked chip opens
-/// the pass offer, like a locked colour.
-class _ToolRow extends StatelessWidget {
-  const _ToolRow({required this.controller, required this.owned});
+/// On, a stroke that is held still for a beat snaps to the shape it was
+/// trying to be. Unlocked the same way as the colours -- the pass, or a
+/// watched video for the day -- and a locked chip opens that offer.
+class _SteadyChip extends StatelessWidget {
+  const _SteadyChip({required this.controller, required this.owned});
 
   final DrawingController controller;
   final bool owned;
 
-  static const _stamps = [
-    (StampShape.circle, Icons.circle_outlined, 'Circle'),
-    (StampShape.square, Icons.crop_square_rounded, 'Square'),
-    (StampShape.triangle, Icons.change_history_rounded, 'Triangle'),
-    (StampShape.star, Icons.star_outline_rounded, 'Star'),
-    (StampShape.heart, Icons.favorite_border_rounded, 'Heart'),
-    (StampShape.arrow, Icons.arrow_forward_rounded, 'Arrow'),
-    (StampShape.cloud, Icons.cloud_outlined, 'Cloud'),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final freehand = controller.tool == DrawTool.freehand && !controller.isErasing;
-    void locked() => showUnlockSheet(context);
-    return SizedBox(
-      height: 34,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _ToolChip(
-            icon: Icons.gesture_rounded,
-            label: 'Pen',
-            selected: freehand,
-            onTap: () => controller.tool = DrawTool.freehand,
-          ),
-          _ToolChip(
-            icon: Icons.auto_fix_high_rounded,
-            label: 'Steady',
-            selected: controller.steadyHand,
-            locked: !owned,
-            accent: GameColors.pink,
-            onTap: owned ? () => controller.steadyHand = !controller.steadyHand : locked,
-          ),
-          _ToolChip(
-            icon: Icons.horizontal_rule_rounded,
-            label: 'Line',
-            selected: controller.tool == DrawTool.line,
-            locked: !owned,
-            onTap: owned ? () => controller.tool = DrawTool.line : locked,
-          ),
-          for (final (shape, icon, label) in _stamps)
-            _ToolChip(
-              icon: icon,
-              label: label,
-              selected: controller.tool == DrawTool.stamp && controller.stamp == shape,
-              locked: !owned,
-              onTap: owned ? () => controller.stamp = shape : locked,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToolChip extends StatelessWidget {
-  const _ToolChip({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.locked = false,
-    this.accent = GameColors.primary,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final bool locked;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = selected ? const Color(0xFF241800) : GameColors.textPrimary;
+    final on = owned && controller.steadyHand;
+    final fg = on ? const Color(0xFF241800) : GameColors.textPrimary;
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.only(right: 8),
       child: Material(
-        color: selected ? accent : GameColors.surfaceHigh,
+        color: on ? GameColors.pink : GameColors.surfaceHigh,
         borderRadius: BorderRadius.circular(17),
         child: InkWell(
           borderRadius: BorderRadius.circular(17),
-          onTap: onTap,
+          onTap: owned
+              ? () => controller.steadyHand = !controller.steadyHand
+              : () => showUnlockSheet(context),
           child: Opacity(
-            opacity: locked ? 0.55 : 1,
+            opacity: owned ? 1 : 0.6,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 16, color: fg),
+                  Icon(Icons.auto_fix_high_rounded, size: 16, color: fg),
                   const SizedBox(width: 4),
                   Text(
-                    label,
-                    style: TextStyle(color: fg, fontSize: 11.5, fontWeight: FontWeight.w800),
+                    'STEADY',
+                    style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8),
                   ),
-                  if (locked) ...[
+                  if (!owned) ...[
                     const SizedBox(width: 3),
                     SketchIcon(SketchGlyph.lock, size: 11, color: fg),
                   ],
