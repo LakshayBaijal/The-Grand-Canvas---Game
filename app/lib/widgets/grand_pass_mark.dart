@@ -42,12 +42,15 @@ class _MarkPainter extends CustomPainter {
       ..color = goldDeep
       ..style = PaintingStyle.stroke
       ..strokeWidth = h * 0.05;
+    // Each side is an arc from the bottom centre up to about ten o'clock /
+    // two o'clock; the leaves lie along the arc, tips pointing up, so the
+    // two arcs read as one wreath cupping the crown rather than as rays.
     for (final side in [-1.0, 1.0]) {
       for (var i = 0; i < 5; i++) {
-        final a = pi * (0.62 + i * 0.13) * side + (side < 0 ? 0 : pi);
-        final r = w * 0.44;
-        final p = Offset(c.dx + cos(a) * r, c.dy + sin(a) * r * 0.95);
-        final ang = a + pi / 2 * side;
+        final a = pi / 2 + side * (0.28 + i * 0.3);
+        final r = w * 0.42;
+        final p = Offset(c.dx + cos(a) * r, c.dy + sin(a) * r * 0.9);
+        final ang = a + pi / 2;
         canvas.save();
         canvas.translate(p.dx, p.dy);
         canvas.rotate(ang);
