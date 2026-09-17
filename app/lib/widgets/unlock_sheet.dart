@@ -5,6 +5,7 @@ import '../models/styles.dart';
 import '../services/entitlements.dart';
 import '../services/store.dart';
 import '../theme.dart';
+import 'grand_pass_mark.dart';
 import 'customize_sheet.dart';
 import 'sketch_icons.dart';
 
@@ -121,12 +122,8 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  const SketchIcon(
-                    SketchGlyph.sparkle,
-                    size: 18,
-                    color: GameColors.primary,
-                  ),
-                  const SizedBox(width: 8),
+                  const GrandPassMark(size: 24),
+                  const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
                       'GRAND PASS',
@@ -210,7 +207,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                     'Same colours, different hand.',
                 child: _SwatchRow(
                   children: [
-                    for (final p in PenStyle.pens)
+                    for (final p in PenStyle.values)
                       if (p != PenStyle.free)
                         _Swatch(
                           label: p.label,
@@ -222,18 +219,12 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                 ),
               ),
               const _Perk(
-                label: 'FILL, AND ANY COLOUR',
+                label: 'YOUR OWN COLOUR',
                 note:
-                    'Turn on FILL, draw a shape, and it comes out solid -- no '
-                    'more colouring in. And a colour wheel at the end of the '
-                    'palette, for the exact shade you meant.',
-                child: Row(
-                  children: [
-                    Icon(Icons.format_color_fill_rounded, size: 18, color: GameColors.primary),
-                    SizedBox(width: 10),
-                    Icon(Icons.palette_outlined, size: 18, color: GameColors.pink),
-                  ],
-                ),
+                    'A tenth swatch that is whatever you want it to be. Pick '
+                    'it off a colour square, dial in RGB, or type a hex code '
+                    '-- the exact shade you meant, not the nearest of nine.',
+                child: SizedBox(height: 44, child: _OwnColourPicture()),
               ),
               const _Perk(
                 label: 'STEADY HAND',
@@ -319,8 +310,8 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                 const SizedBox(height: 6),
                 const Text(
                   'One short video gives you every colour and Steady Hand '
-                  'until midnight tonight. Papers, pens, fill, the colour '
-                  'wheel and no ads are pass-only.',
+                  'until midnight tonight. Papers, pens, your own colour '
+                  'and no ads are pass-only.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: GameColors.textMuted,
@@ -575,6 +566,59 @@ class _SwatchRow extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(children: children),
+    );
+  }
+}
+
+
+/// The tenth swatch, as a picture: nine fixed colours and one that is
+/// whatever you want, with the little picker button above it.
+class _OwnColourPicture extends StatelessWidget {
+  const _OwnColourPicture();
+
+  @override
+  Widget build(BuildContext context) {
+    const nine = [
+      Colors.black, Color(0xFFFDD835), Color(0xFFE53935), Color(0xFFFB8C00), Color(0xFF43A047),
+      Color(0xFF1E88E5), Color(0xFF8E24AA), Color(0xFF6D4C41), Colors.white,
+    ];
+    return Row(
+      children: [
+        for (final c in nine)
+          Container(
+            width: 18,
+            height: 18,
+            margin: const EdgeInsets.only(right: 5),
+            decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: GameColors.surfaceHigh)),
+          ),
+        const SizedBox(width: 4),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const SweepGradient(colors: [
+                  Color(0xFFE53935), Color(0xFFFDD835), Color(0xFF43A047), Color(0xFF1E88E5), Color(0xFF8E24AA), Color(0xFFE53935),
+                ]),
+                border: Border.all(color: GameColors.primary, width: 2),
+              ),
+            ),
+            Positioned(
+              top: -6,
+              right: -4,
+              child: Container(
+                width: 14,
+                height: 14,
+                decoration: const BoxDecoration(color: GameColors.primary, shape: BoxShape.circle),
+                child: const Icon(Icons.tune_rounded, size: 8, color: Color(0xFF241800)),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

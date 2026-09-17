@@ -274,12 +274,6 @@ void paintStrokePath(
         }
       }
 
-    case PenStyle.fill:
-      // The shape, closed and filled. A thin outline in the same colour
-      // hides the seam where the fill meets the anti-aliased edge.
-      final path = pathFrom()..close();
-      canvas.drawPath(path, Paint()..color = color);
-      canvas.drawPath(path, base(widthScale: 0.25));
   }
 }
 
@@ -330,17 +324,6 @@ class DrawingController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Fill: the shape you draw is closed and filled solid, in the current
-  /// colour. A toggle rather than a pen, because you switch it on for a
-  /// shape and off again; the pen you were using is still there after.
-  bool _fill = false;
-  bool get fill => _fill;
-
-  set fill(bool value) {
-    _fill = value;
-    _erasing = false;
-    notifyListeners();
-  }
   double _brushWidth = 6;
   bool _erasing = false;
   PenStyle _pen = PenStyle.pen;
@@ -403,7 +386,7 @@ class DrawingController extends ChangeNotifier {
       color: color,
       width: brushWidth,
       points: [point],
-      style: _erasing ? PenStyle.pen : (_fill ? PenStyle.fill : _pen),
+      style: _erasing ? PenStyle.pen : _pen,
     );
     _snapped = false;
     notifyListeners();

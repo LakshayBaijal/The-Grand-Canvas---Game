@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme.dart';
+import 'grand_pass_mark.dart';
 
 /// The trophy tier a player is in. Derived from their trophy count on the
 /// server, never floored: fall below the line and the badge goes with you.
@@ -156,56 +156,13 @@ class _MedalPainter extends CustomPainter {
   bool shouldRepaint(_MedalPainter old) => old.tier != tier;
 }
 
-/// The Grand Pass crown.
+/// The Grand Pass emblem, kept under its old name so every caller stays
+/// the same. See [GrandPassMark].
 class CrownMark extends StatelessWidget {
   const CrownMark({super.key, this.size = 14});
 
   final double size;
 
   @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Grand Pass',
-      child: CustomPaint(
-        size: Size(size * 1.15, size),
-        painter: const _CrownPainter(),
-      ),
-    );
-  }
-}
-
-class _CrownPainter extends CustomPainter {
-  const _CrownPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final body = Path()
-      ..moveTo(w * 0.05, h * 0.9)
-      ..lineTo(w * 0.05, h * 0.3)
-      ..lineTo(w * 0.3, h * 0.55)
-      ..lineTo(w * 0.5, h * 0.08)
-      ..lineTo(w * 0.7, h * 0.55)
-      ..lineTo(w * 0.95, h * 0.3)
-      ..lineTo(w * 0.95, h * 0.9)
-      ..close();
-    canvas.drawPath(body, Paint()..color = const Color(0xFFFFC53D));
-    canvas.drawPath(
-      body,
-      Paint()
-        ..color = const Color(0xFFA36F00)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = h * 0.09
-        ..strokeJoin = StrokeJoin.round,
-    );
-    // Jewels.
-    final jewel = Paint()..color = GameColors.pink;
-    canvas.drawCircle(Offset(w * 0.5, h * 0.62), h * 0.1, jewel);
-    canvas.drawCircle(Offset(w * 0.22, h * 0.7), h * 0.07, jewel);
-    canvas.drawCircle(Offset(w * 0.78, h * 0.7), h * 0.07, jewel);
-  }
-
-  @override
-  bool shouldRepaint(_CrownPainter old) => false;
+  Widget build(BuildContext context) => GrandPassMark(size: size);
 }

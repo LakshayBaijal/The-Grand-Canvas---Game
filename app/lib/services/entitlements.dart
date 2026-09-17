@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/styles.dart';
@@ -32,6 +33,18 @@ class Entitlements extends ChangeNotifier {
   static const _thanksKey = 'thanks_pass_until';
   static const _paperKey = 'style_paper';
   static const _penKey = 'style_pen';
+  /// The player's own colour, as 0xAARRGGBB. Remembered so the tenth swatch
+  /// is the same colour tomorrow.
+  static const _ownColourKey = 'own_colour';
+  Color _ownColour = const Color(0xFF00BFA5);
+  Color get ownColour => _ownColour;
+
+  Future<void> setOwnColour(Color c) async {
+    _ownColour = c;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_ownColourKey, c.toARGB32());
+    notifyListeners();
+  }
 
   /// The thank-you pass is a flat day. The ad's pass is different: it runs
   /// to midnight -- see [grantDayPass].
@@ -99,6 +112,8 @@ class Entitlements extends ChangeNotifier {
     _thanksUntilMs = prefs.getInt(_thanksKey) ?? 0;
     _paper = PaperStyle.fromId(prefs.getString(_paperKey));
     _pen = PenStyle.fromId(prefs.getString(_penKey));
+    final own = prefs.getInt(_ownColourKey);
+    if (own != null) _ownColour = Color(own);
     notifyListeners();
   }
 

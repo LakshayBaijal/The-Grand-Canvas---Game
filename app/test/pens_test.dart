@@ -33,12 +33,6 @@ void main() {
     }
   });
 
-  test('fill is a style on the wire but not a pen in the picker', () {
-    expect(PenStyle.fromId('fill'), PenStyle.fill);
-    expect(PenStyle.pens, isNot(contains(PenStyle.fill)));
-    expect(PenStyle.pens, contains(PenStyle.rainbow));
-  });
-
   test('changing the pen mid-drawing does not restyle earlier strokes', () {
     final c = DrawingController()..pen = PenStyle.marker;
     c.startStroke(Offset.zero);
@@ -53,19 +47,4 @@ void main() {
     expect(out[1].style, PenStyle.neon);
   });
 
-  test('fill on: the stroke is a fill; the pen is still there after', () {
-    final c = DrawingController()..pen = PenStyle.crayon..fill = true;
-    c.startStroke(Offset.zero);
-    c.addPoint(const Offset(50, 0));
-    c.addPoint(const Offset(50, 50));
-    c.endStroke();
-    c.fill = false;
-    c.startStroke(Offset.zero);
-    c.addPoint(const Offset(20, 20));
-    c.endStroke();
-    final out = c.toNormalizedStrokes(const Size(100, 100));
-    expect(out[0].style, PenStyle.fill);
-    expect(out[1].style, PenStyle.crayon);
-    expect(c.pen, PenStyle.crayon);
-  });
 }

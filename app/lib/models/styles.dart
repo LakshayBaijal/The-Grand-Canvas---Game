@@ -42,13 +42,7 @@ enum PenStyle {
   ink('ink', 'Ink'),
   neon('neon', 'Neon'),
   rainbow('rainbow', 'Rainbow'),
-  spray('spray', 'Spray'),
-
-  /// Not a pen: the shape you draw is closed and filled solid. Lives here
-  /// because on the wire it is what a stroke's `style` says, like any pen,
-  /// so every renderer -- the reveal, the gallery, the export -- gets it
-  /// for free. Never offered in the pen picker; see [pens].
-  fill('fill', 'Fill');
+  spray('spray', 'Spray');
 
   const PenStyle(this.id, this.label);
 
@@ -56,9 +50,6 @@ enum PenStyle {
   final String label;
 
   static const free = PenStyle.pen;
-
-  /// The ones that are pens, for pickers and previews.
-  static List<PenStyle> get pens => values.where((p) => p != fill).toList();
 
   static PenStyle fromId(String? id) =>
       PenStyle.values.firstWhere((s) => s.id == id, orElse: () => PenStyle.pen);

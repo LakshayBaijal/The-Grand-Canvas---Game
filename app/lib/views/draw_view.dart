@@ -5,7 +5,7 @@ import '../models/styles.dart';
 import '../services/entitlements.dart';
 import '../theme.dart';
 import '../widgets/sketch_icons.dart';
-import '../widgets/color_wheel.dart';
+import '../widgets/color_studio.dart';
 import '../widgets/countdown.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/lively_prompt.dart';
@@ -478,10 +478,9 @@ class _DrawToolbar extends StatelessWidget {
                   return _EraserChip(controller: controller);
                 }
                 if (index == _palette.length + 1) {
-                  return _WheelChip(
+                  return _OwnColourChip(
                     controller: controller,
-                    owned: unlocked || Entitlements.instance.hasStyles,
-                    custom: !controller.isErasing && !_palette.contains(controller.color),
+                    owned: unlocked || Entitlements.instance.hasStyles || ownColourOpenForTesting,
                   );
                 }
                 final color = _palette[index - 1];
@@ -529,10 +528,6 @@ class _DrawToolbar extends StatelessWidget {
               _SteadyChip(
                 controller: controller,
                 owned: unlocked || Entitlements.instance.hasSteadyHand,
-              ),
-              _FillChip(
-                controller: controller,
-                owned: unlocked || Entitlements.instance.hasStyles,
               ),
               const Icon(
                 Icons.brush_rounded,
@@ -588,94 +583,74 @@ class _DrawToolbar extends StatelessWidget {
   }
 }
 
-/// Fill: the shape you draw comes out solid. Pass-only, like the pens.
-class _FillChip extends StatelessWidget {
-  const _FillChip({required this.controller, required this.owned});
+/// While the tenth swatch is being tried out it is open to everyone. Flip
+/// this to false to put the gold lock on it for anyone without the pass.
+const ownColourOpenForTesting = true;
+
+/// The tenth swatch: the player's own colour, at the far right of the
+/// palette. Tap it to draw with it; the small button above it opens the
+/// picker. Grand Pass only -- locked, it wears a gold padlock and opens the
+/// pass sheet.
+class _OwnColourChip extends StatelessWidget {
+  const _OwnColourChip({required this.controller, required this.owned});
 
   final DrawingController controller;
   final bool owned;
 
   @override
   Widget build(BuildContext context) {
-    final on = owned && controller.fill && !controller.isErasing;
-    final fg = on ? const Color(0xFF241800) : GameColors.textPrimary;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Material(
-        color: on ? GameColors.primary : GameColors.surfaceHigh,
-        borderRadius: BorderRadius.circular(17),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(17),
-          onTap: owned
-              ? () => controller.fill = !controller.fill
-              : () => showUnlockSheet(context),
-          child: Opacity(
-            opacity: owned ? 1 : 0.6,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.format_color_fill_rounded, size: 16, color: fg),
-                  const SizedBox(width: 4),
-                  Text(
-                    'FILL',
-                    style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8),
-                  ),
-                  if (!owned) ...[
-                    const SizedBox(width: 3),
-                    SketchIcon(SketchGlyph.lock, size: 11, color: fg),
-                  ],
-                ],
+    final e = Entitlements.instance;
+    final colour = e.ownColour;
+    final selected = owned && !controller.isErasing && controller.color == colour;
+    Future<void> edit() async {
+      final picked = await showColorStudio(context, initial: colour);
+      if (picked == null) return;
+      await e.setOwnColour(picked);
+      controller.color = picked;
+    }
+    return SizedBox(
+      width: 44,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          GestureDetector(
+            onTap: owned ? () => controller.color = colour : () => showUnlockSheet(context),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: owned ? colour : GameColors.surfaceHigh,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? GameColors.primary : (owned ? GameColors.surfaceHigh : const Color(0xFFFFC53D)),
+                  width: selected ? 4 : 2,
+                ),
+              ),
+              child: owned
+                  ? null
+                  : const SketchIcon(SketchGlyph.lock, size: 15, color: Color(0xFFFFC53D)),
+            ),
+          ),
+          // The little button above: opens the picker.
+          Positioned(
+            top: -7,
+            right: -2,
+            child: GestureDetector(
+              onTap: owned ? edit : () => showUnlockSheet(context),
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: GameColors.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: GameColors.surface, width: 2),
+                ),
+                child: const Icon(Icons.tune_rounded, size: 10, color: Color(0xFF241800)),
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The colour wheel, at the end of the palette. Pass-only. Shows the
-/// custom colour once one is picked, so it reads as a tenth swatch.
-class _WheelChip extends StatelessWidget {
-  const _WheelChip({required this.controller, required this.owned, required this.custom});
-
-  final DrawingController controller;
-  final bool owned;
-  final bool custom;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: owned
-          ? () async {
-              final picked = await showColorWheel(context, initial: controller.color);
-              if (picked != null) controller.color = picked;
-            }
-          : () => showUnlockSheet(context),
-      child: Opacity(
-        opacity: owned ? 1 : 0.4,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: custom
-                ? null
-                : const SweepGradient(
-                    colors: [Color(0xFFE53935), Color(0xFFFDD835), Color(0xFF43A047), Color(0xFF1E88E5), Color(0xFF8E24AA), Color(0xFFE53935)],
-                  ),
-            color: custom ? controller.color : null,
-            border: Border.all(
-              color: custom ? GameColors.primary : GameColors.surfaceHigh,
-              width: custom ? 4 : 2,
-            ),
-          ),
-          child: owned
-              ? (custom ? null : const Icon(Icons.add_rounded, size: 18, color: Colors.white))
-              : const SketchIcon(SketchGlyph.lock, size: 15, color: Colors.white),
-        ),
+        ],
       ),
     );
   }
