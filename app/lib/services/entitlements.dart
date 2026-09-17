@@ -126,8 +126,8 @@ class Entitlements extends ChangeNotifier {
     _paper = PaperStyle.fromId(prefs.getString(_paperKey));
     _pen = PenStyle.fromId(prefs.getString(_penKey));
     final saved = prefs.getStringList(_paletteKey) ?? const [];
-    for (var i = 0; i < paletteSlots && i < saved.length; i++) {
-      final v = int.tryParse(saved[i]);
+    for (var i = 0; i < paletteSlots; i++) {
+      final v = i < saved.length ? int.tryParse(saved[i]) : null;
       _palette[i] = v == null ? null : Color(v);
     }
     notifyListeners();
@@ -210,9 +210,11 @@ class Entitlements extends ChangeNotifier {
     _paper = PaperStyle.free;
     _pen = PenStyle.free;
     final prefs = await SharedPreferences.getInstance();
+    _palette.fillRange(0, paletteSlots, null);
     await prefs.remove(_lifetimeKey);
     await prefs.remove(_dayPassKey);
     await prefs.remove(_thanksKey);
+    await prefs.remove(_paletteKey);
     await prefs.remove(_paperKey);
     await prefs.remove(_penKey);
     notifyListeners();

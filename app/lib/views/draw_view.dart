@@ -486,7 +486,9 @@ class _DrawToolbar extends StatelessWidget {
                 final locked = !unlocked &&
                     !_freeColors.contains(stock) &&
                     !e.hasFullPalette;
-                final canEdit = unlocked || e.hasStyles || paletteEditingOpenForTesting;
+                // Making a swatch yours is the Grand Pass and nothing else --
+                // not the daily's open palette, not a day pass.
+                final canEdit = e.hasLifetime;
                 final selected =
                     !controller.isErasing && controller.color == color;
                 return GestureDetector(
@@ -610,10 +612,6 @@ class _DrawToolbar extends StatelessWidget {
     );
   }
 }
-
-/// While making swatches your own is being tried out it is open to
-/// everyone. Flip this to false to put it behind the Grand Pass.
-const paletteEditingOpenForTesting = true;
 
 /// The one drawing aid: Steady Hand.
 ///

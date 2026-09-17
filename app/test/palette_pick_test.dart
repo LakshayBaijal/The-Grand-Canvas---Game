@@ -12,6 +12,8 @@ void main() {
   testWidgets('a picked colour is kept even when the picker is closed with the X', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await Entitlements.instance.load();
+    // The picker is the Grand Pass's; this player has it.
+    await Entitlements.instance.grantLifetime();
     await tester.pumpWidget(MaterialApp(
       home: DrawView(
         prompt: 'Draw a frog',
@@ -46,5 +48,29 @@ void main() {
     expect(Entitlements.instance.paletteColour(slot, Colors.red), const Color(0xFF123456));
     final box = tester.widget<Container>(swatch);
     expect((box.decoration! as BoxDecoration).color, const Color(0xFF123456), reason: 'the swatch shows it');
+  });
+
+  testWidgets('without the pass, holding a swatch offers the pass instead of the picker', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await Entitlements.instance.load();
+    await Entitlements.instance.reset();
+    await tester.pumpWidget(MaterialApp(
+      home: DrawView(
+        prompt: 'Draw a frog',
+        roundIndex: 0,
+        totalRounds: 1,
+        submitted: 0,
+        total: 1,
+        unlocked: true,
+        onSubmit: (_, _, _) {},
+      ),
+    ));
+    await tester.pump();
+    await tester.longPress(find.byKey(const ValueKey('swatch-2')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('YOUR COLOUR'), findsNothing, reason: 'no picker for a free player');
+    expect(find.text('GRAND PASS'), findsWidgets, reason: 'the pass sheet instead');
+    expect(Entitlements.instance.paletteIsCustom(2), isFalse);
   });
 }
