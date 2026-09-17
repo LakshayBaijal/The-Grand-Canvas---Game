@@ -102,13 +102,15 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('GET THE PASS'), findsOneWidget);
+    expect(find.text('GRAND PASS'), findsOneWidget, reason: 'the button on the menu');
     await shoot(tester, 'shop_home_top');
 
-    await tester.tap(find.text('GET THE PASS'));
+    await tester.tap(find.text('GRAND PASS'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('GRAND PASS'), findsOneWidget);
+    // The button underneath and the sheet's title: two now.
+    expect(find.text('GRAND PASS'), findsNWidgets(2));
+    expect(find.textContaining('GET THE GRAND PASS'), findsOneWidget);
     expect(find.text('EVERY PAPER'), findsOneWidget);
     expect(find.text('EVERY PEN'), findsOneWidget);
     expect(find.text('NO ADS'), findsOneWidget);

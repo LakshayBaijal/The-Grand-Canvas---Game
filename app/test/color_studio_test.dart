@@ -27,6 +27,7 @@ void main() {
     ));
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget, reason: 'a way out is always visible');
     expect(find.text('#1E88E5'), findsOneWidget, reason: 'hex field shows the current colour');
     expect(find.text('30'), findsOneWidget, reason: 'R');
     expect(find.text('136'), findsOneWidget, reason: 'G');
@@ -36,8 +37,9 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'HEX'), '#FF0000');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
-    await tester.tap(find.text('USE THIS COLOUR'));
+    await tester.tap(find.text('SAVE'));
     await tester.pumpAndSettle();
     expect(result, const Color(0xFFFF0000));
   });
 }
+

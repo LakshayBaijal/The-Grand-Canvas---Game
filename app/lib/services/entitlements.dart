@@ -33,16 +33,29 @@ class Entitlements extends ChangeNotifier {
   static const _thanksKey = 'thanks_pass_until';
   static const _paperKey = 'style_paper';
   static const _penKey = 'style_pen';
-  /// The player's own colour, as 0xAARRGGBB. Remembered so the tenth swatch
-  /// is the same colour tomorrow.
-  static const _ownColourKey = 'own_colour';
-  Color _ownColour = const Color(0xFF00BFA5);
-  Color get ownColour => _ownColour;
+  /// The palette, made yours: an override per slot, or null for the stock
+  /// colour. Grand Pass: hold a swatch, pick, and it is that colour from
+  /// then on -- in every game, until you change it back. Stored as one
+  /// string per slot so a new slot count never misreads an old phone.
+  static const _paletteKey = 'palette_overrides';
+  static const paletteSlots = 9;
+  final List<Color?> _palette = List<Color?>.filled(paletteSlots, null);
 
-  Future<void> setOwnColour(Color c) async {
-    _ownColour = c;
+  /// The colour slot [i] shows, given its stock colour.
+  Color paletteColour(int i, Color stock) => _palette[i] ?? stock;
+
+  /// Whether slot [i] has been made the player's own.
+  bool paletteIsCustom(int i) => _palette[i] != null;
+
+  /// Sets slot [i], or clears it back to stock when [c] is null or is the
+  /// stock colour itself.
+  Future<void> setPaletteColour(int i, Color? c, {required Color stock}) async {
+    _palette[i] = (c == null || c.toARGB32() == stock.toARGB32()) ? null : c;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_ownColourKey, c.toARGB32());
+    await prefs.setStringList(
+      _paletteKey,
+      [for (final v in _palette) v == null ? '' : v.toARGB32().toString()],
+    );
     notifyListeners();
   }
 
@@ -112,8 +125,11 @@ class Entitlements extends ChangeNotifier {
     _thanksUntilMs = prefs.getInt(_thanksKey) ?? 0;
     _paper = PaperStyle.fromId(prefs.getString(_paperKey));
     _pen = PenStyle.fromId(prefs.getString(_penKey));
-    final own = prefs.getInt(_ownColourKey);
-    if (own != null) _ownColour = Color(own);
+    final saved = prefs.getStringList(_paletteKey) ?? const [];
+    for (var i = 0; i < paletteSlots && i < saved.length; i++) {
+      final v = int.tryParse(saved[i]);
+      _palette[i] = v == null ? null : Color(v);
+    }
     notifyListeners();
   }
 

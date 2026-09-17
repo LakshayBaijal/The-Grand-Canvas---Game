@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/color_studio.dart';
 import '../widgets/countdown.dart';
+import '../widgets/grand_pass_mark.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/lively_prompt.dart';
 import '../widgets/paper_frame.dart';
@@ -471,22 +472,21 @@ class _DrawToolbar extends StatelessWidget {
             height: 44,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: _palette.length + 2,
+              itemCount: _palette.length + 1,
               separatorBuilder: (_, _) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return _EraserChip(controller: controller);
                 }
-                if (index == _palette.length + 1) {
-                  return _OwnColourChip(
-                    controller: controller,
-                    owned: unlocked || Entitlements.instance.hasStyles || ownColourOpenForTesting,
-                  );
-                }
-                final color = _palette[index - 1];
+                final slot = index - 1;
+                final stock = _palette[slot];
+                final e = Entitlements.instance;
+                final color = e.paletteColour(slot, stock);
+                final mine = e.paletteIsCustom(slot);
                 final locked = !unlocked &&
-                    !_freeColors.contains(color) &&
-                    !Entitlements.instance.hasFullPalette;
+                    !_freeColors.contains(stock) &&
+                    !e.hasFullPalette;
+                final canEdit = unlocked || e.hasStyles || paletteEditingOpenForTesting;
                 final selected =
                     !controller.isErasing && controller.color == color;
                 return GestureDetector(
@@ -495,6 +495,19 @@ class _DrawToolbar extends StatelessWidget {
                   onTap: locked
                       ? () => showUnlockSheet(context)
                       : () => controller.color = color,
+                  // Hold a swatch and it becomes yours: the picker opens over
+                  // the canvas, and whatever is saved is this slot's colour
+                  // from now on. Without the pass, the hold shows the offer.
+                  onLongPress: () async {
+                    if (!canEdit) {
+                      showUnlockSheet(context);
+                      return;
+                    }
+                    final picked = await showColorStudio(context, initial: color, resetTo: stock);
+                    if (picked == null) return;
+                    await e.setPaletteColour(slot, picked, stock: stock);
+                    if (selected || controller.color == color) controller.color = picked;
+                  },
                   child: Opacity(
                     opacity: locked ? 0.4 : 1,
                     child: Container(
@@ -503,11 +516,14 @@ class _DrawToolbar extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: color,
                         shape: BoxShape.circle,
+                        // Gold ring: this one is yours, not the stock colour.
                         border: Border.all(
                           color: selected
                               ? GameColors.primary
-                              : GameColors.surfaceHigh,
-                          width: selected ? 4 : 2,
+                              : mine
+                                  ? const Color(0xFFFFC53D)
+                                  : GameColors.surfaceHigh,
+                          width: selected ? 4 : mine ? 2.5 : 2,
                         ),
                       ),
                       child: locked
@@ -583,78 +599,9 @@ class _DrawToolbar extends StatelessWidget {
   }
 }
 
-/// While the tenth swatch is being tried out it is open to everyone. Flip
-/// this to false to put the gold lock on it for anyone without the pass.
-const ownColourOpenForTesting = true;
-
-/// The tenth swatch: the player's own colour, at the far right of the
-/// palette. Tap it to draw with it; the small button above it opens the
-/// picker. Grand Pass only -- locked, it wears a gold padlock and opens the
-/// pass sheet.
-class _OwnColourChip extends StatelessWidget {
-  const _OwnColourChip({required this.controller, required this.owned});
-
-  final DrawingController controller;
-  final bool owned;
-
-  @override
-  Widget build(BuildContext context) {
-    final e = Entitlements.instance;
-    final colour = e.ownColour;
-    final selected = owned && !controller.isErasing && controller.color == colour;
-    Future<void> edit() async {
-      final picked = await showColorStudio(context, initial: colour);
-      if (picked == null) return;
-      await e.setOwnColour(picked);
-      controller.color = picked;
-    }
-    return SizedBox(
-      width: 44,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          GestureDetector(
-            onTap: owned ? () => controller.color = colour : () => showUnlockSheet(context),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: owned ? colour : GameColors.surfaceHigh,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected ? GameColors.primary : (owned ? GameColors.surfaceHigh : const Color(0xFFFFC53D)),
-                  width: selected ? 4 : 2,
-                ),
-              ),
-              child: owned
-                  ? null
-                  : const SketchIcon(SketchGlyph.lock, size: 15, color: Color(0xFFFFC53D)),
-            ),
-          ),
-          // The little button above: opens the picker.
-          Positioned(
-            top: -7,
-            right: -2,
-            child: GestureDetector(
-              onTap: owned ? edit : () => showUnlockSheet(context),
-              child: Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: GameColors.primary,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: GameColors.surface, width: 2),
-                ),
-                child: const Icon(Icons.tune_rounded, size: 10, color: Color(0xFF241800)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+/// While making swatches your own is being tried out it is open to
+/// everyone. Flip this to false to put it behind the Grand Pass.
+const paletteEditingOpenForTesting = true;
 
 /// The one drawing aid: Steady Hand.
 ///
@@ -743,7 +690,7 @@ class _UnlockAllButton extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SketchIcon(SketchGlyph.palette, size: 17, color: Color(0xFF241800)),
+                GrandPassMark(size: 17),
                 SizedBox(width: 6),
                 Text(
                   'UNLOCK ALL',

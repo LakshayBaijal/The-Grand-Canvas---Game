@@ -4,7 +4,7 @@ import '../services/entitlements.dart';
 import '../services/store.dart';
 import '../theme.dart';
 import 'customize_sheet.dart';
-import 'sketch_icons.dart';
+import 'grand_pass_mark.dart';
 import 'unlock_sheet.dart';
 
 /// The pass, top-right of the home screen, before anything else.
@@ -46,14 +46,10 @@ class _PassButtonState extends State<PassButton>
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SketchIcon(
-                  SketchGlyph.sparkle,
-                  size: 14,
-                  color: GameColors.lime,
-                ),
+                GrandPassMark(size: 16),
                 SizedBox(width: 6),
                 Text(
-                  'PASS ✓',
+                  'GRAND PASS ✓',
                   style: TextStyle(
                     color: GameColors.lime,
                     fontSize: 11.5,
@@ -103,18 +99,14 @@ class _PassButtonState extends State<PassButton>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SketchIcon(
-                      SketchGlyph.sparkle,
-                      size: 16,
-                      color: Color(0xFF241800),
-                    ),
-                    const SizedBox(width: 6),
+                    const GrandPassMark(size: 20),
+                    const SizedBox(width: 7),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text(
-                          'GET THE PASS',
+                          'GRAND PASS',
                           style: TextStyle(
                             color: Color(0xFF241800),
                             fontSize: 11.5,

@@ -9,7 +9,7 @@ import 'package:bad_mental_canvas/widgets/grand_pass_mark.dart';
 import 'package:bad_mental_canvas/widgets/name_tag.dart';
 
 /// Renders the Grand Pass emblem to a PNG for a human to look at. Only
-/// writes when asked (EMBLEM_PREVIEW=<path>), like the icon test.
+/// writes when asked (`EMBLEM_PREVIEW=path`), like the icon test.
 void main() {
   testWidgets('emblem preview', (tester) async {
     final out = Platform.environment['EMBLEM_PREVIEW'];

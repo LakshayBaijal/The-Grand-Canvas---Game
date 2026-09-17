@@ -7,7 +7,6 @@ import '../services/store.dart';
 import '../theme.dart';
 import 'grand_pass_mark.dart';
 import 'customize_sheet.dart';
-import 'sketch_icons.dart';
 
 /// The one place the game asks for money or attention.
 ///
@@ -122,8 +121,16 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  const GrandPassMark(size: 24),
-                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF2A2140),
+                      boxShadow: GameDecor.glow(const Color(0xFFFFC53D), strength: 0.9),
+                    ),
+                    child: const GrandPassMark(size: 34),
+                  ),
+                  const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'GRAND PASS',
@@ -219,12 +226,13 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                 ),
               ),
               const _Perk(
-                label: 'YOUR OWN COLOUR',
+                label: 'YOUR OWN PALETTE',
                 note:
-                    'A tenth swatch that is whatever you want it to be. Pick '
-                    'it off a colour square, dial in RGB, or type a hex code '
-                    '-- the exact shade you meant, not the nearest of nine.',
-                child: SizedBox(height: 44, child: _OwnColourPicture()),
+                    'Hold any swatch and make it yours: pick off a colour '
+                    'square, dial in RGB, or type a hex code. Nine colours '
+                    'that are exactly the ones you meant, in every game, '
+                    'until you change them.',
+                child: SizedBox(height: 30, child: _OwnColourPicture()),
               ),
               const _Perk(
                 label: 'STEADY HAND',
@@ -260,11 +268,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                     letterSpacing: 1,
                   ),
                 ),
-                icon: const SketchIcon(
-                  SketchGlyph.lockOpen,
-                  size: 18,
-                  color: Color(0xFF241800),
-                ),
+                icon: const GrandPassMark(size: 20),
                 label: Text('GET THE GRAND PASS — ${store.passPrice}'),
               ),
 
@@ -571,53 +575,34 @@ class _SwatchRow extends StatelessWidget {
 }
 
 
-/// The tenth swatch, as a picture: nine fixed colours and one that is
-/// whatever you want, with the little picker button above it.
+/// Nine swatches, three of them made someone's own (gold ring), as the
+/// picture for the palette perk.
 class _OwnColourPicture extends StatelessWidget {
   const _OwnColourPicture();
 
   @override
   Widget build(BuildContext context) {
     const nine = [
-      Colors.black, Color(0xFFFDD835), Color(0xFFE53935), Color(0xFFFB8C00), Color(0xFF43A047),
-      Color(0xFF1E88E5), Color(0xFF8E24AA), Color(0xFF6D4C41), Colors.white,
+      Colors.black, Color(0xFFFDD835), Color(0xFFFF7043), Color(0xFFFB8C00), Color(0xFF00BFA5),
+      Color(0xFF1E88E5), Color(0xFFB39DDB), Color(0xFF6D4C41), Colors.white,
     ];
+    const mine = {2, 4, 6};
     return Row(
       children: [
-        for (final c in nine)
+        for (var i = 0; i < nine.length; i++)
           Container(
-            width: 18,
-            height: 18,
-            margin: const EdgeInsets.only(right: 5),
-            decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: GameColors.surfaceHigh)),
+            width: 24,
+            height: 24,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              color: nine[i],
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: mine.contains(i) ? const Color(0xFFFFC53D) : GameColors.surfaceHigh,
+                width: mine.contains(i) ? 2.5 : 1.5,
+              ),
+            ),
           ),
-        const SizedBox(width: 4),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const SweepGradient(colors: [
-                  Color(0xFFE53935), Color(0xFFFDD835), Color(0xFF43A047), Color(0xFF1E88E5), Color(0xFF8E24AA), Color(0xFFE53935),
-                ]),
-                border: Border.all(color: GameColors.primary, width: 2),
-              ),
-            ),
-            Positioned(
-              top: -6,
-              right: -4,
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: const BoxDecoration(color: GameColors.primary, shape: BoxShape.circle),
-                child: const Icon(Icons.tune_rounded, size: 8, color: Color(0xFF241800)),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/entitlements.dart';
 import '../services/store.dart';
 import '../theme.dart';
+import 'grand_pass_mark.dart';
 import 'unlock_sheet.dart';
 
 /// The after-game offer: a short video for the day's colours and Steady
@@ -54,40 +55,51 @@ class _OfferStripState extends State<OfferStrip> {
         final e = Entitlements.instance;
         if (e.hasLifetime) return const SizedBox.shrink();
         final active = e.hasFullPalette;
+        final line = _note ?? (active ? 'Colours and Steady Hand are yours until midnight.' : null);
         return Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-          decoration: GameDecor.panel(accent: GameColors.pink, radius: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          decoration: GameDecor.panel(accent: GameColors.pink, radius: 14),
+          child: Row(
             children: [
-              if (active || _note != null)
-                Text(
-                  _note ?? 'Every colour and Steady Hand are yours until midnight.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                )
-              else
-                FilledButton.icon(
-                  onPressed: _busy ? null : _watch,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: GameColors.pink,
-                    foregroundColor: const Color(0xFF2A0A1A),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+              if (line != null)
+                Expanded(
+                  child: Text(
+                    line,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                   ),
-                  icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
-                  label: const Text(
-                    'WATCH A SHORT VIDEO → EVERY COLOUR + STEADY HAND UNTIL MIDNIGHT',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, letterSpacing: 0.4),
+                )
+              else ...[
+                const Icon(Icons.play_circle_outline_rounded, size: 20, color: GameColors.pink),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _busy ? null : _watch,
+                    behavior: HitTestBehavior.opaque,
+                    child: Text(
+                      _busy ? 'Loading the video…' : 'Watch a video → every colour + Steady Hand until midnight',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, height: 1.25),
+                    ),
                   ),
                 ),
-              const SizedBox(height: 6),
-              TextButton(
-                onPressed: () => showUnlockSheet(context),
-                child: Text(
-                  'Or the Grand Pass — ${store.passPrice}, once, forever',
-                  style: const TextStyle(color: GameColors.textMuted, fontSize: 12.5),
+              ],
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () => showUnlockSheet(context),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const GrandPassMark(size: 15),
+                      const SizedBox(width: 4),
+                      Text(
+                        store.passPrice,
+                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: GameColors.primary),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
