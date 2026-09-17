@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — Grand Pass, landscape (28s)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center;
+           transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 22px; opacity: 0;
+        box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer;
+           background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start">
+    <div>
+      <b>GRAND PASS</b>
+      <span>28 second spot &middot; 1920&times;1080<br><br>
+        <kbd>click</kbd> or <kbd>space</kbd> to play<br>
+        <kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span>
+    </div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script src="drawings.js"></script>
+<script>
+/**
+ * The Grand Pass film, landscape: the same seven scenes as pass.html laid
+ * out for 1920x1080, with a different drawing in the split so the two cuts
+ * don't repeat each other. Twenty-eight seconds, for the people who
+ * already play: what the pass is, shown rather than listed, and what it
+ * costs, which is the punchline.
+ *
+ *   0.0   the emblem        gold, a burst, the name
+ *   2.6   free vs pass      one prompt, two drawings, side by side
+ *   9.0   colours           nine, then one made your own
+ *  13.0   pens              eight of them, one sweep each
+ *  17.2   papers            seven sheets, fanned
+ *  20.4   steady · no ads   a wobble snaps clean; the banner leaves; the crown
+ *  23.4   the price         149. In dollars, less than two.
+ *
+ * Everything in it is a real feature at a real size; the bluff is in the
+ * lighting, not the claims.
+ */
+const W2 = 1920, H2 = 1080;
+const T = { split: 2.6, colours: 9.0, pens: 13.0, papers: 17.2, steady: 20.4, price: 23.4, end: 28.0 };
+const GOLD = '#FFC53D', GOLD_DEEP = '#B8860B', GEM = '#FF4F9A';
+
+// --- the emblem: laurel, crown, gems -----------------------------------------
+function emblem(cx, cy, s, alpha = 1, spin = 0) {
+  g.save(); g.translate(cx, cy); g.rotate(spin); g.globalAlpha = alpha;
+  const w = s * 1.25, h = s;
+  for (const side of [-1, 1]) for (let i = 0; i < 5; i++) {
+    const a = Math.PI / 2 + side * (0.28 + i * 0.30), r = w * .42;
+    const px = Math.cos(a) * r, py = Math.sin(a) * r * .9 + h * .06;
+    g.save(); g.translate(px, py); g.rotate(a + Math.PI / 2);
+    g.fillStyle = GOLD; g.beginPath(); g.moveTo(0, -h * .13); g.quadraticCurveTo(h * .09, 0, 0, h * .13); g.quadraticCurveTo(-h * .09, 0, 0, -h * .13); g.fill();
+    g.strokeStyle = GOLD_DEEP; g.lineWidth = h * .05; g.beginPath(); g.moveTo(0, -h * .11); g.lineTo(0, h * .11); g.stroke();
+    g.restore();
+  }
+  const cw = w * .44, ch = h * .46, left = -cw / 2, top = -ch * .49;
+  const grad = g.createLinearGradient(0, top, 0, top + ch); grad.addColorStop(0, '#FFE08A'); grad.addColorStop(.5, GOLD); grad.addColorStop(1, GOLD_DEEP);
+  g.beginPath(); g.moveTo(left, top + ch); g.lineTo(left, top + ch * .35); g.lineTo(left + cw * .25, top + ch * .6); g.lineTo(left + cw * .5, top);
+  g.lineTo(left + cw * .75, top + ch * .6); g.lineTo(left + cw, top + ch * .35); g.lineTo(left + cw, top + ch); g.closePath();
+  g.fillStyle = grad; g.fill(); g.strokeStyle = '#3A2800'; g.lineWidth = h * .06; g.lineJoin = 'round'; g.stroke();
+  g.fillStyle = 'rgba(184,134,11,.55)'; g.fillRect(left, top + ch * .78, cw, ch * .22);
+  g.fillStyle = GEM;
+  g.beginPath(); g.arc(left + cw * .5, top + ch * .62, h * .07, 0, 7); g.fill();
+  g.beginPath(); g.arc(left + cw * .2, top + ch * .8, h * .05, 0, 7); g.fill();
+  g.beginPath(); g.arc(left + cw * .8, top + ch * .8, h * .05, 0, 7); g.fill();
+  g.restore();
+}
+
+// --- pens beyond the engine's three --------------------------------------------
+function fancyStroke(pts, upto, color, width, style, ox, oy, scale) {
+  const n = Math.max(2, Math.min(pts.length, Math.ceil(pts.length * upto)));
+  const P = i => ({ x: ox + pts[i].x * scale, y: oy + pts[i].y * scale });
+  const path = (dx = 0, dy = 0) => { g.beginPath(); for (let i = 0; i < n; i++) { const p = P(i); i ? g.lineTo(p.x + dx, p.y + dy) : g.moveTo(p.x + dx, p.y + dy); } };
+  const base = (ws = 1, alpha = 1) => { g.strokeStyle = color; g.globalAlpha = alpha; g.lineWidth = width * ws; g.lineCap = 'round'; g.lineJoin = 'round'; };
+  g.save();
+  if (style === 'pencil') { base(.62, .55); path(); g.stroke(); base(.4, .3); path(.6, -.6); g.stroke(); }
+  else if (style === 'brush') { base(1.9, .22); g.shadowColor = color; g.shadowBlur = width * .9; path(); g.stroke(); g.shadowBlur = 0; base(.85); path(); g.stroke(); }
+  else if (style === 'ink') {
+    g.fillStyle = color; const half = width * .75, nib = Math.PI / 4;
+    for (let i = 1; i < n; i++) { const a = P(i - 1), b = P(i), d = { x: b.x - a.x, y: b.y - a.y }; if (Math.hypot(d.x, d.y) < .01) continue;
+      const ang = Math.atan2(d.y, d.x), w = half * (.18 + .82 * Math.abs(Math.sin(ang - nib))), nx = Math.cos(nib + Math.PI / 2) * w, ny = Math.sin(nib + Math.PI / 2) * w;
+      g.beginPath(); g.moveTo(a.x + nx, a.y + ny); g.lineTo(b.x + nx, b.y + ny); g.lineTo(b.x - nx, b.y - ny); g.lineTo(a.x - nx, a.y - ny); g.closePath(); g.fill();
+      g.beginPath(); g.arc(b.x, b.y, w * .9, 0, 7); g.fill(); }
+  }
+  else if (style === 'neon') { base(3.2, .3); g.shadowColor = color; g.shadowBlur = width * 2.2; path(); g.stroke(); base(1.6, .75); g.shadowBlur = width * .8; path(); g.stroke(); g.shadowBlur = 0; g.strokeStyle = '#FFFFFF'; g.globalAlpha = .9; g.lineWidth = width * .5; path(); g.stroke(); }
+  else if (style === 'rainbow') { for (let i = 1; i < n; i++) { const a = P(i - 1), b = P(i); g.strokeStyle = `hsl(${(i / n) * 360} 90% 60%)`; g.lineWidth = width; g.lineCap = 'round'; g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke(); } }
+  else if (style === 'spray') { const r = rng(77); g.fillStyle = color; g.globalAlpha = .55; for (let i = 0; i < n; i++) { const p = P(i); for (let k = 0; k < 9; k++) { const a = r() * 6.28, d = Math.sqrt(r()) * width * 1.4; g.beginPath(); g.arc(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, width * (.06 + r() * .1), 0, 7); g.fill(); } } }
+  else { g.restore(); return strokePath(pts, upto, color, width, style, ox, oy, scale); }
+  g.restore(); g.globalAlpha = 1;
+  return pts[n - 1];
+}
+
+// --- the drawing, twice ------------------------------------------------------
+const PROMPT = DRAWINGS.deskCat.prompt;
+function schedule(list, t0, t1) {
+  const len = s => s.pts.reduce((a, p, i) => i ? a + Math.hypot(p.x - s.pts[i-1].x, p.y - s.pts[i-1].y) : 0, 0);
+  const w = list.map(s => Math.max(.06, len(s) * 2.2) + .04), tot = w.reduce((a, b) => a + b, 0);
+  let t = t0; list.forEach((s, i) => { const d = (w[i] / tot) * (t1 - t0); s.t0 = t; s.t1 = t + d * .82; t += d; });
+  return list;
+}
+// Free: everything in black, thin, and with a shakier hand.
+const FREE = schedule(buildDrawing('deskCat').map(s => ({ ...s, pts: wobble(s.pts, 4.2), color: C.ink, width: s.width * .7, style: 'pen' })), T.split + .5, T.split + 5.2);
+// Pass: the same lines, but every one in a colour, the accents lit, the
+// outlines in a broad marker. The bluff is the lighting; the drawing is the
+// same drawing.
+const RICH = ['#1E88E5', '#43A047', '#FB8C00', C.pink, '#8E24AA', C.cyan];
+const PASS = schedule(buildDrawing('deskCat').map((s, i) => {
+  if (s.color !== C.ink) return { ...s, style: 'neon', width: s.width * 1.1 };
+  const long = s.pts.length > 12;
+  return { ...s, color: long ? RICH[i % RICH.length] : '#1A1A1A', style: long ? 'marker' : 'pen', width: s.width * (long ? 1.35 : 1.1) };
+}), T.split + .5, T.split + 5.2);
+
+function paper(px, py, size, kind = 'plain', pop = 1, hgt = size) {
+  g.save(); g.translate(px + size / 2, py + size / 2); g.scale(pop, pop); g.translate(-(px + size / 2), -(py + size / 2));
+  g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 40; g.shadowOffsetY = 16;
+  const base = { plain: C.paper, graph: '#F7F6EF', ruled: '#FCFBF4', dots: '#F8F5EC', kraft: '#E8D3AE', sticky: '#FFF07A', parchment: '#EBDCB4', canvas: '#F3EEE2' }[kind] || C.paper;
+  g.fillStyle = base; g.fillRect(px, py, size, hgt); g.shadowColor = 'transparent'; g.shadowOffsetY = 0;
+  g.save(); g.beginPath(); g.rect(px, py, size, hgt); g.clip();
+  paintPaper(px, py, size, hgt); g.fillStyle = base; g.globalAlpha = .55; g.fillRect(px, py, size, hgt); g.globalAlpha = 1;
+  const step = size / 14; g.lineWidth = Math.max(1, size / 420);
+  if (kind === 'graph') { g.strokeStyle = 'rgba(111,168,199,.3)'; for (let x = step; x < size; x += step) { g.beginPath(); g.moveTo(px + x, py); g.lineTo(px + x, py + size); g.stroke(); } for (let y = step; y < size; y += step) { g.beginPath(); g.moveTo(px, py + y); g.lineTo(px + size, py + y); g.stroke(); } }
+  if (kind === 'ruled') { g.strokeStyle = 'rgba(127,166,196,.38)'; for (let y = step * 1.5; y < size; y += step) { g.beginPath(); g.moveTo(px, py + y); g.lineTo(px + size, py + y); g.stroke(); } g.strokeStyle = 'rgba(226,139,139,.5)'; g.beginPath(); g.moveTo(px + size * .13, py); g.lineTo(px + size * .13, py + size); g.stroke(); }
+  if (kind === 'dots') { g.fillStyle = 'rgba(138,133,121,.42)'; for (let x = step; x < size; x += step) for (let y = step; y < size; y += step) { g.beginPath(); g.arc(px + x, py + y, size / 320, 0, 7); g.fill(); } }
+  if (kind === 'parchment') { const rg = g.createRadialGradient(px + size / 2, py + size / 2, size * .3, px + size / 2, py + size / 2, size * .75); rg.addColorStop(0, 'rgba(176,138,78,0)'); rg.addColorStop(1, 'rgba(176,138,78,.3)'); g.fillStyle = rg; g.fillRect(px, py, size, size); }
+  if (kind === 'canvas') { g.strokeStyle = 'rgba(183,174,154,.22)'; const wv = size / 90; for (let x = 0; x < size; x += wv) { g.beginPath(); g.moveTo(px + x, py); g.lineTo(px + x, py + size); g.stroke(); } for (let y = 0; y < size; y += wv) { g.beginPath(); g.moveTo(px, py + y); g.lineTo(px + size, py + y); g.stroke(); } }
+  g.restore(); g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, size - 2, hgt - 2);
+  g.restore();
+}
+function drawInto(list, t, px, py, size, useFancy) {
+  let tip = null;
+  for (const s of list) { if (t < s.t0) break; const u = win(t, s.t0, s.t1);
+    const end = (useFancy ? fancyStroke : strokePath)(s.pts, u, s.color, s.width * (size / 380) * .55, s.style, px, py, size);
+    if (u < 1) tip = end; }
+  return tip;
+}
+function chip(x, y, w, h, label, size, colour = C.muted, fill = C.surface) {
+  g.fillStyle = fill; roundRect(x, y, w, h, h / 2); g.fill(); g.strokeStyle = C.border; g.lineWidth = 3; g.stroke();
+  text(label, x + w / 2, y + h / 2, size, colour, { spacing: 3 });
+}
+function caption(str, t, from, to, y = 985) {
+  const a = easeOut(win(t, from, from + .25)) * (1 - win(t, to - .2, to));
+  if (a <= 0) return; text(str, 960, y, 34, GOLD, { spacing: 5, alpha: a, weight: 900 });
+}
+function sub(str, t, from, to, y = 1035) {
+  const a = easeOut(win(t, from, from + .25)) * (1 - win(t, to - .2, to));
+  if (a <= 0) return; text(str, 960, y, 26, C.muted, { alpha: a, weight: 700 });
+}
+const BURST = (() => { const r = rng(5); return Array.from({ length: 70 }, () => ({ a: r() * 6.28, v: 500 + r() * 700, s: 6 + r() * 12, c: [GOLD, '#FFE08A', GEM, C.text][Math.floor(r() * 4)] })); })();
+
+// --- scenes ------------------------------------------------------------------
+function sceneOpen(t) {
+  const a = 1 - win(t, T.split - .3, T.split);
+  const s = back(win(t, .05, .6));
+  const bg = g.createRadialGradient(960, 430, 0, 960, 430, 700); bg.addColorStop(0, `rgba(255,197,61,${.35 * easeOut(win(t, 0, .8))})`); bg.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  for (const p of BURST) { const ct = t - .35; if (ct < 0) continue; const drag = 1 - Math.exp(-ct * 2.6);
+    const X = 960 + Math.cos(p.a) * p.v * drag, Y = 430 + Math.sin(p.a) * p.v * drag + ct * ct * 300;
+    g.globalAlpha = a * (1 - win(ct, .9, 1.5)); g.fillStyle = p.c; g.beginPath(); g.arc(X, Y, p.s / 2, 0, 7); g.fill(); }
+  g.globalAlpha = a;
+  g.shadowColor = 'rgba(255,197,61,.8)'; g.shadowBlur = 80 * s;
+  emblem(960, 430, 260 * s, a, (1 - s) * .4); g.shadowBlur = 0;
+  const w = easeOut(win(t, .55, .95));
+  text('GRAND PASS', 960, 720 + (1 - w) * 40, 104, GOLD, { spacing: 10, glow: 40, alpha: a * w });
+  const w2 = easeOut(win(t, .9, 1.3));
+  text('everything in the game, forever', 960, 810, 40, C.text, { weight: 700, alpha: a * w2 });
+  g.globalAlpha = 1;
+}
+
+function sceneSplit(t) {
+  const a = easeOut(win(t, T.split, T.split + .25)) * (1 - win(t, T.colours - .25, T.colours));
+  if (a <= 0) return; g.globalAlpha = a;
+  promptText(960, 92, 1500, 42, 999, PROMPT);
+  const S = 560, Y = 250, XL = 300, XR = 1060;
+  const popL = back(win(t, T.split + .1, T.split + .5)), popR = back(win(t, T.split + .25, T.split + .65));
+  if (popL > 0) { paper(XL, Y, S, 'plain', popL); g.save(); drawInto(FREE, t, XL, Y, S, false); g.restore(); }
+  if (popR > 0) { paper(XR, Y, S, 'parchment', popR); g.save(); drawInto(PASS, t, XR, Y, S, true); g.restore(); }
+  chip(XL + 135, Y - 70, 290, 56, 'FREE', 26, C.muted);
+  g.fillStyle = GOLD; roundRect(XR + 105, Y - 70, 350, 56, 28); g.fill(); emblem(XR + 150, Y - 42, 30); text('GRAND PASS', XR + 295, Y - 42, 24, C.onPrimary, { spacing: 3 });
+  // verdicts
+  const v = easeOut(win(t, T.split + 5.4, T.split + 5.8));
+  if (v > 0) {
+    g.globalAlpha = a * v;
+    text('black & yellow · a shaky hand', XL + S / 2, Y + S + 60, 28, C.muted, { weight: 700 });
+    text('every colour · neon · parchment · steady lines', XR + S / 2, Y + S + 60, 28, GOLD, { weight: 700 });
+    g.globalAlpha = a;
+  }
+  g.globalAlpha = 1;
+  caption('SAME PROMPT. NOT THE SAME DRAWING.', t, T.split + .4, T.colours);
+  sub('the pass is what the right side has', t, T.split + 5.6, T.colours);
+}
+
+const SW = [C.ink, '#FDD835', '#E53935', '#FB8C00', '#43A047', '#1E88E5', '#8E24AA', '#6D4C41', '#FFFFFF'];
+function sceneColours(t) {
+  const a = easeOut(win(t, T.colours, T.colours + .25)) * (1 - win(t, T.pens - .25, T.pens));
+  if (a <= 0) return; g.globalAlpha = a;
+  text('EVERY COLOUR', 960, 170, 70, GOLD, { spacing: 6, glow: 30 });
+  const R = 46, GAP = 124, x0 = 960 - GAP * 4;
+  const held = 4, hold = win(t, T.colours + 1.6, T.colours + 2.1), picked = t >= T.colours + 2.7;
+  SW.forEach((c, i) => {
+    const pop = back(win(t, T.colours + .15 + i * .09, T.colours + .5 + i * .09)); if (pop <= 0) return;
+    const x = x0 + i * GAP, y = 330;
+    const col = (i === held && picked) ? '#00BFA5' : c;
+    g.save(); g.translate(x, y); g.scale(pop, pop);
+    if (i === held && hold > 0 && !picked) { g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 6; g.beginPath(); g.arc(0, 0, R + 18 + hold * 10, -Math.PI / 2, -Math.PI / 2 + hold * 6.28); g.stroke(); }
+    g.fillStyle = col; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill();
+    g.strokeStyle = (i === held && picked) ? GOLD : C.border; g.lineWidth = (i === held && picked) ? 8 : 4; g.stroke();
+    g.restore();
+  });
+  // the picker card
+  const pk = back(win(t, T.colours + 2.1, T.colours + 2.5)) * (1 - win(t, T.colours + 2.75, T.colours + 2.95));
+  if (pk > 0) {
+    g.save(); g.translate(960, 660); g.scale(pk * .82, pk * .82); g.globalAlpha = a * clamp(pk, 0, 1);
+    g.fillStyle = C.surface; roundRect(-330, -250, 660, 500, 28); g.fill(); g.strokeStyle = GOLD; g.lineWidth = 4; g.stroke();
+    text('YOUR COLOUR', -300, -205, 26, C.muted, { align: 'left', spacing: 3 });
+    const sq = g.createLinearGradient(-300, 0, 40, 0); sq.addColorStop(0, '#fff'); sq.addColorStop(1, '#00BFA5'); g.fillStyle = sq; g.fillRect(-300, -160, 340, 300);
+    const dk = g.createLinearGradient(0, -160, 0, 140); dk.addColorStop(0, 'rgba(0,0,0,0)'); dk.addColorStop(1, '#000'); g.fillStyle = dk; g.fillRect(-300, -160, 340, 300);
+    const hue = g.createLinearGradient(0, -160, 0, 140); for (let h = 0; h <= 6; h++) hue.addColorStop(h / 6, `hsl(${h * 60} 100% 50%)`); g.fillStyle = hue; g.fillRect(70, -160, 34, 300);
+    g.fillStyle = '#00BFA5'; g.fillRect(140, -160, 160, 70); g.fillStyle = SW[held]; g.fillRect(140, -90, 160, 70);
+    text('new', 220, -180, 20, C.muted); text('current', 220, 0, 20, C.muted);
+    text('R 0   G 191   B 165', -300, 180, 26, C.text, { align: 'left', weight: 700 }); text('#00BFA5', 300, 180, 26, GOLD, { align: 'right', weight: 900 });
+    const c = { x: -300 + 340 * .99, y: -160 + 300 * .25 }; g.strokeStyle = '#fff'; g.lineWidth = 4; g.beginPath(); g.arc(c.x, c.y, 12, 0, 7); g.stroke();
+    g.restore();
+  }
+  const own = easeOut(win(t, T.colours + 2.8, T.colours + 3.1));
+  text('+ ANY COLOUR YOU WANT', 960, 640, 54, C.text, { spacing: 4, alpha: a * own, weight: 900 });
+  text('hold a swatch · pick · it stays yours', 960, 705, 30, C.muted, { alpha: a * own, weight: 700 });
+  g.globalAlpha = 1;
+  caption('NINE COLOURS, AND YOUR OWN', t, T.colours + .4, T.pens);
+}
+
+const PENS = [['MARKER', 'marker', C.pink], ['CRAYON', 'crayon', '#FB8C00'], ['PENCIL', 'pencil', C.ink], ['BRUSH', 'brush', '#1E88E5'], ['INK', 'ink', '#1A1A1A'], ['NEON', 'neon', C.cyan], ['RAINBOW', 'rainbow', C.pink], ['SPRAY', 'spray', '#8E24AA']];
+const SWEEP = Array.from({ length: 40 }, (_, i) => { const u = i / 39; return { x: .06 + .66 * u, y: .035 * Math.sin(u * Math.PI * 2) }; });
+function scenePens(t) {
+  const a = easeOut(win(t, T.pens, T.pens + .25)) * (1 - win(t, T.papers - .25, T.papers));
+  if (a <= 0) return; g.globalAlpha = a;
+  text('EIGHT PENS', 960, 150, 70, GOLD, { spacing: 6, glow: 30 });
+  paper(210, 250, 1500, 'plain', 1, 640);
+  PENS.forEach(([label, style, col], i) => {
+    const t0 = T.pens + .3 + i * .42, u = win(t, t0, t0 + .36); if (u <= 0) return;
+    const col2 = i % 2, row = Math.floor(i / 2), x = 250 + col2 * 740, y = 340 + row * 150;
+    g.save(); fancyStroke(SWEEP, u, col, 22, style, x, y, 760); g.restore();
+    text(label, x + 700, y, 24, C.ink, { align: 'right', spacing: 2, alpha: a * easeOut(u), weight: 900 });
+  });
+  g.globalAlpha = 1;
+  caption('FROM PENCIL TO NEON', t, T.pens + .4, T.papers);
+}
+
+const PAPERS_LIST = ['graph', 'ruled', 'dots', 'kraft', 'sticky', 'parchment', 'canvas'];
+function scenePapers(t) {
+  const a = easeOut(win(t, T.papers, T.papers + .25)) * (1 - win(t, T.steady - .25, T.steady));
+  if (a <= 0) return; g.globalAlpha = a;
+  text('SEVEN PAPERS', 960, 170, 70, GOLD, { spacing: 6, glow: 30 });
+  const S = 236;
+  PAPERS_LIST.forEach((k, i) => {
+    const pop = back(win(t, T.papers + .15 + i * .14, T.papers + .5 + i * .14)); if (pop <= 0) return;
+    const x = 78 + i * 254, y = 400;
+    paper(x, y, S, k, pop);
+    text(k.toUpperCase(), x + S / 2, y + S + 34, 24, C.muted, { spacing: 3, alpha: a * clamp(pop, 0, 1) });
+  });
+  g.globalAlpha = 1;
+  caption('EVERYONE SEES YOUR SHEET', t, T.papers + .4, T.steady);
+}
+
+const WOBBLE = (() => { const r = rng(21); return Array.from({ length: 64 }, (_, i) => { const a = i / 63 * 6.28; const w = 1 + (r() - .5) * .22; return { x: .5 + Math.cos(a) * .3 * w, y: .5 + Math.sin(a) * .3 * w }; }); })();
+const PERFECT = Array.from({ length: 64 }, (_, i) => { const a = i / 63 * 6.28; return { x: .5 + Math.cos(a) * .3, y: .5 + Math.sin(a) * .3 }; });
+function sceneSteady(t) {
+  const a = easeOut(win(t, T.steady, T.steady + .25)) * (1 - win(t, T.price - .25, T.price));
+  if (a <= 0) return; g.globalAlpha = a;
+  // steady hand
+  const S = 400, X = 130, Y = 250;
+  paper(X, Y, S, 'plain', 1);
+  const drawU = win(t, T.steady + .2, T.steady + 1.1), snap = win(t, T.steady + 1.45, T.steady + 1.6);
+  const pts = snap > 0 ? PERFECT.map((p, i) => ({ x: lerp(WOBBLE[i].x, p.x, easeOut(snap)), y: lerp(WOBBLE[i].y, p.y, easeOut(snap)) })) : WOBBLE;
+  g.save(); strokePath(pts, snap > 0 ? 1 : drawU, C.ink, 10, 'pen', X, Y, S); g.restore();
+  if (snap > 0 && snap < 1.01) { g.strokeStyle = GOLD; g.lineWidth = 8; g.globalAlpha = a * (1 - win(t, T.steady + 1.6, T.steady + 2.1)); g.beginPath(); g.arc(X + S / 2, Y + S / 2, S * .3 + 30 * win(t, T.steady + 1.45, T.steady + 2.1), 0, 7); g.stroke(); g.globalAlpha = a; }
+  chip(X + 30, Y - 80, 340, 60, 'STEADY HAND', 26, GOLD);
+  text(snap > 0 ? 'hold still → snaps clean' : 'draw a circle…', X + S / 2, Y + S + 52, 28, C.muted, { weight: 700 });
+  // no ads
+  const bx = 640, by = 380, slide = easeOut(win(t, T.steady + 1.2, T.steady + 1.7));
+  g.save(); g.beginPath(); g.rect(bx - 20, by - 200, 500, 420); g.clip();
+  g.fillStyle = '#2A2140'; roundRect(bx, by + slide * 260, 440, 100, 12); g.fill();
+  text('AD · 320×50 · tap to learn more', bx + 220, by + 50 + slide * 260, 22, '#7C74B0', { weight: 700 });
+  g.restore();
+  const na = easeOut(win(t, T.steady + 1.5, T.steady + 1.9));
+  text('NO ADS', bx + 220, by + 40, 70, GOLD, { spacing: 6, glow: 30, alpha: a * na });
+  text('the banner is gone for good', bx + 220, by + 110, 26, C.muted, { alpha: a * na, weight: 700 });
+  // the crown by the name
+  const fl = back(win(t, T.steady + 2.0, T.steady + 2.45));
+  if (fl > 0) {
+    g.save(); g.translate(1500, 440); g.scale(fl * .72, fl * .72); g.globalAlpha = a * clamp(fl, 0, 1);
+    g.fillStyle = C.surface; roundRect(-440, -70, 880, 140, 30); g.fill(); g.strokeStyle = GOLD; g.lineWidth = 4; g.stroke();
+    g.fillStyle = GOLD; g.beginPath(); g.arc(-360, 0, 44, 0, 7); g.fill(); text('L', -360, 2, 44, C.onPrimary);
+    g.strokeStyle = GOLD; g.lineWidth = 6; g.beginPath(); g.arc(-360, 0, 54, 0, 7); g.stroke();
+    text('LAKSHAY', -280, 0, 46, C.text, { align: 'left', spacing: 3 });
+    emblem(40, -2, 52); text('1,284', 400, 0, 40, GOLD, { align: 'right' });
+    g.restore();
+  }
+  const fu = easeOut(win(t, T.steady + 2.3, T.steady + 2.7));
+  text('THE CROWN BY YOUR NAME. EVERYONE SEES IT.', 1500, 560, 22, C.text, { weight: 800, spacing: 2, alpha: a * fu });
+  g.globalAlpha = 1;
+  caption('STEADY HAND · NO ADS · THE CROWN', t, T.steady + .4, T.price);
+}
+
+function scenePrice(t) {
+  const u = win(t, T.price, T.price + .5);
+  const glow = g.createRadialGradient(960, 540, 0, 960, 540, 1000); glow.addColorStop(0, `rgba(255,197,61,${.4 * easeOut(u)})`); glow.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  const s = back(win(t, T.price + .04, T.price + .5));
+  g.shadowColor = 'rgba(255,197,61,.8)'; g.shadowBlur = 60; emblem(600, 300, 220 * s); g.shadowBlur = 0;
+  text('GRAND PASS', 600, 490, 64, GOLD, { spacing: 8, glow: 30, alpha: easeOut(win(t, T.price + .2, T.price + .5)) });
+  const pu = back(win(t, T.price + .45, T.price + .95));
+  if (pu > 0) { g.save(); g.translate(600, 700); g.scale(pu, pu); text('₹149', 0, 0, 240, C.text, { glow: 40, weight: 900 }); g.restore(); }
+  const du = easeOut(win(t, T.price + .9, T.price + 1.25));
+  text('≈ $1.79  ·  once, forever', 600, 860, 44, GOLD, { weight: 800, spacing: 3, alpha: du });
+  const cu = easeOut(win(t, T.price + 1.2, T.price + 1.55));
+  text('less than a coffee.', 1380, 330, 40, C.text, { weight: 800, alpha: cu });
+  text('every colour, every pen, every paper,', 1380, 400, 30, C.muted, { weight: 700, alpha: cu });
+  text('your own palette, Steady Hand,', 1380, 444, 30, C.muted, { weight: 700, alpha: cu });
+  text('no ads, and the crown by your name.', 1380, 488, 30, C.muted, { weight: 700, alpha: cu });
+  const bu = back(win(t, T.price + 1.5, T.price + 1.95));
+  if (bu > 0) { g.save(); g.translate(1380, 640); g.scale(bu, bu); g.globalAlpha = clamp(bu, 0, 1);
+    g.shadowColor = 'rgba(255,197,61,.6)'; g.shadowBlur = 50; g.fillStyle = GOLD; roundRect(-360, -64, 720, 128, 64); g.fill(); g.shadowColor = 'transparent';
+    emblem(-250, 0, 54); text('GET THE GRAND PASS', 40, 2, 40, C.onPrimary, { spacing: 3 }); g.restore(); }
+  const lu = easeOut(win(t, T.price + 1.9, T.price + 2.3));
+  if (icon.complete && icon.naturalWidth) { g.save(); g.globalAlpha = lu; g.translate(1170, 830); roundRect(-56, -56, 112, 112, 26); g.clip(); g.drawImage(icon, -56, -56, 112, 112); g.restore(); }
+  text('GRAND CANVAS', 1250, 830, 44, C.text, { align: 'left', spacing: 5, alpha: lu });
+  text('a  W H O S E G A M E S  game', 1380, 1020, 22, C.muted, { weight: 700, alpha: lu });
+}
+
+function passFrame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  let sx = 0, sy = 0;
+  if (t > T.price + .45 && t < T.price + .65) { const k = (1 - win(t, T.price + .45, T.price + .65)) * 12; sx = Math.sin(t * 190) * k; sy = Math.cos(t * 230) * k; }
+  g.translate(sx, sy);
+  g.fillStyle = C.bg; g.fillRect(-40, -40, W + 80, H + 80);
+  const bg = g.createRadialGradient(960, 540, 0, 960, 540, 1200); bg.addColorStop(0, 'rgba(255,197,61,.10)'); bg.addColorStop(1, 'rgba(255,197,61,0)');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  if (t < T.split) sceneOpen(t);
+  if (t >= T.split - .3 && t < T.colours) sceneSplit(t);
+  if (t >= T.colours - .3 && t < T.pens) sceneColours(t);
+  if (t >= T.pens - .3 && t < T.papers) scenePens(t);
+  if (t >= T.papers - .3 && t < T.steady) scenePapers(t);
+  if (t >= T.steady - .3 && t < T.price) sceneSteady(t);
+  if (t >= T.price) scenePrice(t);
+  wg.style.opacity = t >= T.price ? easeOut(win(t, T.price + 1.9, T.price + 2.3)) : 0;
+}
+window.frame = passFrame;
+prepareStage(W2, H2, { x: 1560, y: 920, size: 80 });
+runPlayback(passFrame, T.end, [
+  ['bed',     'assets/pass_bed.mp3',    0,             .95],
+  ['kaching', 'assets/sfx_kaching.mp3', T.price + .45, .5],
+]);
+</script>
+</body>
+</html>
