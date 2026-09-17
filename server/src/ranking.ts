@@ -139,6 +139,18 @@ const K_BASE = 24;
 /** Your first few games count for much more, so new players land near their
  *  real level in an evening instead of grinding up from the bottom. */
 export const PLACEMENT_GAMES = 5;
+
+/**
+ * Ranked games before a player appears on the leaderboard and has a rank.
+ *
+ * One. The first few games still count triple toward the rating (see
+ * PLACEMENT_GAMES above -- that is maths, and it stays), but nobody is made
+ * to play five games before the board admits they exist. A new player who
+ * finishes one match and opens the leaderboard should find themselves on
+ * it; that is the moment the board becomes something to climb rather than
+ * something other people are on.
+ */
+export const BOARD_AFTER_GAMES = 1;
 const K_PLACEMENT = 3;
 
 /** Bots are opponents, but beating them is not an achievement. Their result

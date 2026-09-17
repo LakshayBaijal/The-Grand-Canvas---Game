@@ -9,7 +9,7 @@ import {
   applyFloor,
   floorForLeague,
   leagueFor,
-  PLACEMENT_GAMES,
+  BOARD_AFTER_GAMES,
   seasonAt,
   softReset,
   START_RATING,
@@ -462,9 +462,8 @@ export function recordRankedResult(
 }
 
 /**
- * Players below this many ranked games -- ever, not this season -- are still
- * placing, and are held off the public board so it isn't full of provisional
- * ratings.
+ * Players with fewer ranked games than this -- ever, not this season -- have
+ * no rank and are not on the board. It is one game: see BOARD_AFTER_GAMES.
  *
  * It used to be per season, which meant every player lost their rank on the
  * first day of every season and had to grind five games to get it back, and
@@ -475,7 +474,7 @@ export function recordRankedResult(
  * the middle at rollover, so the top is contestable again every four weeks --
  * but nobody is asked to prove they exist again to see where they stand.
  */
-const LEADERBOARD_MIN_GAMES = PLACEMENT_GAMES;
+const LEADERBOARD_MIN_GAMES = BOARD_AFTER_GAMES;
 
 /**
  * Season rollover is applied lazily, on the next read of each profile. A

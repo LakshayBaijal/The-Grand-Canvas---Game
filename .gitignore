@@ -47,3 +47,6 @@ client_secret_*.json
 ad/Ad Videos/
 GrandCanvas.apk
 GrandCanvas.aab
+
+# A filled-in copy saved without the dot must never be pushed either.
+env

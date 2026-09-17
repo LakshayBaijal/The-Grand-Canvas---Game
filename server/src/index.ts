@@ -4,7 +4,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { advertiseOnLocalNetwork } from "./discovery.js";
 import { googleEnabled, verifyGoogle } from "./google.js";
 import type { ClientMessage, HallDay, LeagueInfo, Profile, ServerMessage } from "./types.js";
-import { leagueFor, PLACEMENT_GAMES, seasonEndsAt, tierFor } from "./ranking.js";
+import { BOARD_AFTER_GAMES, leagueFor, seasonEndsAt, tierFor } from "./ranking.js";
 import {
   botDelayMs,
   botDrawing,
@@ -314,7 +314,7 @@ function profileFor(playerId: string): Profile | null {
     rank: store.rankOf(playerId),
     tier: tierFor(p.trophies),
     league: leagueFor(p.rating),
-    placementsLeft: Math.max(0, PLACEMENT_GAMES - p.games),
+    placementsLeft: Math.max(0, BOARD_AFTER_GAMES - p.games),
     seasonEndsMs: seasonEndsAt(),
   };
 }
