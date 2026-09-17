@@ -1,5 +1,5 @@
+import "./env.js"; // first: every other module may read process.env as it loads
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
 import { WebSocket, WebSocketServer } from "ws";
 import { advertiseOnLocalNetwork } from "./discovery.js";
 import { googleEnabled, verifyGoogle } from "./google.js";
@@ -83,17 +83,6 @@ import {
   type Member,
   stalledLobbies,
 } from "./rooms.js";
-
-// Settings come from a .env file at the repo root (see .env.example there),
-// or from the process environment, which wins when both set the same name.
-// Looked for in the server folder first, then one level up, so it works
-// both from `server/` (the start scripts) and from a deployed checkout.
-for (const candidate of [".env", "../.env"]) {
-  if (existsSync(candidate)) {
-    process.loadEnvFile(candidate);
-    break;
-  }
-}
 
 const PORT = Number(process.env.PORT ?? 8090);
 const DB_PATH = process.env.DB_PATH ?? "data/leaderboard.db";
@@ -1347,4 +1336,7 @@ wss.on("connection", (ws: LiveSocket) => {
 
 console.log(`Grand Canvas server listening on ws://0.0.0.0:${PORT}`);
 console.log(`Leaderboard stored at ${DB_PATH}`);
+// Said out loud, because "the button says the server isn't set up" is the
+// only symptom on the phone and this is the one place the answer is known.
+console.log(`Google sign-in: ${googleEnabled ? "ON" : "OFF (no GOOGLE_CLIENT_ID in .env)"}`);
 advertiseOnLocalNetwork(PORT);
