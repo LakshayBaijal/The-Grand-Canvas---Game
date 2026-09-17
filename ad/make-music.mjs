@@ -315,6 +315,76 @@ function bell(out, at, freq, amp, decay) {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// The Grand Pass film's bed: 28.4s, 76bpm, D major, and it wants to sound like
+// money -- strings under everything, a harp walking the chord, a brass hit
+// where the picture cuts, timpani rolling into the price. Every cut time is
+// pass.html's T table; change one and change the other.
+// ---------------------------------------------------------------------------
+/** Strings: harmonics falling off as 1/k, three detuned copies, a slow bow. */
+function strings(out, at, freqs, amp, dur) {
+  const i0 = Math.round(at * SR), n = Math.min(out.length - i0, Math.ceil((dur + 1.2) * SR));
+  for (let i = 0; i < n; i++) {
+    const t = i / SR, e = Math.min(1, t / 0.9) * (t < dur ? 1 : Math.exp(-(t - dur) / 0.7));
+    let v = 0;
+    for (const f of freqs) for (const det of [0.997, 1, 1.004]) for (let k = 1; k <= 6; k++)
+      v += Math.sin(2 * Math.PI * f * det * k * t + k) / (k * k);
+    out[i0 + i] += (v / (freqs.length * 3)) * amp * 0.055 * e;
+  }
+}
+/** Harp: a bright pluck that rings. */
+function harp(out, at, freq, amp) { pluck(out, at, freq, amp * 0.8, 1.1); }
+/** A brass hit: a saw-ish stack with a fast bite and a short tail. */
+function brass(out, at, freqs, amp, dur = 0.9) {
+  const i0 = Math.round(at * SR), n = Math.min(out.length - i0, Math.ceil((dur + 0.6) * SR));
+  for (let i = 0; i < n; i++) {
+    const t = i / SR, e = Math.min(1, t / 0.03) * (t < dur ? 1 - 0.35 * (t / dur) : 0.65 * Math.exp(-(t - dur) / 0.25));
+    let v = 0;
+    for (const f of freqs) for (let k = 1; k <= 8; k++) v += Math.sin(2 * Math.PI * f * k * t) / k;
+    out[i0 + i] += (v / freqs.length) * amp * 0.06 * e;
+  }
+}
+/** Timpani: a low struck drum, and a roll is many of them. */
+function timpani(out, at, amp = 1, freq = 73.4) {
+  const i0 = Math.round(at * SR), n = Math.min(out.length - i0, Math.ceil(1.4 * SR));
+  for (let i = 0; i < n; i++) {
+    const t = i / SR, e = Math.min(1, t / 0.004) * Math.exp(-t / 0.35);
+    out[i0 + i] += (Math.sin(2 * Math.PI * freq * (1 + 0.25 * Math.exp(-t * 30)) * t) + 0.3 * (noiseRng() * 2 - 1) * Math.exp(-t * 40)) * amp * 0.5 * e;
+  }
+}
+function passBed() {
+  noiseRng = rng(1149);
+  const out = new Float32Array(Math.ceil(28.4 * SR));
+  const D = { D3: 146.83, Fs3: 185.00, A3: 220.00, B3: 246.94, D4: 293.66, E4: 329.63, Fs4: 369.99, G4: 392.00, A4: 440.00, B4: 493.88, Cs5: 554.37, D5: 587.33, Fs5: 739.99, A5: 880.00, G3: 196.00, E3: 164.81, Cs4: 277.18 };
+  const BEAT = 60 / 76;
+  // D - Bm - G - A, one chord per scene, home for the price.
+  const SECTIONS = [
+    { at: 0.0,  to: 2.6,  chord: [D.D3, D.A3, D.D4, D.Fs4],  arp: [D.D4, D.Fs4, D.A4, D.D5],  amp: 0.8 },
+    { at: 2.6,  to: 9.0,  chord: [D.B3 / 2, D.Fs3, D.B3, D.D4], arp: [D.B3, D.D4, D.Fs4, D.B4], amp: 0.9 },
+    { at: 9.0,  to: 13.0, chord: [D.G3, D.D4, D.G4, D.B4],   arp: [D.G4, D.B4, D.D5, D.G4],  amp: 1.0 },
+    { at: 13.0, to: 17.2, chord: [D.D3, D.A3, D.D4, D.Fs4],  arp: [D.D4, D.Fs4, D.A4, D.D5],  amp: 1.0 },
+    { at: 17.2, to: 20.4, chord: [D.E3, D.B3, D.E4, D.G4],   arp: [D.E4, D.G4, D.B4, D.E4],   amp: 1.0 },
+    { at: 20.4, to: 23.4, chord: [D.A3 / 2, D.E3, D.A3, D.Cs4], arp: [D.A3, D.Cs4, D.E4, D.A4], amp: 1.0 },
+    { at: 23.4, to: 28.4, chord: [D.D3, D.A3, D.D4, D.Fs4, D.A4], arp: [D.D4, D.Fs4, D.A4, D.D5, D.Fs5], amp: 1.1 },
+  ];
+  for (const s of SECTIONS) {
+    strings(out, s.at, s.chord, s.amp, s.to - s.at);
+    let k = 0;
+    for (let t = s.at + 0.05; t < s.to - 0.1; t += BEAT / 2) { harp(out, t, s.arp[k % s.arp.length], s.amp * (k % 4 === 0 ? 0.9 : 0.55)); k++; }
+    if (s.at > 0) brass(out, s.at, s.chord.slice(1, 3), s.amp * (s.at >= 23.4 ? 1.4 : 0.9), s.at >= 23.4 ? 1.6 : 0.7);
+    timpani(out, s.at, s.at >= 23.4 ? 1.2 : 0.8);
+  }
+  // the roll into the price, and the bells on the emblem and the number
+  for (let t = 22.5; t < 23.38; t += 0.055) timpani(out, t, 0.25 + (t - 22.5) * 0.7, 73.4);
+  bell(out, 0.35, 1174.66, 1.0, 1.4);   // D6 as the emblem lands
+  bell(out, 23.9, 1174.66, 1.1, 1.8); bell(out, 24.05, 1479.98, 0.7, 1.4);   // the price
+  shimmer(out, 23.4, 1.0, 3.0);
+  write(out, 'pass_bed.mp3', 0.60);
+  console.log('pass_bed.mp3    28.4s, 76bpm, D major -- strings, harp, brass hits on the cuts, timpani into the price');
+}
+
 promoBed();
 rapidBed();
 dailyBed();
+passBed();

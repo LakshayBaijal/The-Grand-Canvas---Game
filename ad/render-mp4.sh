@@ -180,6 +180,25 @@ afade=t=out:st=9.3:d=0.7,alimiter=limit=0.95[a]" \
   show GrandCanvas-daily-10s.mp4
 }
 
+# The pass film: one bed with its hits baked in at the scene cuts, and the
+# register once, under the price.
+render_pass () {
+  capture pass.html "GRAND PASS  1080x1920 - 28s" 28.0
+  echo "==> Encoding"
+  ffmpeg -y -hide_banner -loglevel error -stats \
+    -framerate "$FPS" -i "$WORK/frames/f%05d.png" -i "$AD/assets/pass_bed.mp3" -i "$AD/assets/sfx_kaching.mp3" \
+    -filter_complex "\
+[1:a]atrim=0:28,asetpts=PTS-STARTPTS,volume=1.0,afade=t=out:st=27.2:d=0.8[bed];\
+[2:a]adelay=23850|23850,volume=0.5[kach];\
+[bed][kach]amix=inputs=2:duration=longest:normalize=0,\
+alimiter=limit=0.95,atrim=0:28,asetpts=PTS-STARTPTS[a]" \
+    -map 0:v -map "[a]" \
+    -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -profile:v high -level 4.2 \
+    -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest \
+    "$AD/GrandCanvas-pass-28s.mp4"
+  show GrandCanvas-pass-28s.mp4
+}
+
 case "$WHICH" in
   portrait)  render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920" ;;
   landscape) render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080" ;;
@@ -187,6 +206,7 @@ case "$WHICH" in
   gallery)   render_gallery ;;
   gallery-9x16) render_gallery GrandCanvas-gallery-10s-portrait.mp4 "&v=portrait" "GALLERY  1080x1920 - 10s" ;;
   daily)     render_daily ;;
+  pass)      render_pass ;;
   both)
     render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
     render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080"
@@ -198,15 +218,16 @@ case "$WHICH" in
     render_gallery
     render_gallery GrandCanvas-gallery-10s-portrait.mp4 "&v=portrait" "GALLERY  1080x1920 - 10s"
     render_daily
+    render_pass
     ;;
-  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|gallery-9x16|daily|both|all]"; exit 1 ;;
+  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|gallery-9x16|daily|pass|both|all]"; exit 1 ;;
 esac
 
 # The soundtrack on its own, for anyone who wants to cut their own pictures to
 # it. Both spots share it, so it only needs writing once.
 echo ""
 echo "==> Soundtrack"
-case "$WHICH" in promo|gallery|gallery-9x16|daily) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
+case "$WHICH" in promo|gallery|gallery-9x16|daily|pass) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
 if [ "$SKIP_MP3" = "0" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
   ffmpeg -y -hide_banner -loglevel error -i "$AD/GrandCanvas-ad.mp4" -vn -c:a libmp3lame -b:a 192k "$AD/GrandCanvas-ad.mp3"
   echo "    $AD/GrandCanvas-ad.mp3"

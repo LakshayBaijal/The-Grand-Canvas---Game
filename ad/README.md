@@ -9,6 +9,7 @@ Three films, all finished and ready to upload. All H.264 + AAC with
 | `GrandCanvas-gallery-10s.mp4` | 1920x1080, 10s | ten drawings, ten cuts — fast, for a feed or a site header |
 | `GrandCanvas-gallery-10s-portrait.mp4` | 1080x1920, 10s | the same montage for phones — Shorts, Reels, TikTok |
 | `GrandCanvas-daily-10s.mp4` | 1920x1080, 10s | the Daily on its own — the reason to come back tomorrow |
+| `GrandCanvas-pass-28s.mp4` | 1080x1920, 28s | **the Grand Pass** — free vs pass side by side, every feature, the price in ₹ and $ |
 | `GrandCanvas-ad.mp4` | 1080x1920, 6.5s | phones — Shorts, Reels, TikTok |
 | `GrandCanvas-ad-landscape.mp4` | 1920x1080, 6.5s | laptops and TVs — YouTube, a site header, pre-roll |
 | `GrandCanvas-ad.mp3` | 192kbps | the ads' soundtrack alone, if you ever cut your own pictures to it |
@@ -217,7 +218,8 @@ is invented.
 ./ad/render-mp4.sh gallery      # just the ten-cut gallery
 ./ad/render-mp4.sh gallery-9x16 # the same montage, 1080x1920
 ./ad/render-mp4.sh daily        # just the Daily
-./ad/render-mp4.sh all          # all six
+./ad/render-mp4.sh pass         # the Grand Pass film
+./ad/render-mp4.sh all          # all seven
 FPS=30 CRF=23 ./ad/render-mp4.sh   # smaller files
 ```
 
