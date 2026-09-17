@@ -19,6 +19,8 @@ const paperBase = {
   PaperStyle.dots: Color(0xFFF8F5EC),
   PaperStyle.kraft: Color(0xFFE8D3AE),
   PaperStyle.sticky: Color(0xFFFFF07A),
+  PaperStyle.parchment: Color(0xFFEBDCB4),
+  PaperStyle.canvas: Color(0xFFF3EEE2),
 };
 
 /// A cream base plus faint speckles/fibers so the canvas reads as paper rather
@@ -60,6 +62,40 @@ void _paintRuling(Canvas canvas, Size size, PaperStyle style) {
     case PaperStyle.kraft:
     case PaperStyle.sticky:
       break;
+
+    case PaperStyle.parchment:
+      // Old paper: darker toward the edges, a few tea-coloured blotches.
+      final rnd = Random(11);
+      final edge = Paint()
+        ..shader = RadialGradient(
+          colors: [Colors.transparent, const Color(0xFFB08A4E).withValues(alpha: 0.28)],
+          stops: const [0.55, 1],
+        ).createShader(Offset.zero & size);
+      canvas.drawRect(Offset.zero & size, edge);
+      for (var i = 0; i < 7; i++) {
+        final c = Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height);
+        final r = size.shortestSide * (0.04 + rnd.nextDouble() * 0.09);
+        canvas.drawCircle(
+          c,
+          r,
+          Paint()
+            ..color = const Color(0xFFB08A4E).withValues(alpha: 0.05 + rnd.nextDouble() * 0.06)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.5),
+        );
+      }
+
+    case PaperStyle.canvas:
+      // Linen: a fine weave in both directions.
+      final thread = Paint()
+        ..color = const Color(0xFFB7AE9A).withValues(alpha: 0.22)
+        ..strokeWidth = max(0.5, size.shortestSide / 600);
+      final weave = size.shortestSide / 90;
+      for (var x = 0.0; x < size.width; x += weave) {
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), thread);
+      }
+      for (var y = 0.0; y < size.height; y += weave) {
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), thread);
+      }
 
     case PaperStyle.graph:
       final line = Paint()
@@ -158,14 +194,110 @@ void paintStrokePath(
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, width * 0.35),
       );
       canvas.drawPath(pathFrom(), base(widthScale: 0.85));
+
+    case PenStyle.ink:
+      // A broad nib held at 45 degrees: thick on the down-strokes, thin on
+      // the cross-strokes. Each segment is a quad whose width depends on
+      // its direction, which is exactly what a real nib does.
+      final fill = Paint()..color = color;
+      const nib = pi / 4;
+      final half = width * 0.75;
+      for (var i = 1; i < points.length; i++) {
+        final a = points[i - 1];
+        final b = points[i];
+        final d = b - a;
+        if (d.distance < 0.01) continue;
+        final angle = atan2(d.dy, d.dx);
+        final w = half * (0.18 + 0.82 * sin(angle - nib).abs());
+        final nx = cos(nib + pi / 2) * w;
+        final ny = sin(nib + pi / 2) * w;
+        canvas.drawPath(
+          Path()
+            ..moveTo(a.dx + nx, a.dy + ny)
+            ..lineTo(b.dx + nx, b.dy + ny)
+            ..lineTo(b.dx - nx, b.dy - ny)
+            ..lineTo(a.dx - nx, a.dy - ny)
+            ..close(),
+          fill,
+        );
+        canvas.drawCircle(b, w * 0.9, fill);
+      }
+      canvas.drawCircle(points.first, half * 0.35, fill);
+
+    case PenStyle.neon:
+      // A tube of light: a wide soft glow in the colour, a tighter one, and
+      // a near-white core.
+      canvas.drawPath(
+        pathFrom(),
+        base(widthScale: 3.2, alpha: 0.28)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, width * 0.9),
+      );
+      canvas.drawPath(
+        pathFrom(),
+        base(widthScale: 1.6, alpha: 0.7)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, width * 0.3),
+      );
+      canvas.drawPath(
+        pathFrom(),
+        base(widthScale: 0.55)..color = Color.lerp(color, Colors.white, 0.75)!,
+      );
+
+    case PenStyle.rainbow:
+      // The hue walks round the wheel along the stroke, starting from the
+      // chosen colour. Segment by segment, round-capped so it reads as one
+      // continuous line.
+      final hsv = HSVColor.fromColor(color);
+      final n = points.length - 1;
+      for (var i = 1; i < points.length; i++) {
+        final t = (i - 1) / max(1, n);
+        final c = hsv.withHue((hsv.hue + t * 360) % 360).withSaturation(max(0.6, hsv.saturation)).withValue(max(0.75, hsv.value)).toColor();
+        canvas.drawLine(points[i - 1], points[i], base()..color = c);
+      }
+
+    case PenStyle.spray:
+      // Airbrush: a cloud of dots around the path. Seeded from the point
+      // index so the cloud is the same on every repaint and on every
+      // other phone.
+      final dot = Paint()..color = color.withValues(alpha: color.a * 0.55);
+      final spread = width * 1.4;
+      for (var i = 0; i < points.length; i++) {
+        final rnd = Random(i * 7919 + 13);
+        final p = points[i];
+        for (var k = 0; k < 9; k++) {
+          final a = rnd.nextDouble() * pi * 2;
+          final r = sqrt(rnd.nextDouble()) * spread;
+          canvas.drawCircle(
+            Offset(p.dx + cos(a) * r, p.dy + sin(a) * r),
+            width * (0.06 + rnd.nextDouble() * 0.1),
+            dot,
+          );
+        }
+      }
+
+    case PenStyle.fill:
+      // The shape, closed and filled. A thin outline in the same colour
+      // hides the seam where the fill meets the anti-aliased edge.
+      final path = pathFrom()..close();
+      canvas.drawPath(path, Paint()..color = color);
+      canvas.drawPath(path, base(widthScale: 0.25));
   }
 }
 
 class WorkingStroke {
-  WorkingStroke({required this.color, required this.width, required this.points});
+  WorkingStroke({
+    required this.color,
+    required this.width,
+    required this.points,
+    this.style = PenStyle.pen,
+  });
   final Color color;
   final double width;
   final List<Offset> points;
+
+  /// Captured when the stroke starts. It used to be looked up from the
+  /// current pen at paint time, which quietly restyled every earlier stroke
+  /// whenever the pen was changed mid-drawing.
+  final PenStyle style;
 }
 
 /// Holds the in-progress drawing (raw pixel-space strokes) and exposes it as
@@ -195,6 +327,18 @@ class DrawingController extends ChangeNotifier {
 
   set steadyHand(bool value) {
     _steadyHand = value;
+    notifyListeners();
+  }
+
+  /// Fill: the shape you draw is closed and filled solid, in the current
+  /// colour. A toggle rather than a pen, because you switch it on for a
+  /// shape and off again; the pen you were using is still there after.
+  bool _fill = false;
+  bool get fill => _fill;
+
+  set fill(bool value) {
+    _fill = value;
+    _erasing = false;
     notifyListeners();
   }
   double _brushWidth = 6;
@@ -250,12 +394,17 @@ class DrawingController extends ChangeNotifier {
   /// An erase is a paper-coloured stroke, and must stay a plain one — a
   /// textured pen would leave visible grain where you rubbed something out.
   PenStyle styleFor(WorkingStroke stroke) =>
-      stroke.color == _paperInk ? PenStyle.pen : _pen;
+      stroke.color == _paperInk ? PenStyle.pen : stroke.style;
 
   void startStroke(Offset point) {
     // Use the public getters, not the raw fields — while erasing, those
     // resolve to the paper color/width instead of whatever was last picked.
-    _current = WorkingStroke(color: color, width: brushWidth, points: [point]);
+    _current = WorkingStroke(
+      color: color,
+      width: brushWidth,
+      points: [point],
+      style: _erasing ? PenStyle.pen : (_fill ? PenStyle.fill : _pen),
+    );
     _snapped = false;
     notifyListeners();
   }

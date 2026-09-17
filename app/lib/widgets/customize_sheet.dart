@@ -178,10 +178,10 @@ class _CustomizeSheet extends StatelessWidget {
                   height: 92,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: PenStyle.values.length,
+                    itemCount: PenStyle.pens.length,
                     separatorBuilder: (_, _) => const SizedBox(width: 10),
                     itemBuilder: (context, i) {
-                      final style = PenStyle.values[i];
+                      final style = PenStyle.pens[i];
                       final locked = !owned && style != PenStyle.free;
                       return _StyleTile(
                         label: style.label,

@@ -190,9 +190,9 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               _Perk(
                 label: 'EVERY PAPER',
                 note:
-                    'Graph, ruled, dotted, kraft, sticky note. Everyone sees it '
-                    'when your drawing comes up.',
-                child: Row(
+                    'Graph, ruled, dotted, kraft, sticky note, parchment, canvas. '
+                    'Everyone sees it when your drawing comes up.',
+                child: _SwatchRow(
                   children: [
                     for (final p in PaperStyle.values)
                       if (p != PaperStyle.free)
@@ -206,10 +206,11 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               _Perk(
                 label: 'EVERY PEN',
                 note:
-                    'Marker, crayon, pencil, brush. Same colours, different hand.',
-                child: Row(
+                    'Marker, crayon, pencil, brush, ink, neon, rainbow, spray. '
+                    'Same colours, different hand.',
+                child: _SwatchRow(
                   children: [
-                    for (final p in PenStyle.values)
+                    for (final p in PenStyle.pens)
                       if (p != PenStyle.free)
                         _Swatch(
                           label: p.label,
@@ -217,6 +218,20 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                             painter: PenPreviewPainter(p, PaperStyle.plain),
                           ),
                         ),
+                  ],
+                ),
+              ),
+              const _Perk(
+                label: 'FILL, AND ANY COLOUR',
+                note:
+                    'Turn on FILL, draw a shape, and it comes out solid -- no '
+                    'more colouring in. And a colour wheel at the end of the '
+                    'palette, for the exact shade you meant.',
+                child: Row(
+                  children: [
+                    Icon(Icons.format_color_fill_rounded, size: 18, color: GameColors.primary),
+                    SizedBox(width: 10),
+                    Icon(Icons.palette_outlined, size: 18, color: GameColors.pink),
                   ],
                 ),
               ),
@@ -544,4 +559,22 @@ class _SteadyHandPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SteadyHandPainter old) => false;
+}
+
+
+/// A row of swatches that scrolls sideways once there are more than fit.
+/// Seven papers and eight pens do not fit a phone; a clipped row said
+/// "five pens" and a wrapped one made the sheet twice as tall.
+class _SwatchRow extends StatelessWidget {
+  const _SwatchRow({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(children: children),
+    );
+  }
 }

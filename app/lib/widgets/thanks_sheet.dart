@@ -168,7 +168,7 @@ class _WhatYouGot extends StatelessWidget {
             children: [
               for (final paper in PaperStyle.values)
                 _Swatch(child: CustomPaint(painter: PaperPreviewPainter(paper))),
-              for (final pen in PenStyle.values)
+              for (final pen in PenStyle.pens)
                 _Swatch(
                   child: CustomPaint(
                     painter: PenPreviewPainter(pen, PaperStyle.plain),

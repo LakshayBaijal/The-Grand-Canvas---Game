@@ -15,7 +15,9 @@ enum PaperStyle {
   ruled('ruled', 'Ruled'),
   dots('dots', 'Dotted'),
   kraft('kraft', 'Kraft'),
-  sticky('sticky', 'Sticky');
+  sticky('sticky', 'Sticky'),
+  parchment('parchment', 'Parchment'),
+  canvas('canvas', 'Canvas');
 
   const PaperStyle(this.id, this.label);
 
@@ -36,7 +38,17 @@ enum PenStyle {
   marker('marker', 'Marker'),
   crayon('crayon', 'Crayon'),
   pencil('pencil', 'Pencil'),
-  brush('brush', 'Brush');
+  brush('brush', 'Brush'),
+  ink('ink', 'Ink'),
+  neon('neon', 'Neon'),
+  rainbow('rainbow', 'Rainbow'),
+  spray('spray', 'Spray'),
+
+  /// Not a pen: the shape you draw is closed and filled solid. Lives here
+  /// because on the wire it is what a stroke's `style` says, like any pen,
+  /// so every renderer -- the reveal, the gallery, the export -- gets it
+  /// for free. Never offered in the pen picker; see [pens].
+  fill('fill', 'Fill');
 
   const PenStyle(this.id, this.label);
 
@@ -44,6 +56,9 @@ enum PenStyle {
   final String label;
 
   static const free = PenStyle.pen;
+
+  /// The ones that are pens, for pickers and previews.
+  static List<PenStyle> get pens => values.where((p) => p != fill).toList();
 
   static PenStyle fromId(String? id) =>
       PenStyle.values.firstWhere((s) => s.id == id, orElse: () => PenStyle.pen);
