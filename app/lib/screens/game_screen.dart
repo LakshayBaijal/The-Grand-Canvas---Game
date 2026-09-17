@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/game_event.dart';
 import '../models/lobby_state.dart';
@@ -199,6 +200,11 @@ class _GameScreenState extends State<GameScreen> {
     final was = _phase;
     setState(() => handled = _applyPhase(event));
     if (handled && _phase != was) {
+      // The phase moved on under an open keyboard -- the writer ran out of
+      // time mid-word -- and nothing else closes it. Left up, it sits over
+      // the canvas typing into a field that no longer exists.
+      FocusManager.instance.primaryFocus?.unfocus();
+      SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
       _syncMusic();
       // A short flourish over the top of the new loop, so a phase change
       // is felt as well as seen.
@@ -378,16 +384,27 @@ class _GameScreenState extends State<GameScreen> {
                   style: const TextStyle(color: GameColors.textMuted, fontSize: 13),
                 ),
                 const SizedBox(height: 24),
-                if (failed)
-                  FilledButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Back to menu'),
-                  )
-                else
-                  TextButton(
-                    onPressed: _leave,
-                    child: const Text('Leave the game'),
-                  ),
+                // A button to try right now, in both states. The retries
+                // run on their own, but a person who has just got signal
+                // back should not have to wait eight seconds for the next
+                // one -- and after "failed", the seat may still be there.
+                FilledButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _reconnectFailed = false;
+                      _attempt = 0;
+                    });
+                    _retryTimer?.cancel();
+                    _tryReconnect();
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 20),
+                  label: Text(failed ? 'TRY AGAIN' : 'JOIN BACK NOW'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: failed ? () => Navigator.of(context).pop() : _leave,
+                  child: Text(failed ? 'Back to menu' : 'Leave the game'),
+                ),
               ],
             ),
           ),

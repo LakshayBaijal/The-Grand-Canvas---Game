@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 /// Puts the cursor in a field and brings the keyboard up, reliably.
 ///
@@ -17,8 +16,11 @@ import 'package:flutter/services.dart';
 void summonKeyboard(FocusNode node) {
   void nudge() {
     if (node.context?.mounted != true) return;
+    // Focus alone. Asking the platform for the keyboard directly, without a
+    // text field attached yet, can raise a keyboard that types into nothing
+    // and won't go away -- a "stuck" keyboard mid-round. Focusing the field
+    // attaches it first, and the keyboard follows.
     node.requestFocus();
-    SystemChannels.textInput.invokeMethod<void>('TextInput.show');
   }
 
   WidgetsBinding.instance.addPostFrameCallback((_) {
