@@ -182,3 +182,21 @@ test("an untouched account still gets thanked after a merge", () => {
   const merged = store.linkGoogle(phone, "google-thanks-b");
   assert.equal(merged.thanksDue, true, "nobody has been thanked yet, so it is still owed");
 });
+
+test("the Google picture follows the account: set on link, refreshed, cleared on unlink", () => {
+  const first = newPlayer("Riya");
+  const linked = store.linkGoogle(first, "sub-pic", "https://lh3.googleusercontent.com/a/one");
+  assert.equal(linked.avatar, "https://lh3.googleusercontent.com/a/one");
+
+  // A reinstall: new device id, same Google account, newer picture.
+  const second = newPlayer("Riya");
+  const back = store.linkGoogle(second, "sub-pic", "https://lh3.googleusercontent.com/a/two");
+  assert.equal(back.id, first, "lands on the existing account");
+  assert.equal(back.avatar, "https://lh3.googleusercontent.com/a/two", "picture refreshed");
+
+  // A token without a picture keeps the one we have.
+  const kept = store.linkGoogle(first, "sub-pic", null);
+  assert.equal(kept.avatar, "https://lh3.googleusercontent.com/a/two");
+
+  assert.equal(store.unlinkGoogle(first)?.avatar, null, "gone with the account");
+});

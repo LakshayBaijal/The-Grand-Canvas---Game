@@ -14,6 +14,7 @@ import '../services/server_discovery.dart';
 import '../theme.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/name_tag.dart';
+import '../widgets/player_avatar.dart';
 import '../widgets/doodle_stage.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/friends_sheet.dart';
@@ -960,17 +961,11 @@ class _ProfileBar extends StatelessWidget {
         children: [
           SketchFrame(
             radius: 20,
-            child: CircleAvatar(
+            child: PlayerAvatar(
+              name: identity.nickname,
               radius: 20,
-              backgroundColor: GameColors.primary,
-              child: Text(
-                identity.nickname.characters.first.toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF16123A),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
+              color: GameColors.primary,
+              avatarUrl: profile?.avatarUrl,
             ),
           ),
           const SizedBox(width: 12),

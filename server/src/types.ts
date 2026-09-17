@@ -4,7 +4,15 @@
  *  badge (bronze/silver/gold) and `crown` marks a Grand Pass owner -- both
  *  travel with the name everywhere it is shown, because the point of a badge
  *  is that other people see it. */
-export type PlayerInfo = { id: string; nickname: string; isBot: boolean; tier: string; crown: boolean };
+export type PlayerInfo = {
+  id: string;
+  nickname: string;
+  isBot: boolean;
+  tier: string;
+  crown: boolean;
+  /** Google profile picture URL for a signed-in player, else null. */
+  avatar: string | null;
+};
 
 /** Ranked games are matchmade with strangers and move the global leaderboard.
  *  Friendly games are private, code-joined, bot-fillable, and score nothing —
@@ -70,6 +78,7 @@ export type ScoreRow = {
   nickname: string;
   tier: string;
   crown: boolean;
+  avatar: string | null;
   score: number;
   delta: number;
   /** This round's breakdown of `delta`, for the reveal screen to explain it:
@@ -103,6 +112,7 @@ export type Profile = {
   trophies: number;
   tier: string;
   crown: boolean;
+  avatar: string | null;
   games: number;
   wins: number;
   bestScore: number;
@@ -125,6 +135,7 @@ export type LeaderboardEntry = {
   trophies: number;
   tier: string;
   crown: boolean;
+  avatar: string | null;
   games: number;
   wins: number;
   rating: number;

@@ -7,11 +7,15 @@ class Player {
     required this.isBot,
     this.tier = 'bronze',
     this.crown = false,
+    this.avatarUrl,
   });
 
   final String id;
   final String nickname;
   final bool isBot;
+
+  /// Google profile picture, for players who signed in. Null otherwise.
+  final String? avatarUrl;
 
   /// Trophy tier badge ('bronze' / 'silver' / 'gold') and Grand Pass crown:
   /// what the rest of the table gets to see next to the name.
@@ -24,6 +28,7 @@ class Player {
         isBot: json['isBot'] as bool? ?? false,
         tier: json['tier'] as String? ?? 'bronze',
         crown: json['crown'] as bool? ?? false,
+        avatarUrl: json['avatar'] as String?,
       );
 }
 

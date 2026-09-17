@@ -28,8 +28,13 @@ export const googleEnabled = CLIENT_ID.length > 0;
 const client = googleEnabled ? new OAuth2Client(CLIENT_ID) : null;
 
 export type GoogleUser = {
-  /** Google's stable per-user id. The only thing worth storing. */
+  /** Google's stable per-user id. */
   sub: string;
+  /** Their Google profile picture, if the token carried one. Shown to the
+   *  other players in place of the initial in a circle, which is what
+   *  makes a signed-in player look like a person rather than a letter.
+   *  Only ever a Google-hosted https URL; anything else is dropped. */
+  picture: string | null;
 };
 
 /**
@@ -50,9 +55,10 @@ export async function verifyGoogle(idToken: string): Promise<GoogleUser | null> 
     });
     const payload = ticket.getPayload();
     if (!payload?.sub) return null;
-    // verifyIdToken already checks `iss`, expiry and signature; sub is all we
-    // want from what is left.
-    return { sub: payload.sub };
+    // verifyIdToken already checks `iss`, expiry and signature.
+    const pic = typeof payload.picture === "string" ? payload.picture : "";
+    const picture = /^https:\/\/[a-z0-9.-]+\.googleusercontent\.com\//i.test(pic) ? pic.slice(0, 500) : null;
+    return { sub: payload.sub, picture };
   } catch {
     return null;
   }

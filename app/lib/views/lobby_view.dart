@@ -10,6 +10,7 @@ import '../widgets/ad_banner.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/doodle_stage.dart';
 import '../widgets/name_tag.dart';
+import '../widgets/player_avatar.dart';
 
 // Kept in sync with MIN_PLAYERS_TO_START on the server (temporarily 1 for
 // solo testing — bump back to 3 for real games).
@@ -398,17 +399,11 @@ class _PlayerChip extends StatelessWidget {
           children: [
             SketchFrame(
               radius: 19,
-              child: CircleAvatar(
+              child: PlayerAvatar(
+                name: player.nickname,
                 radius: 19,
-                backgroundColor: color,
-                child: Text(
-                  player.nickname.characters.first.toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFF16123A),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 17,
-                  ),
-                ),
+                color: color,
+                avatarUrl: player.avatarUrl,
               ),
             ),
             if (isHost)

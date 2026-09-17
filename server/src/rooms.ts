@@ -218,6 +218,7 @@ export type Member = {
   nickname: string;
   trophies?: number;
   crown?: boolean;
+  avatar?: string | null;
 };
 
 function emptyLobby(hostId: string, mode: GameMode, visibility: LobbyVisibility): Lobby {
@@ -263,6 +264,7 @@ function seat(lobby: Lobby, member: Member): void {
     trophies,
     tier: tierFor(trophies),
     crown: member.crown ?? false,
+    avatar: member.avatar ?? null,
     graceTimer: null,
   });
   lobby.scores.set(member.playerId, 0);
@@ -347,7 +349,7 @@ export function addBot(lobby: Lobby): Player | null {
   const taken = new Set(Array.from(lobby.players.values(), (p) => p.nickname));
   const { id, nickname } = createBot(taken);
   const bot: Player = {
-    id, nickname, ws: null, isBot: true, trophies: 0, tier: "bronze", crown: false, graceTimer: null,
+    id, nickname, ws: null, isBot: true, trophies: 0, tier: "bronze", crown: false, avatar: null, graceTimer: null,
   };
   lobby.players.set(id, bot);
   lobby.scores.set(id, 0);
@@ -474,12 +476,13 @@ export function kickPlayer(lobby: Lobby, targetId: string): Player | null {
 }
 
 export function playerInfos(lobby: Lobby): PlayerInfo[] {
-  return Array.from(lobby.players.values()).map(({ id, nickname, isBot, tier, crown }) => ({
+  return Array.from(lobby.players.values()).map(({ id, nickname, isBot, tier, crown, avatar }) => ({
     id,
     nickname,
     isBot,
     tier,
     crown,
+    avatar,
   }));
 }
 
@@ -911,6 +914,7 @@ export function scoreRows(lobby: Lobby): ScoreRow[] {
       nickname: p.nickname,
       tier: p.tier,
       crown: p.crown,
+      avatar: p.avatar,
       score: lobby.scores.get(p.id) ?? 0,
       delta: lobby.roundDeltas.get(p.id) ?? 0,
       raised: lobby.roundRaised.get(p.id) ?? 0,

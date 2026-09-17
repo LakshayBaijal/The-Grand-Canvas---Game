@@ -332,7 +332,12 @@ function sendAccount(ws: WebSocket, playerId: string) {
  *  crown come from the profile, not from the client's say-so. */
 function memberFor(playerId: string, ws: WebSocket, nickname: string): Member {
   const p = store.getProfile(playerId);
-  return { playerId, ws, nickname, trophies: p?.trophies ?? 0, crown: p?.crown ?? false };
+  return {
+    playerId, ws, nickname,
+    trophies: p?.trophies ?? 0,
+    crown: p?.crown ?? false,
+    avatar: p?.avatar ?? null,
+  };
 }
 
 /**
@@ -1015,6 +1020,7 @@ wss.on("connection", (ws: LiveSocket) => {
             trophies: row.trophies,
             tier: tierFor(row.trophies),
             crown: row.crown,
+            avatar: row.avatar,
             games: row.games,
             wins: row.wins,
             rating: row.rating,
@@ -1092,7 +1098,7 @@ wss.on("connection", (ws: LiveSocket) => {
           const current = identities.get(ws);
           if (!current) return;
 
-          const profile = store.linkGoogle(current.playerId, user.sub);
+          const profile = store.linkGoogle(current.playerId, user.sub, user.picture);
           // linkGoogle can move the player onto an account that already
           // existed, which changes their id for the rest of this connection.
           identities.set(ws, { playerId: profile.id, nickname: current.nickname });

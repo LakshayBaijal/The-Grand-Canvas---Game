@@ -101,12 +101,14 @@ class ScoreRow {
     required this.penalty,
     this.tier = 'bronze',
     this.crown = false,
+    this.avatarUrl,
   });
 
   final String playerId;
   final String nickname;
   final String tier;
   final bool crown;
+  final String? avatarUrl;
   final int score;
   final int delta;
 
@@ -120,6 +122,7 @@ class ScoreRow {
         nickname: json['nickname'] as String,
         tier: json['tier'] as String? ?? 'bronze',
         crown: json['crown'] as bool? ?? false,
+        avatarUrl: json['avatar'] as String?,
         score: json['score'] as int,
         delta: json['delta'] as int,
         raised: json['raised'] as int,
@@ -214,10 +217,14 @@ class Profile {
     required this.thanksDue,
     this.tier = 'bronze',
     this.crown = false,
+    this.avatarUrl,
   });
 
   final String id;
   final String nickname;
+
+  /// Google profile picture, once signed in. Null for a device account.
+  final String? avatarUrl;
 
   /// The number everyone sees. Moves both ways by tier, never below zero.
   final int trophies;
@@ -269,6 +276,7 @@ class Profile {
         thanksDue: json['thanksDue'] as bool? ?? false,
         tier: json['tier'] as String? ?? 'bronze',
         crown: json['crown'] as bool? ?? false,
+        avatarUrl: json['avatar'] as String?,
       );
 }
 
@@ -284,6 +292,7 @@ class LeaderboardEntry {
     required this.league,
     this.tier = 'bronze',
     this.crown = false,
+    this.avatarUrl,
   });
 
   final int rank;
@@ -292,6 +301,7 @@ class LeaderboardEntry {
   final int trophies;
   final String tier;
   final bool crown;
+  final String? avatarUrl;
   final int games;
   final int wins;
   final int rating;
@@ -304,6 +314,7 @@ class LeaderboardEntry {
         trophies: json['trophies'] as int,
         tier: json['tier'] as String? ?? 'bronze',
         crown: json['crown'] as bool? ?? false,
+        avatarUrl: json['avatar'] as String?,
         games: json['games'] as int,
         wins: json['wins'] as int,
         rating: (json['rating'] as num?)?.toInt() ?? 0,

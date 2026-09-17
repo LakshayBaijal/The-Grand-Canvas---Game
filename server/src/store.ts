@@ -39,6 +39,8 @@ export type Profile = {
   trophies: number;
   /** Grand Pass owner: a crown by the name wherever it is shown. */
   crown: boolean;
+  /** Google profile picture URL, or null. Shown wherever the name is. */
+  avatar: string | null;
   games: number;
   wins: number;
   bestScore: number;
@@ -120,6 +122,9 @@ export function openStore(path: string): void {
   addColumn("players", "crown", "INTEGER NOT NULL DEFAULT 0");
 
   addColumn("players", "google_sub", "TEXT");
+  // Google profile picture URL, set when the account is linked and refreshed
+  // on every sign-in. NULL for device accounts and after unlinking.
+  addColumn("players", "avatar", "TEXT");
   // Partial index: unlinked profiles all have NULL here, and NULLs would
   // otherwise collide under a plain unique index on some engines.
   db.exec(
@@ -248,6 +253,7 @@ type Row = {
   google_sub: string | null;
   thanked_ms: number;
   crown: number;
+  avatar: string | null;
 };
 
 function toProfile(row: Row): Profile {
@@ -256,6 +262,7 @@ function toProfile(row: Row): Profile {
     nickname: row.nickname,
     trophies: row.trophies,
     crown: row.crown === 1,
+    avatar: row.avatar,
     games: row.games,
     wins: row.wins,
     bestScore: row.best_score,
@@ -355,14 +362,17 @@ export function getProfileByGoogle(sub: string): Profile | null {
  * case 3 is deleted, so it can never be resurrected by an unlinked client and
  * merged a second time.
  */
-export function linkGoogle(deviceId: string, sub: string): Profile {
+export function linkGoogle(deviceId: string, sub: string, avatar: string | null = null): Profile {
   const existing = getProfileByGoogle(sub);
 
   if (!existing) {
-    db.prepare("UPDATE players SET google_sub = ? WHERE id = ?").run(sub, deviceId);
+    db.prepare("UPDATE players SET google_sub = ?, avatar = ? WHERE id = ?").run(sub, avatar, deviceId);
     return getProfile(deviceId)!;
   }
-  if (existing.id === deviceId) return existing;
+  // Every sign-in refreshes the picture: people change them, and Google's
+  // URLs for old ones eventually stop working.
+  if (avatar) db.prepare("UPDATE players SET avatar = ? WHERE id = ?").run(avatar, existing.id);
+  if (existing.id === deviceId) return getProfile(existing.id)!;
 
   const device = getProfile(deviceId);
   if (device) {
@@ -404,7 +414,8 @@ export function linkGoogle(deviceId: string, sub: string): Profile {
 
 /** Detaches the account, leaving the profile in place as a device-only one. */
 export function unlinkGoogle(id: string): Profile | null {
-  db.prepare("UPDATE players SET google_sub = NULL WHERE id = ?").run(id);
+  // The picture goes with the account: it was Google's, not the device's.
+  db.prepare("UPDATE players SET google_sub = NULL, avatar = NULL WHERE id = ?").run(id);
   return getProfile(id);
 }
 

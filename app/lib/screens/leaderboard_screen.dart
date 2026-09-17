@@ -8,6 +8,7 @@ import '../services/game_connection.dart';
 import '../theme.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/name_tag.dart';
+import '../widgets/player_avatar.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/celebration.dart';
 import '../services/audio_service.dart';
@@ -225,6 +226,16 @@ class _Row extends StatelessWidget {
                       fontSize: 15,
                     ),
                   ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: PlayerAvatar(
+              name: entry.nickname,
+              radius: 16,
+              color: isMe ? GameColors.primary : GameColors.surfaceHigh,
+              textColor: isMe ? const Color(0xFF16123A) : GameColors.textPrimary,
+              avatarUrl: entry.avatarUrl,
+            ),
           ),
           Expanded(
             child: Column(
