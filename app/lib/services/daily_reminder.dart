@@ -82,6 +82,13 @@ class DailyReminder extends ChangeNotifier {
       await _plugin.initialize(
         settings: const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          // Permission is asked in enable(), when the player says yes to
+          // reminders, not at launch.
+          iOS: DarwinInitializationSettings(
+            requestAlertPermission: false,
+            requestBadgePermission: false,
+            requestSoundPermission: false,
+          ),
         ),
         onDidReceiveNotificationResponse: (_) => onTapped?.call(),
       );
@@ -115,7 +122,15 @@ class DailyReminder extends ChangeNotifier {
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >();
-      granted = await android?.requestNotificationsPermission() ?? true;
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+      if (android != null) {
+        granted = await android.requestNotificationsPermission() ?? true;
+      } else if (ios != null) {
+        granted = await ios.requestPermissions(alert: true, badge: false, sound: true) ?? true;
+      }
     }
     await _setEnabled(granted);
     return granted;

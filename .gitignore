@@ -50,3 +50,6 @@ GrandCanvas.aab
 
 # A filled-in copy saved without the dot must never be pushed either.
 env
+
+# iOS build secrets, written from .env by build-app.sh --ios
+app/ios/Flutter/Secrets.xcconfig

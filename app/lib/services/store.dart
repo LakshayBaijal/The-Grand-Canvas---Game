@@ -43,12 +43,23 @@ abstract interface class Store {
 class AdIds {
   AdIds._();
 
-  static const _banner = String.fromEnvironment('ADMOB_BANNER_ID');
-  static const _rewarded = String.fromEnvironment('ADMOB_REWARDED_ID');
+  static const _bannerAndroid = String.fromEnvironment('ADMOB_BANNER_ID');
+  static const _rewardedAndroid = String.fromEnvironment('ADMOB_REWARDED_ID');
+  // AdMob ad units are per platform; an Android unit id served to an iPhone
+  // is a no-fill. Same .env, two more keys.
+  static const _bannerIos = String.fromEnvironment('ADMOB_BANNER_ID_IOS');
+  static const _rewardedIos = String.fromEnvironment('ADMOB_REWARDED_ID_IOS');
+  static String get _banner => Platform.isIOS ? _bannerIos : _bannerAndroid;
+  static String get _rewarded => Platform.isIOS ? _rewardedIos : _rewardedAndroid;
   static const _product = String.fromEnvironment('PASS_PRODUCT_ID');
 
-  static const testBanner = 'ca-app-pub-3940256099942544/6300978111';
-  static const testRewarded = 'ca-app-pub-3940256099942544/5224354917';
+  // Google's sample units, one set per platform.
+  static String get testBanner => Platform.isIOS
+      ? 'ca-app-pub-3940256099942544/2934735716'
+      : 'ca-app-pub-3940256099942544/6300978111';
+  static String get testRewarded => Platform.isIOS
+      ? 'ca-app-pub-3940256099942544/1712485313'
+      : 'ca-app-pub-3940256099942544/5224354917';
 
   static String get banner => _banner.isEmpty ? testBanner : _banner;
   static String get rewarded => _rewarded.isEmpty ? testRewarded : _rewarded;
