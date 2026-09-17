@@ -33,8 +33,18 @@ class Entitlements extends ChangeNotifier {
   static const _paperKey = 'style_paper';
   static const _penKey = 'style_pen';
 
-  /// How long one watched ad is worth.
+  /// The thank-you pass is a flat day. The ad's pass is different: it runs
+  /// to midnight -- see [grantDayPass].
   static const dayPass = Duration(hours: 24);
+
+  /// A pass that would end within this long of being granted runs to the
+  /// following midnight instead. Nobody should watch an ad at 11pm for an
+  /// hour of colours.
+  static const _tooShort = Duration(hours: 2);
+
+  /// Finished games on this phone, for spacing the offer after a game.
+  static const _gamesKey = 'games_finished';
+  int _gamesFinished = 0;
 
   bool _lifetime = false;
   int _dayPassUntilMs = 0;
@@ -85,6 +95,7 @@ class Entitlements extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _lifetime = prefs.getBool(_lifetimeKey) ?? false;
     _dayPassUntilMs = prefs.getInt(_dayPassKey) ?? 0;
+    _gamesFinished = prefs.getInt(_gamesKey) ?? 0;
     _thanksUntilMs = prefs.getInt(_thanksKey) ?? 0;
     _paper = PaperStyle.fromId(prefs.getString(_paperKey));
     _pen = PenStyle.fromId(prefs.getString(_penKey));
@@ -105,15 +116,37 @@ class Entitlements extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Earned by watching a rewarded ad. Extends rather than replaces, so
-  /// watching a second one part-way through a pass isn't wasted.
+  /// Earned by watching a rewarded ad. Runs until midnight, local time.
+  ///
+  /// A calendar day rather than 24 hours from now: "until tonight" is a
+  /// thing a person can hold in their head, and every day starts fresh for
+  /// everyone -- so the ad is worth watching again tomorrow, whenever
+  /// yesterday's was watched. See [_tooShort] for the late-evening case.
   Future<void> grantDayPass() async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final from = _dayPassUntilMs > now ? _dayPassUntilMs : now;
-    _dayPassUntilMs = from + dayPass.inMilliseconds;
+    _dayPassUntilMs = nextMidnight(DateTime.now()).millisecondsSinceEpoch;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_dayPassKey, _dayPassUntilMs);
     notifyListeners();
+  }
+
+  /// The midnight an ad watched at [now] runs to. Local time, so it is the
+  /// player's own midnight. Static and pure so it can be tested.
+  static DateTime nextMidnight(DateTime now) {
+    var midnight = DateTime(now.year, now.month, now.day + 1);
+    if (midnight.difference(now) < _tooShort) {
+      midnight = DateTime(now.year, now.month, now.day + 2);
+    }
+    return midnight;
+  }
+
+  /// A game just ended on this phone. Returns whether the after-game offer
+  /// should be shown this time: every second game, and never while any pass
+  /// is running -- the strip sells what they already have otherwise.
+  Future<bool> noteGameFinished() async {
+    _gamesFinished++;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_gamesKey, _gamesFinished);
+    return _gamesFinished.isOdd && !hasFullPalette;
   }
 
   /// A day of everything, given for having played — not for rating anything.

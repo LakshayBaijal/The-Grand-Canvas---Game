@@ -18,22 +18,24 @@ void main() {
     expect(entitlements.dayPassLeft, isNull);
   });
 
-  test('watching an ad unlocks it for a day', () async {
+  test('watching an ad unlocks it until midnight', () async {
     await entitlements.grantDayPass();
 
     expect(entitlements.hasFullPalette, isTrue);
     expect(entitlements.hasLifetime, isFalse);
     final left = entitlements.dayPassLeft!;
-    expect(left.inHours, greaterThanOrEqualTo(23));
-    expect(left.inHours, lessThanOrEqualTo(24));
+    // Somewhere between two hours (an ad at 22:00) and a day and two hours
+    // (an ad at 23:59 runs to the following midnight).
+    expect(left, greaterThanOrEqualTo(const Duration(hours: 2)));
+    expect(left, lessThanOrEqualTo(const Duration(hours: 26)));
   });
 
-  test('a second ad extends the pass instead of wasting it', () async {
+  test('a second ad on the same day changes nothing', () async {
     await entitlements.grantDayPass();
+    final first = entitlements.dayPassLeft!;
     await entitlements.grantDayPass();
-
-    // Watching again part-way through should stack, not restart from now.
-    expect(entitlements.dayPassLeft!.inHours, greaterThanOrEqualTo(47));
+    // Same midnight either way: the pass is the day, not a stack of hours.
+    expect((entitlements.dayPassLeft! - first).abs(), lessThan(const Duration(seconds: 2)));
   });
 
   test('a day pass survives a restart', () async {

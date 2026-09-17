@@ -108,7 +108,7 @@ void main() {
     await tester.tap(find.text('GET THE PASS'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('THE PASS'), findsOneWidget);
+    expect(find.text('GRAND PASS'), findsOneWidget);
     expect(find.text('EVERY PAPER'), findsOneWidget);
     expect(find.text('EVERY PEN'), findsOneWidget);
     expect(find.text('NO ADS'), findsOneWidget);

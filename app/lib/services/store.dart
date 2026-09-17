@@ -90,7 +90,7 @@ class PlayStore implements Store {
   bool get bannersEnabled => !_underTest;
 
   @override
-  String get passPrice => _product?.price ?? '₹99';
+  String get passPrice => _product?.price ?? '₹149';
 
   @override
   Future<void> init() async {
@@ -273,7 +273,7 @@ class DebugStore implements Store {
   bool get bannersEnabled => false;
 
   @override
-  String get passPrice => '₹99';
+  String get passPrice => '₹149';
 
   @override
   Future<void> init() async {}

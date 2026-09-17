@@ -5,7 +5,9 @@ import '../theme.dart';
 import '../widgets/sketch_icons.dart';
 import '../widgets/name_tag.dart';
 import '../widgets/celebration.dart';
+import '../widgets/offer_strip.dart';
 import '../services/audio_service.dart';
+import '../services/entitlements.dart';
 
 class ResultsView extends StatefulWidget {
   const ResultsView({
@@ -36,6 +38,9 @@ class ResultsView extends StatefulWidget {
 }
 
 class _ResultsViewState extends State<ResultsView> {
+  /// Whether this is one of the games that gets the after-game offer.
+  bool _offer = false;
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +49,9 @@ class _ResultsViewState extends State<ResultsView> {
     final w = widget.scores.isNotEmpty ? widget.scores.first : null;
     final won = w != null && widget.myId != null && w.playerId == widget.myId;
     AudioService.instance.sfx(won ? Sfx.win : Sfx.lose);
+    Entitlements.instance.noteGameFinished().then((show) {
+      if (mounted && show) setState(() => _offer = true);
+    });
   }
 
   @override
@@ -172,6 +180,7 @@ class _ResultsViewState extends State<ResultsView> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                if (_offer) const OfferStrip(),
                 // Ranked games have no host and no rematch — you queue again,
                 // against whoever is around next time.
                 if (mode.isRanked)

@@ -129,7 +129,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      'THE PASS',
+                      'GRAND PASS',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
@@ -259,7 +259,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                   size: 18,
                   color: Color(0xFF241800),
                 ),
-                label: Text('GET THE PASS — ${store.passPrice}'),
+                label: Text('GET THE GRAND PASS — ${store.passPrice}'),
               ),
 
               const SizedBox(height: 22),
@@ -297,15 +297,15 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                         ),
                   icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
                   label: const Text(
-                    'WATCH A SHORT VIDEO — COLOURS + STEADY HAND FOR 24 HOURS',
+                    'WATCH A SHORT VIDEO — COLOURS + STEADY HAND UNTIL MIDNIGHT',
                     textAlign: TextAlign.center,
                   ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
                   'One short video gives you every colour and Steady Hand '
-                  'until this time tomorrow. Papers, pens and no ads are '
-                  'pass-only.',
+                  'until midnight tonight. Papers, pens, fill, the colour '
+                  'wheel and no ads are pass-only.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: GameColors.textMuted,
