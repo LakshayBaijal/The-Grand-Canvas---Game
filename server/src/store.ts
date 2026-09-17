@@ -237,6 +237,11 @@ export function openStore(path: string): void {
 
   db.exec("DROP INDEX IF EXISTS idx_players_rank");
   db.exec("CREATE INDEX IF NOT EXISTS idx_players_rating ON players(rating DESC, created_ms ASC)");
+  // rollAllStale runs on every profile send (each sign-in, each game end)
+  // and asks for rows behind the current season. Without this it is a full
+  // scan of every player every time; with it, after a rollover has been
+  // absorbed, it is a lookup that finds nothing.
+  db.exec("CREATE INDEX IF NOT EXISTS idx_players_season ON players(season)");
 }
 
 type Row = {
