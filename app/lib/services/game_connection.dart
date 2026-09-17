@@ -81,6 +81,14 @@ class GameConnection {
     _channel = channel;
 
     final ready = Completer<void>();
+    // A handshake that fails before the stream opens -- a bad certificate
+    // (an office firewall intercepting HTTPS), a captive portal, a refused
+    // port -- is reported on `ready`, not on the stream. Left unobserved it
+    // is an unhandled exception in the log and a connect() that never
+    // resolves; observed, it is an ordinary "can't reach the server".
+    unawaited(channel.ready.catchError((Object error) {
+      if (!ready.isCompleted) ready.completeError(error);
+    }));
     channel.stream.listen(
       (raw) {
         GameEvent? event;
