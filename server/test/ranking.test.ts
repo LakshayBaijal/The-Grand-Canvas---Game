@@ -33,62 +33,42 @@ test("winning gains rating and losing loses it", () => {
   assert.ok(deltaFor(changes, "c") < 0, "last place should lose");
 });
 
-test("a game is close to zero-sum between equals", () => {
-  const changes = rateGame([
-    player({ playerId: "a", place: 0 }),
-    player({ playerId: "b", place: 1 }),
-    player({ playerId: "c", place: 2 }),
-  ]);
-  const total = changes.reduce((sum, c) => sum + c.delta, 0);
-  assert.ok(Math.abs(total) <= 1, `expected near zero-sum, got ${total}`);
+test("the higher you are, the less a win pays and the more a loss costs", () => {
+  const win = (rating: number) => deltaFor(rateGame([
+    player({ playerId: "me", place: 0, rating }),
+    ...[1, 2, 3, 4].map((i) => player({ playerId: `h${i}`, place: i })),
+  ]), "me");
+  const lose = (rating: number) => deltaFor(rateGame([
+    ...[0, 1, 2, 3].map((i) => player({ playerId: `h${i}`, place: i })),
+    player({ playerId: "me", place: 4, rating }),
+  ]), "me");
+  assert.equal(win(1000), 40); assert.equal(lose(1000), -10);
+  assert.equal(win(1500), 20); assert.equal(lose(1500), -20);
+  assert.equal(win(2000), 10); assert.equal(lose(2000), -40);
+  assert.equal(win(2600), 10); assert.equal(lose(2600), -40);
 });
 
-test("beating stronger players is worth more than beating weaker ones", () => {
-  const vsStrong = rateGame([
-    player({ playerId: "me", place: 0 }),
-    player({ playerId: "x", place: 1, rating: 1600 }),
-    player({ playerId: "y", place: 2, rating: 1600 }),
-  ]);
-  const vsWeak = rateGame([
-    player({ playerId: "me", place: 0 }),
-    player({ playerId: "x", place: 1, rating: 600 }),
-    player({ playerId: "y", place: 2, rating: 600 }),
-  ]);
-  assert.ok(
-    deltaFor(vsStrong, "me") > deltaFor(vsWeak, "me"),
-    "an upset must pay better than beating the field you were expected to beat",
-  );
-});
-
-test("losing to much weaker players costs more than losing to stronger ones", () => {
-  const toWeak = rateGame([
-    player({ playerId: "x", place: 0, rating: 600 }),
-    player({ playerId: "y", place: 1, rating: 600 }),
-    player({ playerId: "me", place: 2 }),
-  ]);
-  const toStrong = rateGame([
-    player({ playerId: "x", place: 0, rating: 1600 }),
-    player({ playerId: "y", place: 1, rating: 1600 }),
-    player({ playerId: "me", place: 2 }),
-  ]);
-  assert.ok(deltaFor(toWeak, "me") < deltaFor(toStrong, "me"));
+test("the middle of the table is spread between the ends", () => {
+  const rows = rateGame([0, 1, 2, 3, 4].map((i) => player({ playerId: `p${i}`, place: i, rating: 1200 })));
+  assert.deepEqual(rows.map((r) => r.delta), [40, 25, 10, -5, -10]);
+  const three = rateGame([0, 1, 2].map((i) => player({ playerId: `p${i}`, place: i, rating: 1700 })));
+  assert.deepEqual(three.map((r) => r.delta), [20, 0, -20], "three players: top, middle, bottom of the scale");
 });
 
 test("farming bots is not a ladder strategy", () => {
-  // The exact case the old trophy scaling existed to stop: queue alone, let the
-  // backfill fill the lobby, win. It should be worth almost nothing.
+  // Queue alone, let the backfill fill the lobby, win. Worth almost nothing.
   const changes = rateGame([
     player({ playerId: "me", place: 0 }),
-    player({ playerId: "b1", place: 1, isBot: true, rating: BOT_RATING }),
-    player({ playerId: "b2", place: 2, isBot: true, rating: BOT_RATING }),
-    player({ playerId: "b3", place: 3, isBot: true, rating: BOT_RATING }),
-    player({ playerId: "b4", place: 4, isBot: true, rating: BOT_RATING }),
+    ...[1, 2, 3, 4].map((i) => player({ playerId: `b${i}`, place: i, isBot: true, rating: BOT_RATING })),
   ]);
   assert.equal(changes.length, 1, "bots must not be rated themselves");
-  assert.ok(
-    deltaFor(changes, "me") <= 3,
-    `beating four bots should be worth ~nothing, got ${deltaFor(changes, "me")}`,
-  );
+  assert.ok(deltaFor(changes, "me") <= 8, `beating four bots should be worth little, got ${deltaFor(changes, "me")}`);
+  // And losing to them costs as little.
+  const lost = rateGame([
+    ...[0, 1, 2, 3].map((i) => player({ playerId: `b${i}`, place: i, isBot: true, rating: BOT_RATING })),
+    player({ playerId: "me", place: 4, rating: 2100 }),
+  ]);
+  assert.ok(deltaFor(lost, "me") >= -8);
 });
 
 test("beating four humans is worth far more than beating four bots", () => {
@@ -103,19 +83,16 @@ test("beating four humans is worth far more than beating four bots", () => {
   assert.ok(deltaFor(vsHumans, "me") > deltaFor(vsBots, "me") * 3);
 });
 
-test("placement games move a new player much faster", () => {
-  const settled = rateGame([
-    player({ playerId: "me", place: 0 }),
-    player({ playerId: "x", place: 1 }),
-  ]);
-  const placing = rateGame([
-    player({ playerId: "me", place: 0, gamesPlayed: 0 }),
-    player({ playerId: "x", place: 1 }),
-  ]);
-  assert.ok(deltaFor(placing, "me") > deltaFor(settled, "me") * 2);
+test("placement games move a new player faster, but only upward", () => {
+  const settled = rateGame([player({ playerId: "me", place: 0 }), player({ playerId: "x", place: 1 })]);
+  const placing = rateGame([player({ playerId: "me", place: 0, gamesPlayed: 0 }), player({ playerId: "x", place: 1 })]);
+  assert.ok(deltaFor(placing, "me") > deltaFor(settled, "me"));
+  const placingLoss = rateGame([player({ playerId: "x", place: 0 }), player({ playerId: "me", place: 1, gamesPlayed: 0 })]);
+  const settledLoss = rateGame([player({ playerId: "x", place: 0 }), player({ playerId: "me", place: 1 })]);
+  assert.equal(deltaFor(placingLoss, "me"), deltaFor(settledLoss, "me"), "a new player's losses are not amplified");
 });
 
-test("tied scores share a place and neither player moves much", () => {
+test("tied scores share a place and neither player moves", () => {
   const changes = rateGame([
     player({ playerId: "a", place: 0 }),
     player({ playerId: "b", place: 0 }),

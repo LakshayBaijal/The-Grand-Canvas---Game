@@ -174,7 +174,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               _Perk(
                 label: 'EVERY COLOUR',
                 note:
-                    'Black and yellow are always free. These seven join them.',
+                    'All nine, in every game.',
                 child: Row(
                   children: [
                     for (final c in paidColours)
@@ -194,8 +194,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               _Perk(
                 label: 'EVERY PAPER',
                 note:
-                    'Graph, ruled, dotted, kraft, sticky note, parchment, canvas. '
-                    'Everyone sees it when your drawing comes up.',
+                    'Seven sheets. Everyone sees yours.',
                 child: _SwatchRow(
                   children: [
                     for (final p in PaperStyle.values)
@@ -210,8 +209,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               _Perk(
                 label: 'EVERY PEN',
                 note:
-                    'Marker, crayon, pencil, brush, ink, neon, rainbow, spray. '
-                    'Same colours, different hand.',
+                    'Eight pens, from pencil to neon.',
                 child: _SwatchRow(
                   children: [
                     for (final p in PenStyle.values)
@@ -227,25 +225,17 @@ class _UnlockSheetState extends State<_UnlockSheet> {
               ),
               const _Perk(
                 label: 'YOUR OWN PALETTE',
-                note:
-                    'Hold any swatch and make it yours: pick off a colour '
-                    'square, dial in RGB, or type a hex code. Nine colours '
-                    'that are exactly the ones you meant, in every game, '
-                    'until you change them.',
+                note: 'Hold a swatch, pick any colour. It stays yours.',
                 child: SizedBox(height: 30, child: _OwnColourPicture()),
               ),
               const _Perk(
                 label: 'STEADY HAND',
-                note:
-                    'Drawing with a finger is hard. Turn on STEADY, draw a '
-                    'circle, a box, a line -- anything -- and hold your finger '
-                    'still for a moment. Your wobbly shape snaps into a clean '
-                    'one. Scribbles stay scribbles; only real shapes snap.',
+                note: 'Draw a shape, hold still, and it snaps clean.',
                 child: SizedBox(height: 64, child: _SteadyHandPicture()),
               ),
               const _Perk(
                 label: 'NO ADS',
-                note: 'The banner goes away for good.',
+                note: 'Gone for good.',
                 child: SizedBox.shrink(),
               ),
               const SizedBox(height: 6),
@@ -307,15 +297,13 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                         ),
                   icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
                   label: const Text(
-                    'WATCH A SHORT VIDEO — COLOURS + STEADY HAND UNTIL MIDNIGHT',
+                    'WATCH A VIDEO — COLOURS + STEADY UNTIL MIDNIGHT',
                     textAlign: TextAlign.center,
                   ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'One short video gives you every colour and Steady Hand '
-                  'until midnight tonight. Papers, pens, your own colour '
-                  'and no ads are pass-only.',
+                  'Just the colours and Steady Hand, until midnight.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: GameColors.textMuted,
@@ -325,9 +313,7 @@ class _UnlockSheetState extends State<_UnlockSheet> {
                 ),
               ] else
                 Text(
-                  'Your colours and Steady Hand are unlocked for another '
-                  '${_hm(dayLeft)}. The pass makes that permanent, and adds '
-                  'the papers, the pens and no ads.',
+                  'Colours and Steady Hand are yours for another ${_hm(dayLeft)}.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: GameColors.textMuted,

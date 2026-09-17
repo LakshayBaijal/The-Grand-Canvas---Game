@@ -503,14 +503,26 @@ class _DrawToolbar extends StatelessWidget {
                       showUnlockSheet(context);
                       return;
                     }
-                    final picked = await showColorStudio(context, initial: color, resetTo: stock);
-                    if (picked == null) return;
-                    await e.setPaletteColour(slot, picked, stock: stock);
-                    if (selected || controller.color == color) controller.color = picked;
+                    // Whatever was picked is kept, however the dialog was
+                    // closed -- SAVE, the X, a tap outside. Only RESET (which
+                    // returns the stock colour) and closing without touching
+                    // anything leave it as it was.
+                    var last = color;
+                    final picked = await showColorStudio(
+                      context,
+                      initial: color,
+                      resetTo: stock,
+                      onChanged: (c) => last = c,
+                    );
+                    final chosen = picked ?? last;
+                    await e.setPaletteColour(slot, chosen, stock: stock);
+                    // The swatch you just made yours is the one you draw with.
+                    controller.color = e.paletteColour(slot, stock);
                   },
                   child: Opacity(
                     opacity: locked ? 0.4 : 1,
                     child: Container(
+                      key: ValueKey('swatch-$slot'),
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(

@@ -17,12 +17,21 @@ import '../theme.dart';
 /// a sheet that shoves the toolbar off: the drawing stays where it was, and
 /// the X in the corner (or a tap outside) always gets you back to it.
 /// Returns the colour to save, [resetTo] if the player asked for the stock
-/// colour back, or null if they closed it.
-Future<Color?> showColorStudio(BuildContext context, {required Color initial, Color? resetTo}) {
+/// colour back, or null if they closed it another way -- the X, a tap
+/// outside, the back gesture. [onChanged] hears every change as it is made,
+/// so a caller can keep the last one and save it regardless of how the
+/// dialog closed: a colour someone picked is a colour they wanted, and
+/// "I closed it, why isn't it there" is the wrong surprise.
+Future<Color?> showColorStudio(
+  BuildContext context, {
+  required Color initial,
+  Color? resetTo,
+  ValueChanged<Color>? onChanged,
+}) {
   return showDialog<Color>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.45),
-    builder: (_) => _ColorStudio(initial: initial, resetTo: resetTo),
+    builder: (_) => _ColorStudio(initial: initial, resetTo: resetTo, onChanged: onChanged),
   );
 }
 
@@ -43,9 +52,10 @@ Color? colorFromHex(String text) {
 }
 
 class _ColorStudio extends StatefulWidget {
-  const _ColorStudio({required this.initial, this.resetTo});
+  const _ColorStudio({required this.initial, this.resetTo, this.onChanged});
   final Color initial;
   final Color? resetTo;
+  final ValueChanged<Color>? onChanged;
 
   @override
   State<_ColorStudio> createState() => _ColorStudioState();
@@ -94,6 +104,7 @@ class _ColorStudioState extends State<_ColorStudio> {
   void _set(HSVColor v) {
     setState(() => _hsv = v);
     _syncFields();
+    widget.onChanged?.call(_color);
   }
 
   void _fromRgb() {

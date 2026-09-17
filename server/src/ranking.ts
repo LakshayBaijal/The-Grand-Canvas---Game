@@ -128,41 +128,61 @@ export function trophyDelta(trophies: number, place: number, seats: number): num
 
 // --- rating maths ----------------------------------------------------------
 
-/** Standard Elo divisor: a 400-point gap means the favourite is expected to
- *  beat the underdog about 10 times out of 11. */
-const ELO_SCALE = 400;
+/**
+ * Rating moves by where you finish and by how high you already are.
+ *
+ * Not Elo. Elo pays by the strength of the people you beat, which is right
+ * for chess and wrong for a five-player party game decided by a vote: the
+ * table is whoever the queue found, and nobody chose them. What matters
+ * here is simpler -- the higher you sit, the harder it is to stay. Below
+ * 1500 a win pays 40 and a last place costs 10, so a new player climbs.
+ * From 1500 it is 20 and 20. From 2000 a win pays 10 and a last place costs
+ * 40: the top of the board belongs to whoever keeps winning, not to whoever
+ * got there first. The middle places are spread between.
+ */
+export type RatingBand = { floor: number; deltas: readonly number[] };
+export const RATING_BANDS: readonly RatingBand[] = [
+  { floor: 0, deltas: [40, 25, 10, -5, -10] },
+  { floor: 1500, deltas: [20, 10, 0, -10, -20] },
+  { floor: 2000, deltas: [10, 5, -5, -20, -40] },
+];
 
-/** How far one game can move you. Deliberately modest: this is a five-player
- *  game decided by other people's taste, so no single night should define you. */
-const K_BASE = 24;
+/** The band a rating is in. */
+export function ratingBand(rating: number): RatingBand {
+  let band = RATING_BANDS[0];
+  for (const b of RATING_BANDS) if (rating >= b.floor) band = b;
+  return band;
+}
 
-/** Your first few games count for much more, so new players land near their
- *  real level in an evening instead of grinding up from the bottom. */
+/** Rating change for finishing [place] (0 = winner) of [seats], at [rating].
+ *  A smaller table is spread across the five-seat scale, like trophies. */
+export function ratingDelta(rating: number, place: number, seats: number): number {
+  const table = ratingBand(rating).deltas;
+  const last = table.length - 1;
+  const slot = seats <= 1 ? 0 : Math.round((place * last) / (seats - 1));
+  return table[Math.min(last, Math.max(0, slot))];
+}
+
+/** Your first few games count for more, so a new player lands near their
+ *  level in an evening instead of grinding up from the start. */
 export const PLACEMENT_GAMES = 5;
+const PLACEMENT_BOOST = 1.5;
 
 /**
  * Ranked games before a player appears on the leaderboard and has a rank.
  *
- * One. The first few games still count triple toward the rating (see
- * PLACEMENT_GAMES above -- that is maths, and it stays), but nobody is made
- * to play five games before the board admits they exist. A new player who
- * finishes one match and opens the leaderboard should find themselves on
- * it; that is the moment the board becomes something to climb rather than
- * something other people are on.
+ * One. The first few games still count for more (see PLACEMENT_GAMES), but
+ * nobody is made to play five games before the board admits they exist. A
+ * new player who finishes one match and opens the leaderboard should find
+ * themselves on it; that is the moment the board becomes something to
+ * climb rather than something other people are on.
  */
 export const BOARD_AFTER_GAMES = 1;
-const K_PLACEMENT = 3;
 
-/** Bots are opponents, but beating them is not an achievement. Their result
- *  contributes at a fraction of the weight, which is what stops someone
- *  queueing alone against a bot backfill to farm the ladder.
- *
- * This is deliberately much stricter than the trophy scaling it replaces:
- * a lobby of 1 human + 4 bots moves rating by only a few points either way. */
-const BOT_WEIGHT = 0.15;
-
-/** Bots play at roughly a mid-Doodler level, which is about where their
- *  drawings actually land against real players. */
+/** Bots are opponents, but beating them is not an achievement. A table's
+ *  result is scaled by the share of it that was human, so queueing alone
+ *  against a bot backfill moves the rating by only a few points either
+ *  way -- and losing to bots costs as little as beating them pays. */
 export const BOT_RATING = 1000;
 
 export type Contender = {
@@ -183,49 +203,30 @@ export type RatingChange = {
 };
 
 /**
- * Rates one finished game.
- *
- * Free-for-all Elo: every player is scored against every other as if they had
- * played a pairwise match, and the results are averaged. Beating someone rated
- * far above you is worth a lot; losing to someone far below costs a lot. Coming
- * exactly where your rating predicted moves you barely at all — which is the
- * property that makes the number mean something over time.
+ * Rates one finished game: each human by their place and their band, scaled
+ * by how much of the table was people. A solo game (nobody to beat) moves
+ * nothing.
  */
 export function rateGame(contenders: readonly Contender[]): RatingChange[] {
   const out: RatingChange[] = [];
+  const seats = contenders.length;
+  const humans = contenders.filter((c) => !c.isBot).length;
+  const share = seats > 0 ? humans / seats : 0;
 
   for (const player of contenders) {
     if (player.isBot) continue;
-
-    const opponents = contenders.filter((c) => c.playerId !== player.playerId);
-    if (opponents.length === 0) {
-      // Solo game: nothing to measure skill against, so nothing changes.
+    if (seats < 2) {
       out.push({ playerId: player.playerId, before: player.rating, after: player.rating, delta: 0 });
       continue;
     }
-
-    let net = 0;
-
-    for (const opponent of opponents) {
-      const weight = opponent.isBot ? BOT_WEIGHT : 1;
-      const actual = player.place < opponent.place ? 1 : player.place > opponent.place ? 0 : 0.5;
-      const predicted = 1 / (1 + 10 ** ((opponent.rating - player.rating) / ELO_SCALE));
-      net += weight * (actual - predicted);
-    }
-
-    // Divide by the number of opponents, NOT by the sum of their weights.
-    // Dividing by the weight sum cancels the weighting out — it appears in the
-    // numerator and denominator both — which silently made beating four bots
-    // worth exactly as much as beating four humans, the one thing BOT_WEIGHT
-    // exists to prevent. Per-opponent normalisation also keeps a 3-player game
-    // and a 5-player game moving you comparably.
-    const k = K_BASE * (player.gamesPlayed < PLACEMENT_GAMES ? K_PLACEMENT : 1);
-    const delta = Math.round((k * net) / opponents.length);
+    // Everyone tied for a place shares it: no coin-flip should move a rating.
+    const tiedFor = contenders.filter((c) => c.place === player.place).length;
+    const base = tiedFor > 1 ? 0 : ratingDelta(player.rating, player.place, seats);
+    const boost = player.gamesPlayed < PLACEMENT_GAMES && base > 0 ? PLACEMENT_BOOST : 1;
+    const delta = Math.round(base * share * boost);
     const after = Math.max(0, player.rating + delta);
-
     out.push({ playerId: player.playerId, before: player.rating, after, delta: after - player.rating });
   }
-
   return out;
 }
 
