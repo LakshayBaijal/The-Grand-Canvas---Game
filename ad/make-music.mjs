@@ -384,7 +384,36 @@ function passBed() {
   console.log('pass_bed.mp3    28.4s, 76bpm, D major -- strings, harp, brass hits on the cuts, timpani into the price');
 }
 
+
+// ---------------------------------------------------------------------------
+// The concept trailer's bed: 16.4s, 84bpm, C major, warm and close. A pad
+// under everything, a music-box melody that starts the moment the drawing
+// comes alive, pencil swishes while it is being drawn, a bell as the lines
+// get up, and a soft rise into the card. Cut times are life.html's T table.
+// ---------------------------------------------------------------------------
+function lifeBed() {
+  noiseRng = rng(2026);
+  const out = new Float32Array(Math.ceil(16.4 * SR));
+  const BEAT = 60 / 84;
+  pad(out, 0.0, [N.C3, N.G3, N.E4], 0.7, 7.0);
+  pad(out, 7.0, [N.F3, N.C4, N.A4], 0.9, 3.4);
+  pad(out, 10.4, [N.G3, N.D4, N.B3 * 2], 0.9, 3.2);
+  pad(out, 13.6, [N.C3, N.G3, N.C4, N.E4, N.G4], 1.1, 2.8);
+  // pencil on paper while the figures are drawn
+  for (let t = 1.1; t < 6.2; t += 0.42 + (noiseRng() * 0.25)) swish(out, t, 0.55, 0.16 + noiseRng() * 0.08);
+  bell(out, 7.0, 1046.5, 0.9, 1.6);
+  // music box: a little tune that runs while they play
+  const tune = [N.E5, N.G5, N.C5, N.E5, N.G5, N.A4 * 2, N.G5, N.E5, N.C5, N.E5, N.D4 * 2, N.C5];
+  let k = 0;
+  for (let t = 7.2; t < 13.4; t += BEAT / 2) { pluck(out, t, tune[k % tune.length], k % 4 === 0 ? 0.75 : 0.45, 0.5); k++; }
+  bell(out, 13.6, 1318.5, 1.0, 1.8); bell(out, 13.75, 1567.98, 0.6, 1.4);
+  shimmer(out, 13.6, 0.9, 2.6);
+  write(out, 'life_bed.mp3', 0.55);
+  console.log('life_bed.mp3    16.4s, 84bpm, C major -- pad, pencil swishes, a music box while they play, bells on the card');
+}
+
 promoBed();
 rapidBed();
 dailyBed();
 passBed();
+lifeBed();

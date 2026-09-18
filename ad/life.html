@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — A drawing comes alive (16s)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center;
+           transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 22px; opacity: 0;
+        box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer;
+           background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start">
+    <div>
+      <b>A DRAWING COMES ALIVE</b>
+      <span>16 second concept trailer &middot; 1920&times;1080<br><br>
+        <kbd>click</kbd> or <kbd>space</kbd> to play<br>
+        <kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span>
+    </div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+/**
+ * The concept trailer. No price, no feature list: a hand draws a man and
+ * his dog on a sheet pinned to the wall, the pencil leaves, and the ink
+ * gets up and plays -- he throws the ball, the dog fetches it back, all
+ * of it inside the paper, while the sheet stirs in a breeze. Then the
+ * name. It sells the feeling the game is after, not a thing it does.
+ *
+ *   0.0   the sheet, pinned, breathing
+ *   1.0   the pencil draws the man, then the dog, then the ball
+ *   6.4   the pencil leaves; the lines settle
+ *   7.0   the throw; the dog runs; the fetch; the return; the fuss
+ *  13.6   the card
+ *
+ * The figures are little line puppets: every stroke is a function of a
+ * pose, and the pose is a function of time. The hand-drawn wobble is
+ * reseeded eight times a second, which is the "boil" of pencil animation.
+ */
+const W2 = 1920, H2 = 1080;
+const T = { draw: 1.0, drawn: 6.4, alive: 7.0, card: 13.6, end: 16.0 };
+const INK = '#23201d';
+
+// --- the sheet -------------------------------------------------------------
+// Everything on the paper is drawn into an offscreen canvas at rest, then
+// laid onto the wall through a breeze: vertical strips, each lifted by a
+// wave that travels across the sheet and is strongest at the untaped
+// bottom-right corner. Cheap, and it reads as paper rather than a picture.
+const PW = 1000, PH = 800;
+const off = document.createElement('canvas'); off.width = PW; off.height = PH;
+const og = off.getContext('2d');
+const PX = (W2 - PW) / 2, PY = 120;
+
+function breeze(t) {
+  // A slow sway plus a gust around the throw and another around the fetch.
+  const gust = Math.exp(-Math.pow((t - 7.6) / 0.9, 2)) * 1.6 + Math.exp(-Math.pow((t - 10.4) / 1.1, 2)) * 1.2;
+  return 1 + gust;
+}
+function layPaper(t) {
+  const strips = 40, sw = PW / strips, k = breeze(t);
+  g.save();
+  g.translate(PX + PW / 2, PY + PH / 2); g.rotate(Math.sin(t * 0.9) * 0.006 * k); g.translate(-(PX + PW / 2), -(PY + PH / 2));
+  // shadow first, from the same strips, so the lift shows in the shadow too
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < strips; i++) {
+      const u = (i + 0.5) / strips;                       // 0 at the taped left edge
+      const free = Math.pow(u, 1.6);                      // right side moves, left is taped
+      const wave = Math.sin(u * 5.2 - t * 2.1) * 9 * k + Math.sin(u * 11 - t * 3.7) * 3 * k;
+      const lift = wave * free;                           // px, up is negative
+      const x = PX + i * sw;
+      if (pass === 0) {
+        g.fillStyle = 'rgba(0,0,0,.28)';
+        g.fillRect(x + 10, PY + 16 + lift * 0.5 + free * 6 * k, sw + 1, PH);
+      } else {
+        g.drawImage(off, i * sw, 0, sw, PH, x, PY + lift, sw + 1, PH);
+      }
+    }
+  }
+  // tape, top-left and top-right (the right one lifts a touch with the sheet)
+  const tape = (x, y, rot) => { g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-46, -12, 92, 24); g.fillStyle = 'rgba(0,0,0,.05)'; g.fillRect(-46, -12, 92, 3); g.restore(); };
+  tape(PX + 60, PY + 4, -0.08);
+  tape(PX + PW - 60, PY + 4 + Math.sin(t * 2.1 - 5.2) * 2 * k, 0.07);
+  g.restore();
+}
+
+// --- the puppets --------------------------------------------------------------
+// Each returns a list of strokes in paper space; a stroke is [pts, width].
+const P = (x, y) => ({ x, y });
+const seg = (a, b, n = 8) => Array.from({ length: n + 1 }, (_, i) => P(a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n));
+const circ = (cx, cy, r, n = 28, from = 0, to = Math.PI * 2) => Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n; return P(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
+
+/** The man: standing at (x, groundY), facing right. arm: 0 down .. 1 up-and-back .. throw. crouch: 0..1. */
+function man(x, gy, { arm = 0, crouch = 0, step = 0 } = {}) {
+  const s = 1 - crouch * 0.18;                 // squashes when he crouches
+  const hipY = gy - 150 * s, shY = gy - 265 * s, headY = gy - 320 * s;
+  const lean = crouch * 30;
+  const out = [];
+  out.push([circ(x + lean * 1.4, headY - lean * 0.2, 36), 6]);                                // head
+  out.push([seg(P(x + lean, shY), P(x, hipY)), 7]);                                         // spine
+  // legs, with a small step while he's fussing the dog
+  const l = Math.sin(step) * 12;
+  out.push([seg(P(x, hipY), P(x - 34 - l, gy)), 6]); out.push([seg(P(x, hipY), P(x + 30 + l, gy)), 6]);
+  // arms: the back arm rests; the front arm goes from down (0) to back-and-up (1) to thrown-forward (2)
+  const ax = x + lean, ay = shY + 8;
+  const a = arm <= 1 ? lerp(0.9, -2.2, arm) : lerp(-2.2, 0.35, arm - 1); // radians from straight down
+  const elbow = P(ax + Math.sin(a) * 60, ay + Math.cos(a) * 60);
+  const bend = arm <= 1 ? lerp(0.2, 1.4, arm) : lerp(1.4, -0.1, arm - 1);
+  const hand = P(elbow.x + Math.sin(a + bend) * 58, elbow.y + Math.cos(a + bend) * 58);
+  out.push([seg(P(ax, ay), elbow), 6]); out.push([seg(elbow, hand), 6]);
+  out.push([seg(P(ax, ay), P(ax - 30, ay + 95 - crouch * 40)), 6]);                          // back arm
+  // a smile when crouching, eyes always
+  out.push([seg(P(x + lean * 1.4 + 10, headY - lean * 0.2 - 6), P(x + lean * 1.4 + 12, headY - lean * 0.2 - 6), 2), 5]);
+  if (crouch > 0.3) out.push([circ(x + lean * 1.4 + 8, headY - lean * 0.2 + 8, 12, 10, 0.2, 2.9), 4]);
+  return { strokes: out, hand };
+}
+
+/** The dog: at (x, groundY), facing dir (+1 right). phase drives the legs, running 0..1 scales the gait, wag the tail, head lifts the head, sit lowers the rump. */
+function dog(x, gy, { dir = 1, phase = 0, running = 0, wag = 0, head = 0, sit = 0 } = {}) {
+  const f = (dx, dy = 0) => P(x + dx * dir, gy + dy);
+  const bob = Math.sin(phase) * 6 * running;
+  const drop = sit * 16;
+  const out = [];
+  const ell = (cx, cy, rx, ry, n = 32) => Array.from({ length: n + 1 }, (_, i) => { const a = i / n * Math.PI * 2; return P(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry); });
+  // body
+  const by = gy - 68 - bob + drop;
+  out.push([ell(x, by, 82, 42), 6]);
+  // neck and head, lifted toward the man when asked
+  const hx = x + 102 * dir, hy = gy - 116 - bob - head * 26 + drop * 0.6;
+  out.push([seg(f(66, -96 - bob + drop), P(hx - 22 * dir, hy + 12)), 6]);
+  out.push([ell(hx, hy, 32, 28), 6]);
+  out.push([seg(P(hx + 24 * dir, hy + 2), P(hx + 58 * dir, hy + 8)), 6]);            // snout
+  out.push([ell(hx + 60 * dir, hy + 6, 5, 4, 8), 6]);                                 // nose
+  out.push([ell(hx + 10 * dir, hy - 8, 3, 3, 8), 5]);                                 // eye
+  const flap = Math.sin(phase) * 12 * running;                                        // ear
+  out.push([seg(P(hx - 8 * dir, hy - 26), P(hx - 32 * dir, hy + 4 + flap)), 5]);
+  // legs: front pair and back pair, opposite phases when running; folded when sitting
+  const leg = (ox, ph) => {
+    const sw = Math.sin(ph) * 24 * running, lift = Math.max(0, Math.cos(ph)) * 16 * running;
+    const top = f(ox, -32 - bob + drop), foot = f(ox + sw * dir * dir, 0 - lift);
+    if (sit > 0 && ox < 0) return [f(ox, -32 + drop), f(ox - 30, -6 + drop * 0.3)];   // back legs tuck
+    return seg(top, foot);
+  };
+  out.push([leg(58, phase), 6]); out.push([leg(38, phase + Math.PI + 0.5), 6]);
+  out.push([leg(-52, phase + Math.PI), 6]); out.push([leg(-70, phase + 0.5), 6]);
+  // tail
+  const tw = Math.sin(wag) * 0.7;
+  out.push([[f(-80, -84 - bob + drop), f(-120, -110 - bob + drop + Math.sin(tw) * 30), f(-136, -128 - bob + drop + Math.sin(tw) * 44)], 6]);
+  return { strokes: out, mouth: P(hx + 62 * dir, hy + 12) };
+}
+
+// --- the pencil drawing it ------------------------------------------------------
+// The still figures, as they are first drawn, in order, with a share of the
+// drawing time each.
+const REST_MAN = () => man(330, 640, { arm: 0 });
+const REST_DOG = () => dog(690, 640, { dir: -1, wag: 0.4 });
+const BALL0 = P(455, 588);
+const PLAN = [];
+(() => {
+  const m = REST_MAN().strokes, d = REST_DOG().strokes, ball = [[circ(BALL0.x, BALL0.y, 16), 6]];
+  const all = [...m, ...d, ...ball];
+  const len = s => s[0].reduce((a, p, i) => i ? a + Math.hypot(p.x - s[0][i-1].x, p.y - s[0][i-1].y) : 0, 0);
+  const w = all.map(s => Math.max(30, len(s)) + 40), tot = w.reduce((a, b) => a + b, 0);
+  let t = T.draw;
+  for (const [i, s] of all.entries()) { const dur = (w[i] / tot) * (T.drawn - T.draw - 0.3); PLAN.push({ s, t0: t, t1: t + dur * 0.85 }); t += dur; }
+})();
+
+function boilSeed(t) { return 100 + Math.floor(t * 8); }
+function inkStroke(ctx, pts, width, upto, seed) {
+  const r = rng(seed);
+  const n = Math.max(2, Math.ceil(pts.length * upto));
+  ctx.strokeStyle = INK; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) { const p = pts[i]; const wx = (r() - .5) * 2.2, wy = (r() - .5) * 2.2; i ? ctx.lineTo(p.x + wx, p.y + wy) : ctx.moveTo(p.x + wx, p.y + wy); }
+  ctx.stroke();
+  return pts[n - 1];
+}
+
+// --- the life ------------------------------------------------------------------
+function pose(t) {
+  const a = t - T.alive;
+  // man's arm: wind up 0..0.6, throw 0.6..0.95, settle
+  let arm = 0; if (a > 0 && a < 0.6) arm = easeOut(a / 0.6); else if (a >= 0.6 && a < 0.95) arm = 1 + easeOut((a - 0.6) / 0.35); else if (a >= 0.95) arm = 2 - easeOut(win(a, 0.95, 1.6)) * 1.85;
+  // ball: in hand until release at 0.78, then an arc to the right, then a bounce, then carried back by the dog
+  const release = 0.78, landT = 1.75;
+  let ball, held = 'man';
+  if (a < release) held = 'man';
+  else if (a < landT) { const u = (a - release) / (landT - release); ball = P(lerp(410, 880, u), 560 - Math.sin(u * Math.PI) * 190 + u * 60); held = null; }
+  else if (a < 2.35) { const u = (a - landT) / 0.6; ball = P(lerp(880, 905, u), 622 - Math.sin(u * Math.PI) * 40); held = null; }
+  else held = a < 2.6 ? null : 'dog';
+  if (held === null && !ball) ball = P(905, 622);
+  // dog: waits, runs right 0.55..2.5, grabs, runs back 3.0..4.9, sits and gets fussed
+  let dx = 690, dir = -1, running = 0, sit = 0, head = 0, phase = a * 14, wag = a * 9;
+  if (a > 0.55 && a < 2.5) { const u = easeOut(win(a, 0.55, 2.5)); dx = lerp(690, 830, u); dir = 1; running = 1; }
+  else if (a >= 2.5 && a < 3.0) { dx = 830; dir = 1; running = 0; head = 1 - win(a, 2.5, 3.0); }
+  else if (a >= 3.0 && a < 4.9) { const u = easeOut(win(a, 3.0, 4.9)); dx = lerp(830, 500, u); dir = -1; running = 1; }
+  else if (a >= 4.9) { dx = 500; dir = -1; running = 0; sit = easeOut(win(a, 4.9, 5.4)); head = sit; }
+  // man crouches to fuss the dog once it's back
+  const crouch = easeOut(win(a, 5.1, 5.8)) * (1 - win(a, 6.3, 6.6) * 0.0);
+  const step = a > 5.1 ? (a - 5.1) * 6 : 0;
+  return { arm, crouch, step, dx, dir, running, sit, head, phase, wag, ball, held };
+}
+
+function paintSheet(t) {
+  og.setTransform(1, 0, 0, 1, 0, 0); og.clearRect(0, 0, PW, PH);
+  // paper texture from the engine, on the offscreen context
+  const G = g; g = og; paintPaper(0, 0, PW, PH); g = G;
+  og.strokeStyle = 'rgba(0,0,0,.06)'; og.lineWidth = 2; og.strokeRect(1, 1, PW - 2, PH - 2);
+  // a faint ground line, drawn first by the pencil
+  const seed = t < T.alive ? 7 : boilSeed(t);
+  let tip = null;
+  if (t < T.alive) {
+    const gl = win(t, T.draw - 0.4, T.draw); if (gl > 0) inkStroke(og, seg(P(120, 640), P(880, 646), 12), 5, gl, 7);
+    for (const p of PLAN) { if (t < p.t0) break; const u = win(t, p.t0, p.t1); const e = inkStroke(og, p.s[0], p.s[1], u, 7); if (u < 1) tip = e; }
+  } else {
+    inkStroke(og, seg(P(120, 640), P(880, 646), 12), 5, 1, seed);
+    const q = pose(t);
+    const m = man(330, 640, { arm: q.arm, crouch: q.crouch, step: q.step });
+    const d = dog(q.dx, 640, { dir: q.dir, phase: q.phase, running: q.running, wag: q.wag, head: q.head, sit: q.sit });
+    for (const [pts, w] of m.strokes) inkStroke(og, pts, w, 1, seed);
+    for (const [pts, w] of d.strokes) inkStroke(og, pts, w, 1, seed);
+    const b = q.held === 'man' ? m.hand : q.held === 'dog' ? d.mouth : q.ball;
+    inkStroke(og, circ(b.x, b.y, 16), 6, 1, seed);
+    // little hearts while he fusses the dog
+    const a = t - T.alive;
+    if (a > 5.4) for (let i = 0; i < 3; i++) { const ht = (a - 5.4 - i * 0.5); if (ht < 0 || ht > 1.6) continue; const hy = 520 - ht * 90, hx = 420 + i * 40 + Math.sin(ht * 6) * 8; og.globalAlpha = 1 - win(ht, 1.0, 1.6); inkStroke(og, [P(hx, hy + 8), P(hx - 8, hy), P(hx - 4, hy - 8), P(hx, hy - 3), P(hx + 4, hy - 8), P(hx + 8, hy), P(hx, hy + 8)], 3, 1, seed + i); og.globalAlpha = 1; }
+  }
+  return tip;
+}
+
+function lifeFrame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  // the wall: a warm dark room, a soft light from the upper left
+  g.fillStyle = '#1A1630'; g.fillRect(0, 0, W, H);
+  const light = g.createRadialGradient(560, 240, 0, 560, 240, 1400); light.addColorStop(0, 'rgba(255,214,140,.22)'); light.addColorStop(1, 'rgba(255,214,140,0)');
+  g.fillStyle = light; g.fillRect(0, 0, W, H);
+
+  const tip = paintSheet(t);
+  const cardU = win(t, T.card, T.card + 0.6);
+  g.globalAlpha = 1 - cardU * 0.85;
+  layPaper(t);
+  // the pencil, on the paper, while drawing (it rides the same lift as the sheet, roughly)
+  if (tip && t < T.drawn) {
+    const u = tip.x / PW, k = breeze(t), lift = (Math.sin(u * 5.2 - t * 2.1) * 9 * k + Math.sin(u * 11 - t * 3.7) * 3 * k) * Math.pow(u, 1.6);
+    pencil(PX + tip.x, PY + tip.y + lift, 520, -0.85);
+  }
+  g.globalAlpha = 1;
+
+  // captions under the sheet
+  const cap = (s, from, to, y = 990) => { const a = easeOut(win(t, from, from + 0.3)) * (1 - win(t, to - 0.25, to)); if (a > 0) text(s, 960, y, 34, C.primary, { spacing: 5, alpha: a }); };
+  cap('DRAW SOMETHING.', T.draw + 0.4, T.drawn);
+  cap('THEN WATCH IT LIVE.', T.alive + 0.3, T.card);
+
+  // the card
+  if (t >= T.card) {
+    const s = back(win(t, T.card + 0.05, T.card + 0.5)), size = 300 * s;
+    const glow = g.createRadialGradient(960, 520, 0, 960, 520, 900); glow.addColorStop(0, `rgba(255,197,61,${.32 * easeOut(cardU)})`); glow.addColorStop(1, 'rgba(255,197,61,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, W, H);
+    if (icon.complete && icon.naturalWidth) { g.save(); g.translate(560, 500); g.rotate((1 - s) * .3); g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 60; g.shadowOffsetY = 26; roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent'; g.drawImage(icon, -size / 2, -size / 2, size, size); g.restore(); }
+    const wu = easeOut(win(t, T.card + 0.25, T.card + 0.65));
+    text('GRAND CANVAS', 790, 450 + (1 - wu) * 34, 94, C.primary, { spacing: 8, glow: 42, alpha: wu, align: 'left' });
+    const tu = easeOut(win(t, T.card + 0.45, T.card + 0.85));
+    text('Every drawing has a life in it.', 790, 540 + (1 - tu) * 24, 40, C.text, { weight: 700, alpha: tu, align: 'left' });
+    text('a  W H O S E G A M E S  game', 960, 945, 24, C.muted, { weight: 700, alpha: easeOut(win(t, T.card + 0.6, T.card + 1.0)) });
+  }
+  wg.style.opacity = t >= T.card ? easeOut(win(t, T.card + 0.6, T.card + 1.0)) : 0;
+}
+window.frame = lifeFrame;
+prepareStage(W2, H2, { x: 912, y: 800, size: 96 });
+runPlayback(lifeFrame, T.end, [['bed', 'assets/life_bed.mp3', 0, .95]]);
+</script>
+</body>
+</html>
