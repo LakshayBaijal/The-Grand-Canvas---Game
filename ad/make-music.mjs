@@ -415,5 +415,74 @@ function lifeBed() {
 promoBed();
 rapidBed();
 dailyBed();
+
+// ---------------------------------------------------------------------------
+// Man vs. Mosquito: 18.4s, 112bpm, a sneaky tune. Pizzicato bass on the
+// offbeats, a staccato marimba melody, woodblock ticks, the mosquito's own
+// whine whenever it is flying, a slide up into the chase, a crash when the
+// lamp goes, a boing when he climbs the chair, and a held note with the
+// whine cut dead when it lands on his nose. Cut times are mosquito.html's.
+// ---------------------------------------------------------------------------
+function whine(out, at, dur, amp) {
+  const i0 = Math.round(at * SR), n = Math.min(out.length - i0, Math.ceil(dur * SR));
+  let ph = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / SR, e = Math.min(1, t / 0.08) * Math.min(1, (dur - t) / 0.12);
+    const f = 640 + 40 * Math.sin(2 * Math.PI * 5.3 * t) + 25 * Math.sin(2 * Math.PI * 0.9 * t);
+    ph += 2 * Math.PI * f / SR;
+    const saw = ((ph / Math.PI) % 2) - 1;                     // a thin saw
+    out[i0 + i] += (saw * 0.6 + Math.sin(ph) * 0.4) * amp * 0.05 * e;
+  }
+}
+function tick(out, at, amp = 1, freq = 1800) {
+  const i0 = Math.round(at * SR), n = Math.min(out.length - i0, Math.ceil(0.05 * SR));
+  for (let i = 0; i < n; i++) { const t = i / SR, e = Math.exp(-t * 180); out[i0 + i] += Math.sin(2 * Math.PI * freq * t) * amp * 0.25 * e; }
+}
+function crash(out, at, amp = 1, dur = 1.2) {
+  const i0 = Math.round(at * SR), n = Math.min(out.length - i0, Math.ceil(dur * SR)); let hp = 0, prev = 0;
+  for (let i = 0; i < n; i++) { const t = i / SR, e = Math.exp(-t / (dur * 0.35)); const w = noiseRng() * 2 - 1; hp = 0.9 * (hp + w - prev); prev = w; out[i0 + i] += hp * amp * 0.18 * e; }
+}
+function slide(out, at, f0, f1, dur, amp) {
+  const i0 = Math.round(at * SR), n = Math.min(out.length - i0, Math.ceil(dur * SR)); let ph = 0;
+  for (let i = 0; i < n; i++) { const t = i / SR, u = t / dur, e = Math.sin(Math.PI * u); const f = f0 * Math.pow(f1 / f0, u); ph += 2 * Math.PI * f / SR; out[i0 + i] += Math.sin(ph) * amp * 0.12 * e; }
+}
+function mosquitoBed() {
+  noiseRng = rng(7331);
+  const out = new Float32Array(Math.ceil(18.4 * SR));
+  const BEAT = 60 / 112;
+  const T = { draw: 1.0, alive: 6.2, swat: 7.9, chase: 8.4, lamp: 10.6, chair: 12.6, nose: 14.0, card: 15.6 };
+  // drawing: pencil swishes over a quiet held chord
+  pad(out, 0, [N.A2, N.E3, N.A3], 0.5, 6.4);
+  for (let t = 1.2; t < 5.8; t += 0.4 + noiseRng() * 0.25) swish(out, t, 0.5, 0.15 + noiseRng() * 0.08);
+  bell(out, T.alive, 880, 0.8, 1.2);
+  // the sneaky tune: bass on the offbeats, marimba melody, ticks
+  const bassLine = [N.A2, N.A2, N.E2, N.E2, N.F2, N.F2, N.E2, N.E2];
+  const tune = [N.A4, N.C5, N.E5, N.C5, N.A4, N.E4, N.G4, N.E4, N.F4, N.A4, N.C5, N.A4, N.E4, N.G4, N.E4, N.C4];
+  let k = 0;
+  for (let t = T.alive + 0.4; t < T.card - 0.2; t += BEAT / 2) {
+    const chase = t >= T.chase && t < T.nose, tempoMul = chase ? 1 : 1;
+    if (k % 2 === 1) bass(out, t, bassLine[Math.floor(k / 2) % bassLine.length], chase ? 0.9 : 0.6, 0.18);
+    if (t < T.nose) pluck(out, t, tune[k % tune.length], chase ? 0.8 : 0.5, 0.22);
+    tick(out, t, k % 4 === 0 ? 0.9 : 0.45, k % 4 === 0 ? 1400 : 2200);
+    k++;
+  }
+  // the whine: round his head, then during the chase, then nothing
+  whine(out, T.alive + 0.2, T.swat - T.alive - 0.2, 1.0);
+  whine(out, T.chase, T.nose - T.chase, 0.75);
+  tick(out, T.swat + 0.25, 1.4, 900);                              // the swat, a thud
+  slide(out, T.chase - 0.15, 300, 900, 0.45, 1.0);                 // up into the chase
+  kick(out, T.chase, 1.0);
+  crash(out, T.lamp + 0.25, 1.0, 1.3); kick(out, T.lamp + 0.25, 1.2, 1.4);
+  slide(out, T.chair, 220, 520, 0.35, 0.9); slide(out, T.chair + 0.3, 520, 300, 0.25, 0.6);   // boing
+  // it lands: everything stops but a held note
+  pad(out, T.nose, [N.E3, N.B3, N.E4], 0.9, T.card - T.nose);
+  tick(out, T.nose + 0.05, 0.8, 3000);
+  bell(out, T.card, 1318.5, 1.0, 1.8); bell(out, T.card + 0.15, 1567.98, 0.6, 1.4); shimmer(out, T.card, 0.9, 2.6);
+  pad(out, T.card, [N.C3, N.G3, N.C4, N.E4], 1.0, 2.8);
+  write(out, 'mosquito_bed.mp3', 0.6);
+  console.log('mosquito_bed.mp3 18.4s, 112bpm -- pizzicato bass, marimba tune, ticks, the whine, a crash for the lamp');
+}
+
 passBed();
 lifeBed();
+mosquitoBed();

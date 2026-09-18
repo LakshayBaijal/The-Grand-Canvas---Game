@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — Man vs. Mosquito (18s)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center; transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 22px; opacity: 0; box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer; background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start"><div><b>MAN VS. MOSQUITO</b><span>18 second concept trailer &middot; 1920&times;1080<br><br><kbd>click</kbd> or <kbd>space</kbd> to play<br><kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span></div></div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+/**
+ * Man vs. Mosquito. A man is drawn reading in an armchair under a lamp.
+ * One mosquito is drawn. The lines come alive: it whines around his head,
+ * he swats and misses, and then it is a chase -- him running across the
+ * sheet with the book, the lamp going over, him ending up standing on the
+ * chair swinging at nothing -- until the mosquito lands on his nose and he
+ * freezes. Then the name.
+ *
+ *   0.0   the sheet
+ *   1.0   drawn: chair, man reading, lamp, mosquito
+ *   6.2   alive: the whine, the first swat
+ *   8.4   the chase, left to right and back; the lamp goes at 10.6
+ *  12.6   up on the chair
+ *  14.0   it lands on his nose; freeze
+ *  15.6   the card
+ */
+const W2 = 1920, H2 = 1080;
+const T = { draw: 1.0, drawn: 5.9, alive: 6.2, swat: 7.9, chase: 8.4, lamp: 10.6, chair: 12.6, nose: 14.0, card: 15.6, end: 18.0 };
+const INK = '#23201d';
+const PW = 1000, PH = 800, PX = (W2 - PW) / 2, PY = 120, GY = 660;
+const off = document.createElement('canvas'); off.width = PW; off.height = PH; const og = off.getContext('2d');
+
+// --- the sheet in a breeze (as in life.html) ---------------------------------
+function breeze(t) { return 1 + Math.exp(-Math.pow((t - T.lamp) / 0.7, 2)) * 1.8 + Math.exp(-Math.pow((t - T.chase - 0.6) / 1.2, 2)) * 0.9; }
+function layPaper(t) {
+  const strips = 40, sw = PW / strips, k = breeze(t);
+  g.save(); g.translate(PX + PW / 2, PY + PH / 2); g.rotate(Math.sin(t * 0.9) * 0.006 * k); g.translate(-(PX + PW / 2), -(PY + PH / 2));
+  for (let pass = 0; pass < 2; pass++) for (let i = 0; i < strips; i++) {
+    const u = (i + 0.5) / strips, free = Math.pow(u, 1.6);
+    const lift = (Math.sin(u * 5.2 - t * 2.1) * 9 * k + Math.sin(u * 11 - t * 3.7) * 3 * k) * free, x = PX + i * sw;
+    if (pass === 0) { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x + 10, PY + 16 + lift * 0.5 + free * 6 * k, sw + 1, PH); }
+    else g.drawImage(off, i * sw, 0, sw, PH, x, PY + lift, sw + 1, PH);
+  }
+  const tape = (x, y, rot) => { g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-46, -12, 92, 24); g.restore(); };
+  tape(PX + 60, PY + 4, -0.08); tape(PX + PW - 60, PY + 4 + Math.sin(t * 2.1 - 5.2) * 2 * k, 0.07);
+  g.restore();
+}
+
+// --- puppets ------------------------------------------------------------------
+const P = (x, y) => ({ x, y });
+const seg = (a, b, n = 8) => Array.from({ length: n + 1 }, (_, i) => P(a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n));
+const ell = (cx, cy, rx, ry, n = 28, from = 0, to = Math.PI * 2) => Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n; return P(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry); });
+const rot = (p, c, a) => P(c.x + (p.x - c.x) * Math.cos(a) - (p.y - c.y) * Math.sin(a), c.y + (p.x - c.x) * Math.sin(a) + (p.y - c.y) * Math.cos(a));
+
+/** The armchair, at x. jiggle rocks it. */
+function chair(x, jiggle = 0) {
+  const j = Math.sin(jiggle) * 0.02;
+  const c = P(x, GY);
+  const R = pts => pts.map(p => rot(p, c, j));
+  return [
+    [R([P(x - 110, GY), P(x - 110, GY - 150), P(x - 90, GY - 165), P(x + 90, GY - 165), P(x + 110, GY - 150), P(x + 110, GY)]), 7], // back + arms silhouette
+    [R(seg(P(x - 110, GY - 60), P(x + 110, GY - 60))), 6],   // seat front
+    [R([P(x - 110, GY - 60), P(x - 130, GY - 60), P(x - 130, GY - 110), P(x - 110, GY - 110)]), 6], // left arm
+    [R([P(x + 110, GY - 60), P(x + 130, GY - 60), P(x + 130, GY - 110), P(x + 110, GY - 110)]), 6], // right arm
+    [R(seg(P(x - 95, GY), P(x - 95, GY - 60), 3)), 6], [R(seg(P(x + 95, GY), P(x + 95, GY - 60), 3)), 6],
+  ];
+}
+/** The floor lamp at x; fall 0..1 tips it over to the right. */
+function lamp(x, fall = 0) {
+  const pivot = P(x, GY), a = easeOut(fall) * 1.45;
+  const R = pts => pts.map(p => rot(p, pivot, a));
+  return [
+    [R(seg(P(x - 40, GY), P(x + 40, GY), 4)), 6],
+    [R(seg(P(x, GY), P(x, GY - 330), 10)), 6],
+    [R([P(x - 70, GY - 330), P(x + 70, GY - 330), P(x + 50, GY - 420), P(x - 50, GY - 420), P(x - 70, GY - 330)]), 6],
+  ];
+}
+/** The man. Poses: sit (in the chair, reading), stand/run at x facing dir with a leg phase, arm angle for the swat, onChair. */
+function man({ x, dir = 1, sit = 0, run = 0, phase = 0, arm = 0, up = 0, cross = 0 }) {
+  const gy = GY - up;                                   // up: standing on the chair
+  const out = [];
+  if (sit >= 1) {
+    // seated: hips on the seat, knees forward, book held up
+    const hx = x, hy = GY - 70, shY = hy - 110;
+    out.push([ell(hx + 8, shY - 52, 34, 36), 6]);
+    out.push([seg(P(hx + 6, shY), P(hx, hy)), 7]);
+    out.push([seg(P(hx, hy), P(hx + 80, hy)), 6]); out.push([seg(P(hx + 80, hy), P(hx + 80, GY)), 6]);   // thigh, shin
+    out.push([seg(P(hx, hy), P(hx + 60, hy + 6)), 6]); out.push([seg(P(hx + 60, hy + 6), P(hx + 60, GY)), 6]);
+    out.push([seg(P(hx + 6, shY + 6), P(hx + 70, shY + 30)), 6]);                                      // arm to the book
+    out.push([[P(hx + 62, shY + 6), P(hx + 110, shY - 8), P(hx + 118, shY + 42), P(hx + 70, shY + 56), P(hx + 62, shY + 6)], 5]); // book
+    out.push([seg(P(hx + 90, shY + 0), P(hx + 94, shY + 48), 3), 3]);                                 // spine of the book
+    out.push([ell(hx + 22, shY - 56, 3, 3, 6), 5]);                                                   // eye
+    return { strokes: out, nose: P(hx + 40, shY - 44), head: P(hx + 8, shY - 52) };
+  }
+  // standing or running at x, facing dir
+  const bob = Math.sin(phase * 2) * 5 * run;
+  const hipY = gy - 150 - bob, shY = gy - 265 - bob, headY = gy - 322 - bob;
+  const lean = 18 * run * dir;
+  const headC = P(x + lean, headY);
+  out.push([ell(headC.x, headC.y, 34, 36), 6]);
+  out.push([seg(P(x + lean * 0.7, shY), P(x, hipY)), 7]);
+  const l1 = Math.sin(phase) * 44 * run, l2 = -l1, k1 = Math.max(0, Math.cos(phase)) * 40 * run, k2 = Math.max(0, -Math.cos(phase)) * 40 * run;
+  out.push([[P(x, hipY), P(x + l1 * dir * 0.5, hipY + 75 - k1 * 0.4), P(x + l1 * dir, gy - k1)], 6]);
+  out.push([[P(x, hipY), P(x + l2 * dir * 0.5, hipY + 75 - k2 * 0.4), P(x + l2 * dir, gy - k2)], 6]);
+  // the swatting arm: angle from straight down, holds the book
+  const ax = x + lean * 0.7, ay = shY + 8, a = arm;
+  const elbow = P(ax + Math.sin(a) * 62 * dir, ay + Math.cos(a) * 62);
+  const hand = P(elbow.x + Math.sin(a - 0.6) * 60 * dir, elbow.y + Math.cos(a - 0.6) * 60);
+  out.push([seg(P(ax, ay), elbow), 6]); out.push([seg(elbow, hand), 6]);
+  const bd = P(Math.sin(a - 0.6) * dir, Math.cos(a - 0.6)), bn = P(-bd.y, bd.x);
+  out.push([[P(hand.x - bn.x * 22, hand.y - bn.y * 22), P(hand.x + bn.x * 22, hand.y + bn.y * 22), P(hand.x + bn.x * 22 + bd.x * 70, hand.y + bn.y * 22 + bd.y * 70), P(hand.x - bn.x * 22 + bd.x * 70, hand.y - bn.y * 22 + bd.y * 70), P(hand.x - bn.x * 22, hand.y - bn.y * 22)], 5]);
+  // the other arm swings with the run
+  out.push([seg(P(ax, ay), P(ax - Math.sin(phase) * 50 * run * dir - 20 * dir, ay + 90 - Math.abs(Math.sin(phase)) * 30 * run)), 6]);
+  // face: eye(s); crossed eyes when the mosquito is on the nose
+  if (cross > 0) { out.push([seg(P(headC.x + 8 * dir, headY - 14), P(headC.x + 18 * dir, headY - 4), 2), 4]); out.push([seg(P(headC.x + 18 * dir, headY - 14), P(headC.x + 8 * dir, headY - 4), 2), 4]); }
+  else out.push([ell(headC.x + 14 * dir, headY - 8, 3, 3, 6), 5]);
+  return { strokes: out, nose: P(headC.x + 36 * dir, headY + 2), head: headC };
+}
+/** The mosquito at p; wings flutter with t. */
+function mosquito(p, t) {
+  const w = Math.sin(t * 90) * 10;
+  return [[ell(p.x, p.y, 6, 4, 10), 5], [seg(P(p.x - 4, p.y - 2), P(p.x - 16, p.y - 10 - w), 2), 3], [seg(P(p.x + 4, p.y - 2), P(p.x + 16, p.y - 10 + w), 2), 3], [seg(P(p.x + 6, p.y), P(p.x + 20, p.y + 3), 2), 3]];
+}
+
+// --- the drawing plan -----------------------------------------------------------
+const CHAIR_X = 300, LAMP_X = 520;
+const PLAN = [];
+(() => {
+  const all = [...chair(CHAIR_X), ...lamp(LAMP_X), ...man({ x: CHAIR_X, sit: 1 }).strokes, ...mosquito(P(760, 300), 0)];
+  const len = s => s[0].reduce((a, p, i) => i ? a + Math.hypot(p.x - s[0][i-1].x, p.y - s[0][i-1].y) : 0, 0);
+  const w = all.map(s => Math.max(30, len(s)) + 40), tot = w.reduce((a, b) => a + b, 0);
+  let t = T.draw;
+  for (const [i, s] of all.entries()) { const dur = (w[i] / tot) * (T.drawn - T.draw); PLAN.push({ s, t0: t, t1: t + dur * 0.85 }); t += dur; }
+})();
+function inkStroke(ctx, pts, width, upto, seed) {
+  const r = rng(seed), n = Math.max(2, Math.ceil(pts.length * upto));
+  ctx.strokeStyle = INK; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath();
+  for (let i = 0; i < n; i++) { const p = pts[i], wx = (r() - .5) * 2.2, wy = (r() - .5) * 2.2; i ? ctx.lineTo(p.x + wx, p.y + wy) : ctx.moveTo(p.x + wx, p.y + wy); }
+  ctx.stroke(); return pts[n - 1];
+}
+
+// --- the life ---------------------------------------------------------------------
+/** Where the mosquito is at t: a jittery figure round the man's head, then always just ahead of him. */
+function mosquitoAt(t, manX, dir, headP) {
+  const a = t - T.alive;
+  if (t < T.chase) { const u = a * 3.2; return P(headP.x + 20 + Math.cos(u) * 120 + Math.sin(u * 2.3) * 22, headP.y - 30 + Math.sin(u * 1.7) * 70 + Math.cos(u * 3.1) * 14); }
+  if (t < T.nose) { const u = (t - T.chase) * 2.6; return P(manX + dir * 170 + Math.sin(u * 2.2) * 40, GY - 320 + Math.sin(u * 1.6) * 90 + Math.cos(u * 2.9) * 30 - (t > T.chair ? 60 : 0)); }
+  return null; // on the nose
+}
+function pose(t) {
+  if (t < T.alive) return null;
+  // the man: seated until the chase; runs right, then back left, then up onto the chair
+  if (t < T.chase) return { kind: 'sit', arm: t > T.swat ? Math.PI * 0.9 * (1 - win(t, T.swat + 0.2, T.swat + 0.5)) : 0 };
+  const c = t - T.chase;
+  if (t < T.chair) {
+    // right 0..1.9, left 1.9..4.2 (with the lamp in the way at ~2.2 -> it goes over)
+    const right = c < 1.9, u = right ? c / 1.9 : (c - 1.9) / 2.3;
+    const x = right ? lerp(360, 820, easeOut(u)) : lerp(820, 340, easeOut(u));
+    return { kind: 'run', x, dir: right ? 1 : -1, phase: c * 15, run: 1, arm: 0.6 + Math.sin(c * 15 * 0.5) * 0.9 + 1.4 };
+  }
+  const up = easeOut(win(t, T.chair, T.chair + 0.5)) * 60;
+  if (t < T.nose) return { kind: 'stand', x: CHAIR_X + 10, dir: 1, up, arm: 2.2 + Math.sin((t - T.chair) * 11) * 0.9, phase: 0 };
+  return { kind: 'stand', x: CHAIR_X + 10, dir: 1, up: 60, arm: 2.6, cross: 1 };
+}
+function paintSheet(t) {
+  og.setTransform(1, 0, 0, 1, 0, 0); og.clearRect(0, 0, PW, PH);
+  const G = g; g = og; paintPaper(0, 0, PW, PH); g = G;
+  og.strokeStyle = 'rgba(0,0,0,.06)'; og.lineWidth = 2; og.strokeRect(1, 1, PW - 2, PH - 2);
+  const seed = t < T.alive ? 7 : 100 + Math.floor(t * 8);
+  let tip = null;
+  const gl = win(t, T.draw - 0.4, T.draw); if (gl > 0) inkStroke(og, seg(P(100, GY + 2), P(900, GY + 6), 12), 5, gl, 7);
+  if (t < T.alive) { for (const p of PLAN) { if (t < p.t0) break; const u = win(t, p.t0, p.t1); const e = inkStroke(og, p.s[0], p.s[1], u, 7); if (u < 1) tip = e; } return tip; }
+  const q = pose(t);
+  // the chair (jiggles on the first swat and when he climbs it), the lamp (falls during the run back)
+  const jig = (t > T.swat && t < T.swat + 0.6) || (t > T.chair && t < T.chair + 0.8) ? t * 40 : 0;
+  for (const [pts, w] of chair(CHAIR_X, jig)) inkStroke(og, pts, w, 1, seed);
+  for (const [pts, w] of lamp(LAMP_X, win(t, T.lamp, T.lamp + 0.55))) inkStroke(og, pts, w, 1, seed);
+  let m;
+  if (q.kind === 'sit') m = man({ x: CHAIR_X, sit: 1 });
+  else m = man({ x: q.x, dir: q.dir, run: q.run || 0, phase: q.phase || 0, arm: q.arm, up: q.up || 0, cross: q.cross || 0 });
+  // the seated swat: the book arm, drawn over the seated pose
+  if (q.kind === 'sit' && q.arm > 0) { const ax = CHAIR_X + 6, ay = GY - 180 + 6, a = q.arm; const e = P(ax + Math.sin(a) * 62, ay + Math.cos(a) * 62), h = P(e.x + Math.sin(a + 0.4) * 60, e.y + Math.cos(a + 0.4) * 60); m.strokes = m.strokes.slice(0, 6); m.strokes.push([seg(P(ax, ay), e), 6], [seg(e, h), 6], [ell(h.x, h.y, 26, 18, 12), 5], [ell(CHAIR_X + 22, GY - 236, 3, 3, 6), 5]); }
+  for (const [pts, w] of m.strokes) inkStroke(og, pts, w, 1, seed);
+  const mp = mosquitoAt(t, q.x ?? CHAIR_X, q.dir ?? 1, m.head) ?? m.nose;
+  for (const [pts, w] of mosquito(mp, t)) inkStroke(og, pts, w, 1, seed);
+  // motion: "bzz" ticks near the mosquito while it flies, sweat drops on him while he runs, stars when he freezes
+  if (mp !== m.nose) for (let i = 0; i < 3; i++) { const a = t * 9 + i * 2.1; inkStroke(og, seg(P(mp.x + Math.cos(a) * 28, mp.y + Math.sin(a) * 18), P(mp.x + Math.cos(a) * 40, mp.y + Math.sin(a) * 26), 2), 3, 1, seed + i); }
+  if (q.kind === 'run') for (let i = 0; i < 2; i++) { const d = ((t * 3 + i * 0.5) % 1); inkStroke(og, ell(m.head.x - q.dir * 50 - d * 30 * q.dir, m.head.y - 20 + d * 40, 4, 6, 8), 3, 1, seed + i); }
+  if (q.cross) for (let i = 0; i < 4; i++) { const a = (t - T.nose) * 3 + i * 1.57; inkStroke(og, [P(m.head.x + Math.cos(a) * 62, m.head.y - 30 + Math.sin(a) * 26), P(m.head.x + Math.cos(a) * 62 + 6, m.head.y - 30 + Math.sin(a) * 26 - 10), P(m.head.x + Math.cos(a) * 62 + 12, m.head.y - 30 + Math.sin(a) * 26)], 3, 1, seed + i); }
+  return null;
+}
+
+function mosquitoFrame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  g.fillStyle = '#1A1630'; g.fillRect(0, 0, W, H);
+  const light = g.createRadialGradient(560, 240, 0, 560, 240, 1400); light.addColorStop(0, 'rgba(255,214,140,.22)'); light.addColorStop(1, 'rgba(255,214,140,0)'); g.fillStyle = light; g.fillRect(0, 0, W, H);
+  const tip = paintSheet(t);
+  const cardU = win(t, T.card, T.card + 0.6);
+  g.globalAlpha = 1 - cardU * 0.85; layPaper(t);
+  if (tip && t < T.drawn) { const u = tip.x / PW, k = breeze(t), lift = (Math.sin(u * 5.2 - t * 2.1) * 9 * k + Math.sin(u * 11 - t * 3.7) * 3 * k) * Math.pow(u, 1.6); pencil(PX + tip.x, PY + tip.y + lift, 520, -0.85); }
+  g.globalAlpha = 1;
+  const cap = (s, from, to) => { const a = easeOut(win(t, from, from + 0.3)) * (1 - win(t, to - 0.25, to)); if (a > 0) text(s, 960, 990, 34, C.primary, { spacing: 5, alpha: a }); };
+  cap('DRAW SOMETHING.', T.draw + 0.4, T.drawn);
+  cap('THEN WATCH IT LIVE.', T.alive + 0.3, T.nose);
+  cap('…', T.nose + 0.5, T.card);
+  if (t >= T.card) {
+    const s = back(win(t, T.card + 0.05, T.card + 0.5)), size = 300 * s;
+    const glow = g.createRadialGradient(960, 520, 0, 960, 520, 900); glow.addColorStop(0, `rgba(255,197,61,${.32 * easeOut(cardU)})`); glow.addColorStop(1, 'rgba(255,197,61,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H);
+    if (icon.complete && icon.naturalWidth) { g.save(); g.translate(560, 500); g.rotate((1 - s) * .3); g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 60; g.shadowOffsetY = 26; roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent'; g.drawImage(icon, -size / 2, -size / 2, size, size); g.restore(); }
+    const wu = easeOut(win(t, T.card + 0.25, T.card + 0.65)); text('GRAND CANVAS', 790, 450 + (1 - wu) * 34, 94, C.primary, { spacing: 8, glow: 42, alpha: wu, align: 'left' });
+    const tu = easeOut(win(t, T.card + 0.45, T.card + 0.85)); text('Every drawing has a life in it.', 790, 540 + (1 - tu) * 24, 40, C.text, { weight: 700, alpha: tu, align: 'left' });
+    text('a  W H O S E G A M E S  game', 960, 945, 24, C.muted, { weight: 700, alpha: easeOut(win(t, T.card + 0.6, T.card + 1.0)) });
+  }
+  wg.style.opacity = t >= T.card ? easeOut(win(t, T.card + 0.6, T.card + 1.0)) : 0;
+}
+window.frame = mosquitoFrame;
+prepareStage(W2, H2, { x: 912, y: 800, size: 96 });
+runPlayback(mosquitoFrame, T.end, [['bed', 'assets/mosquito_bed.mp3', 0, .95]]);
+</script>
+</body>
+</html>
