@@ -22,7 +22,7 @@ cat > "$PROPS" <<P
 storePassword=$PASS
 keyPassword=$PASS
 keyAlias=upload
-storeFile=upload-keystore.jks
+storeFile=../upload-keystore.jks
 P
 chmod 600 "$PROPS" "$KS"
 echo "Made $KS and $PROPS."
