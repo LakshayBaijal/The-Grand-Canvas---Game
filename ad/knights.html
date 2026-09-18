@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — Two Knights, One Dragon (20s)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center; transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 22px; opacity: 0; box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer; background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start"><div><b>TWO KNIGHTS, ONE DRAGON</b><span>20 second concept trailer &middot; 1920&times;1080<br><br><kbd>click</kbd> or <kbd>space</kbd> to play<br><kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span></div></div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+/**
+ * Two knights, one dragon. Drawn: a hill, a far castle, two knights, a
+ * dragon. Alive: the dragon rears, the knights charge, it breathes fire and
+ * the first knight goes down. The second kneels by him. Then he stands,
+ * and something happens -- light pours off him, the sword grows, lightning
+ * -- and he leaps and brings it down on the dragon, which falls. He stands
+ * on it a moment, then goes back to his friend. Then the name.
+ *
+ *   0.0   the sheet          6.4  alive: the dragon rears
+ *   1.0   drawn              6.8  the charge
+ *   8.2   fire; the first knight falls
+ *   9.6   he kneels; tears
+ *  11.6   the power
+ *  13.0   the leap and the strike; the dragon falls
+ *  14.6   he stands over it; then back to his friend
+ *  16.6   the card
+ */
+const W2 = 1920, H2 = 1080;
+const T = { draw: 1.0, drawn: 6.0, alive: 6.4, charge: 6.8, fire: 8.2, fall: 8.6, kneel: 9.6, power: 11.6, leap: 13.0, strike: 13.6, down: 14.6, back: 15.4, card: 16.8, end: 20.0 };
+const INK = '#23201d';
+const PW = 1000, PH = 800, PX = (W2 - PW) / 2, PY = 120, GY = 680;
+const off = document.createElement('canvas'); off.width = PW; off.height = PH; const og = off.getContext('2d');
+
+function breeze(t) { return 1 + Math.exp(-Math.pow((t - T.fire - 0.3) / 0.7, 2)) * 1.6 + win(t, T.power, T.power + 0.6) * (1 - win(t, T.strike + 0.4, T.strike + 1.2)) * 2.4 + Math.exp(-Math.pow((t - T.strike) / 0.4, 2)) * 2; }
+function layPaper(t) {
+  const strips = 40, sw = PW / strips, k = breeze(t);
+  g.save(); g.translate(PX + PW / 2, PY + PH / 2); g.rotate(Math.sin(t * 0.9) * 0.006 * k); g.translate(-(PX + PW / 2), -(PY + PH / 2));
+  for (let pass = 0; pass < 2; pass++) for (let i = 0; i < strips; i++) {
+    const u = (i + 0.5) / strips, free = Math.pow(u, 1.6);
+    const lift = (Math.sin(u * 5.2 - t * 2.1) * 9 * k + Math.sin(u * 11 - t * 3.7) * 3 * k) * free, x = PX + i * sw;
+    if (pass === 0) { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x + 10, PY + 16 + lift * 0.5 + free * 6 * k, sw + 1, PH); }
+    else g.drawImage(off, i * sw, 0, sw, PH, x, PY + lift, sw + 1, PH);
+  }
+  const tape = (x, y, rot) => { g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-46, -12, 92, 24); g.restore(); };
+  tape(PX + 60, PY + 4, -0.08); tape(PX + PW - 60, PY + 4 + Math.sin(t * 2.1 - 5.2) * 2 * k, 0.07);
+  g.restore();
+}
+
+// --- puppets ---------------------------------------------------------------------
+const P = (x, y) => ({ x, y });
+const seg = (a, b, n = 8) => Array.from({ length: n + 1 }, (_, i) => P(a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n));
+const ell = (cx, cy, rx, ry, n = 28, from = 0, to = Math.PI * 2) => Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n; return P(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry); });
+const rot = (p, c, a) => P(c.x + (p.x - c.x) * Math.cos(a) - (p.y - c.y) * Math.sin(a), c.y + (p.x - c.x) * Math.sin(a) + (p.y - c.y) * Math.cos(a));
+
+/** A knight at x facing dir. run: gait; phase; sword: angle (0 down, PI up); kneel: 0..1; fallen: 0..1 (lying on his back, head to the left); big: sword scale; lean */
+function knight({ x, dir = 1, run = 0, phase = 0, sword = 0.3, kneel = 0, fallen = 0, big = 1, shield = true, head = 0 }) {
+  const out = [];
+  if (fallen > 0) {
+    // lying flat: body along the ground, legs bent a little, sword stuck upright beside him
+    const gy = GY - 8, x0 = x;
+    out.push([ell(x0 - 120, gy - 26, 26, 24), 6]);                                  // helmet on the ground
+    out.push([seg(P(x0 - 116, gy - 42), P(x0 - 90, gy - 46), 3), 5]);               // visor line
+    out.push([seg(P(x0 - 96, gy - 22), P(x0 + 10, gy - 18)), 7]);                   // body
+    out.push([[P(x0 + 10, gy - 18), P(x0 + 60, gy - 40), P(x0 + 90, gy - 6)], 6]);   // legs, knees up
+    out.push([[P(x0 + 10, gy - 18), P(x0 + 70, gy - 22), P(x0 + 100, gy - 10)], 6]);
+    out.push([seg(P(x0 - 60, gy - 22), P(x0 - 40, gy - 60)), 6]);                   // one arm up, limp
+    out.push([seg(P(x0 + 130, gy), P(x0 + 130, gy - 90), 4), 5]); out.push([seg(P(x0 + 112, gy - 60), P(x0 + 148, gy - 60), 2), 5]); // the sword, planted
+    return { strokes: out, chest: P(x0 - 30, gy - 24) };
+  }
+  const k = kneel;
+  const gy = GY;
+  const bob = Math.sin(phase * 2) * 5 * run;
+  const hipY = gy - 150 * (1 - k * 0.35) - bob, shY = gy - 262 * (1 - k * 0.3) - bob, headY = gy - 318 * (1 - k * 0.28) - bob + head;
+  const lean = 22 * run * dir + k * 26 * dir;
+  const hc = P(x + lean, headY);
+  out.push([ell(hc.x, hc.y, 32, 34), 6]);                                            // helmet
+  out.push([seg(P(hc.x - 26 * dir, hc.y - 4), P(hc.x + 28 * dir, hc.y - 4), 3), 5]); // visor
+  out.push([seg(P(hc.x, hc.y - 34), P(hc.x - 14 * dir, hc.y - 62), 2), 5]);          // plume
+  out.push([seg(P(x + lean * 0.7, shY), P(x, hipY)), 7]);                            // body
+  if (k > 0.5) {
+    out.push([[P(x, hipY), P(x + 40 * dir, hipY + 4), P(x + 40 * dir, gy)], 6]);       // front leg planted
+    out.push([[P(x, hipY), P(x - 34 * dir, gy - 6), P(x - 90 * dir, gy - 2)], 6]);     // back knee on the ground
+  } else {
+    const l1 = Math.sin(phase) * 44 * run, l2 = -l1, k1 = Math.max(0, Math.cos(phase)) * 40 * run, k2 = Math.max(0, -Math.cos(phase)) * 40 * run;
+    out.push([[P(x, hipY), P(x + l1 * dir * 0.5 + 10 * dir * (1 - run), hipY + 75 - k1 * 0.4), P(x + l1 * dir + 18 * dir * (1 - run), gy - k1)], 6]);
+    out.push([[P(x, hipY), P(x + l2 * dir * 0.5 - 10 * dir * (1 - run), hipY + 75 - k2 * 0.4), P(x + l2 * dir - 18 * dir * (1 - run), gy - k2)], 6]);
+  }
+  // sword arm
+  const ax = x + lean * 0.7, ay = shY + 8, a = sword;
+  const el = P(ax + Math.sin(a) * 60 * dir, ay + Math.cos(a) * 60), hand = P(el.x + Math.sin(a + 0.3) * 52 * dir, el.y + Math.cos(a + 0.3) * 52);
+  out.push([seg(P(ax, ay), el), 6]); out.push([seg(el, hand), 6]);
+  const bd = P(Math.sin(a + 0.3) * dir, Math.cos(a + 0.3)), bn = P(-bd.y, bd.x), L = 150 * big;
+  out.push([seg(hand, P(hand.x + bd.x * L, hand.y + bd.y * L), 4), 6 + (big - 1) * 3]);   // blade
+  out.push([seg(P(hand.x - bn.x * 22, hand.y - bn.y * 22), P(hand.x + bn.x * 22, hand.y + bn.y * 22), 2), 6]); // guard
+  // shield arm
+  if (shield) { const sx = ax - 30 * dir, sy = ay + 60 - k * 20; out.push([seg(P(ax, ay), P(sx, sy)), 6]); out.push([[P(sx - 22 * dir, sy - 40), P(sx + 22 * dir, sy - 40), P(sx + 24 * dir, sy + 10), P(sx, sy + 40), P(sx - 24 * dir, sy + 10), P(sx - 22 * dir, sy - 40)], 5]); }
+  else out.push([seg(P(ax, ay), P(ax - 20 * dir, ay + 80)), 6]);
+  return { strokes: out, hand, head: hc, tip: P(hand.x + bd.x * L, hand.y + bd.y * L) };
+}
+
+/** The dragon at x (its chest), facing left toward the knights. rear lifts the head; wing phase; fire 0..1 opens the mouth; dead 0..1 collapses it. */
+function dragon({ x, rear = 0, wing = 0, fire = 0, dead = 0 }) {
+  const out = [];
+  const d = easeOut(dead), gy = GY;
+  const by = gy - 120 + d * 60;
+  const ellb = ell(x, by, 150, 70 - d * 25);
+  out.push([ellb, 7]);                                                                // body
+  // neck and head: up when rearing, down and to the ground when dead
+  const nx = x - 130, ny = by - 30;
+  const hx = nx - 120 - rear * 30 + d * 250, hy = ny - 190 - rear * 90 + d * 275;
+  out.push([[P(nx, ny), P(nx - 60 + d * 80, ny - 90 - rear * 40 + d * 130), P(hx + 30, hy + 30)], 8]);
+  out.push([ell(hx, hy, 58, 36), 7]);                                                 // head
+  const jaw = fire * 28;
+  out.push([[P(hx - 40, hy + 8), P(hx - 100, hy + 4 + jaw), P(hx - 100, hy + 24 + jaw), P(hx - 40, hy + 26)], 6]); // jaw
+  out.push([seg(P(hx - 50, hy - 6), P(hx - 100, hy - 2), 3), 6]);                    // snout top
+  for (const tx of [-70, -55]) out.push([[P(hx + tx, hy + 8), P(hx + tx + 6, hy + 20), P(hx + tx + 12, hy + 8)], 4]); // teeth
+  if (d > 0.6) { out.push([seg(P(hx + 6, hy - 18), P(hx + 22, hy - 4), 2), 4]); out.push([seg(P(hx + 22, hy - 18), P(hx + 6, hy - 4), 2), 4]); } // X eye
+  else out.push([ell(hx + 14, hy - 10, 6, 6, 8), 5]);
+  out.push([[P(hx + 30, hy - 28), P(hx + 40, hy - 62), P(hx + 52, hy - 30)], 5]);      // horn
+  // wings: two big fans, flapping
+  const wf = Math.sin(wing) * 40 * (1 - d);
+  out.push([[P(x - 20, by - 60), P(x + 40, by - 200 - wf), P(x + 150, by - 230 - wf), P(x + 210, by - 140 - wf * 0.5), P(x + 120, by - 90)], 6]);
+  out.push([[P(x - 40, by - 60), P(x - 40, by - 190 - wf * 0.8), P(x + 60, by - 250 - wf), P(x + 40, by - 200 - wf)], 5]);
+  // legs
+  out.push([[P(x - 70, by + 50), P(x - 90, gy - 20 + d * 10), P(x - 130, gy)], 6]); out.push([[P(x + 70, by + 50), P(x + 90, gy - 20 + d * 10), P(x + 130, gy)], 6]);
+  // tail, with spikes
+  const tail = [P(x + 140, by + 10), P(x + 240, by - 20 + d * 40), P(x + 330, by + 30 + d * 30), P(x + 400, by - 40 + d * 80)];
+  out.push([tail, 6]);
+  for (let i = 1; i < 4; i++) out.push([[P(tail[i].x - 10, tail[i].y), P(tail[i].x, tail[i].y - 26), P(tail[i].x + 10, tail[i].y)], 4]);
+  for (const sx of [-60, 0, 60]) out.push([[P(x + sx - 12, by - 68 + d * 25), P(x + sx, by - 96 + d * 25), P(x + sx + 12, by - 68 + d * 25)], 4]); // back spikes
+  return { strokes: out, mouth: P(hx - 100, hy + 14 + jaw / 2), head: P(hx, hy) };
+}
+/** Fire: a cone of wavy lines from the mouth toward the left, u = 0..1 progress. */
+function fire(from, u, t) {
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const pts = []; const spread = (i - 3) * 0.13;
+    for (let k = 0; k <= 14; k++) { const s = k / 14 * u; pts.push(P(from.x - s * 320, from.y + s * 320 * Math.tan(spread) + Math.sin(s * 22 + t * 30 + i) * 12 * s)); }
+    out.push([pts, 4 + (i === 3 ? 2 : 0)]);
+  }
+  return out;
+}
+
+// --- plan and life ------------------------------------------------------------------
+const K1X = 250, K2X = 150, DX = 760;
+const scene = () => [
+  [seg(P(60, GY), P(940, GY + 4), 12), 5],
+  [[P(60, GY - 4), P(200, GY - 60), P(380, GY - 110), P(560, GY - 80), P(720, GY - 130), P(940, GY - 90)], 4],                      // hills
+  [[P(120, GY - 110), P(120, GY - 200), P(150, GY - 200), P(150, GY - 230), P(180, GY - 230), P(180, GY - 200), P(210, GY - 200), P(210, GY - 110)], 4], // a far castle
+  [seg(P(165, GY - 230), P(165, GY - 265), 2), 3], [[P(165, GY - 265), P(190, GY - 255), P(165, GY - 245)], 3],
+];
+const PLAN = [];
+(() => {
+  const all = [...scene(), ...knight({ x: K1X, sword: 0.5 }).strokes, ...knight({ x: K2X, sword: 0.5 }).strokes, ...dragon({ x: DX, wing: 0.6 }).strokes];
+  const len = s => s[0].reduce((a, p, i) => i ? a + Math.hypot(p.x - s[0][i-1].x, p.y - s[0][i-1].y) : 0, 0);
+  const w = all.map(s => Math.max(30, len(s)) + 40), tot = w.reduce((a, b) => a + b, 0);
+  let t = T.draw;
+  for (const [i, s] of all.entries()) { const dur = (w[i] / tot) * (T.drawn - T.draw); PLAN.push({ s, t0: t, t1: t + dur * 0.85 }); t += dur; }
+})();
+function inkStroke(ctx, pts, width, upto, seed, color = INK) {
+  const r = rng(seed), n = Math.max(2, Math.ceil(pts.length * upto));
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath();
+  for (let i = 0; i < n; i++) { const p = pts[i], wx = (r() - .5) * 2.2, wy = (r() - .5) * 2.2; i ? ctx.lineTo(p.x + wx, p.y + wy) : ctx.moveTo(p.x + wx, p.y + wy); }
+  ctx.stroke(); return pts[n - 1];
+}
+
+function paintSheet(t) {
+  og.setTransform(1, 0, 0, 1, 0, 0); og.clearRect(0, 0, PW, PH);
+  const G = g; g = og; paintPaper(0, 0, PW, PH); g = G;
+  og.strokeStyle = 'rgba(0,0,0,.06)'; og.lineWidth = 2; og.strokeRect(1, 1, PW - 2, PH - 2);
+  const powered = t > T.power && t < T.strike + 0.5;
+  const seed = t < T.alive ? 7 : 100 + Math.floor(t * (powered ? 20 : 8));
+  let tip = null;
+  if (t < T.alive) { for (const p of PLAN) { if (t < p.t0) break; const u = win(t, p.t0, p.t1); const e = inkStroke(og, p.s[0], p.s[1], u, 7); if (u < 1) tip = e; } return tip; }
+  for (const [pts, w] of scene()) inkStroke(og, pts, w, 1, seed);
+
+  // --- the dragon
+  const rear = easeOut(win(t, T.alive, T.alive + 0.5)) * (1 - win(t, T.strike, T.strike + 0.3));
+  const fireU = t > T.fire && t < T.fire + 1.1 ? Math.sin(win(t, T.fire, T.fire + 1.1) * Math.PI) : 0;
+  const dead = win(t, T.strike + 0.1, T.down);
+  const dragonX = DX + (t > T.strike && t < T.strike + 0.25 ? Math.sin(t * 90) * 6 : 0);
+  const D = dragon({ x: dragonX, rear, wing: t * 6, fire: fireU, dead });
+  for (const [pts, w] of D.strokes) inkStroke(og, pts, w, 1, seed);
+  if (fireU > 0) for (const [pts, w] of fire(D.mouth, fireU, t)) inkStroke(og, pts, w, 1, seed + 3, '#c2410c');
+  // smoke off the dead dragon
+  if (t > T.down) for (let i = 0; i < 3; i++) { const u = ((t - T.down) * 0.5 + i * 0.33) % 1; inkStroke(og, ell(D.head.x - 40 + i * 30, D.head.y - 40 - u * 120, 14 + u * 12, 10 + u * 8, 12), 3, 1, seed + i); }
+
+  // --- knight 1: charges, is hit, falls
+  let k1;
+  if (t < T.charge) k1 = knight({ x: K1X, sword: 0.5 });
+  else if (t < T.fire) { const u = easeOut(win(t, T.charge, T.fire)); k1 = knight({ x: lerp(K1X, 520, u), run: 1, phase: (t - T.charge) * 16, sword: 2.2 }); }
+  else if (t < T.fall) { const u = win(t, T.fire, T.fall); k1 = knight({ x: 520 - u * 90, run: 0, sword: 2.6 - u * 2, head: u * 10 }); }
+  else k1 = knight({ x: 430, fallen: 1 });
+  for (const [pts, w] of k1.strokes) inkStroke(og, pts, w, 1, seed);
+
+  // --- knight 2: charges behind, stops, kneels, powers up, leaps, strikes, stands, returns
+  let k2, big = 1;
+  const kneelU = easeOut(win(t, T.kneel, T.kneel + 0.5)) * (1 - easeOut(win(t, T.power, T.power + 0.4)));
+  if (t < T.charge) k2 = knight({ x: K2X, sword: 0.5 });
+  else if (t < T.fire) { const u = easeOut(win(t, T.charge, T.fire)); k2 = knight({ x: lerp(K2X, 380, u), run: 1, phase: (t - T.charge) * 16 + 1.5, sword: 2.0 }); }
+  else if (t < T.kneel) k2 = knight({ x: 380 - win(t, T.fire, T.fall) * 40, sword: 1.2, head: 0 });
+  else if (t < T.power) k2 = knight({ x: 340, kneel: kneelU, sword: 0.2, head: kneelU * 14 });
+  else if (t < T.leap) { const u = easeOut(win(t, T.power, T.power + 0.8)); big = 1 + u * 0.8; k2 = knight({ x: 340, sword: 0.2 + u * 2.9, big, head: -u * 6 }); }
+  else if (t < T.strike) { const u = win(t, T.leap, T.strike); big = 1.8; k2 = knight({ x: lerp(340, 640, u), run: 0, sword: 3.1 - u * 0.4, big, head: -6 }); k2.jump = Math.sin(u * Math.PI) * 220; }
+  else if (t < T.down) { const u = win(t, T.strike, T.strike + 0.25); big = 1.8 - win(t, T.strike + 0.4, T.down) * 0.8; k2 = knight({ x: 700, sword: 2.7 - easeOut(u) * 2.6, big }); k2.jump = win(t, T.strike + 0.3, T.down) * 100; }
+  else if (t < T.back) { k2 = knight({ x: 700, sword: 2.8, big: 1, head: -4 }); k2.jump = 100 * (1 - win(t, T.back - 0.3, T.back)); }
+  else { const u = easeOut(win(t, T.back, T.back + 0.9)); const x = lerp(700, 480, u); const kn = easeOut(win(t, T.back + 0.9, T.back + 1.3)); k2 = knight({ x, dir: -1, run: u < 1 ? 1 : 0, phase: (t - T.back) * 12, sword: 0.4, kneel: kn, head: kn * 12 }); }
+  const jump = k2.jump || 0;
+  for (const [pts, w] of k2.strokes) inkStroke(og, pts.map(p => P(p.x, p.y - jump)), w, 1, seed);
+  // tears while kneeling
+  if (t > T.kneel + 0.4 && t < T.power) for (let i = 0; i < 2; i++) { const u = ((t - T.kneel) * 1.4 + i * 0.5) % 1; inkStroke(og, ell(k2.head.x + 26 + i * 10, k2.head.y + 10 + u * 50, 3, 6, 8), 3, 1, seed + i); }
+  // the power: rays off him, lightning, a glow ring
+  if (t > T.power && t < T.strike + 0.4) {
+    const u = easeOut(win(t, T.power, T.power + 0.6)), c = P(k2.head.x, k2.head.y + 90 - jump);
+    for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2 + t * 2, r0 = 120 + Math.sin(t * 20 + i) * 10, r1 = r0 + 60 * u + (i % 2) * 40; inkStroke(og, seg(P(c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0), P(c.x + Math.cos(a) * r1, c.y + Math.sin(a) * r1), 2), 3, 1, seed + i, '#b45309'); }
+    for (let i = 0; i < 3; i++) { const a = -1.2 + i * 0.5 + Math.sin(t * 13 + i); const pts = [P(k2.tip.x, k2.tip.y - jump)]; for (let k = 1; k <= 5; k++) pts.push(P(pts[k-1].x + Math.cos(a) * 34 + (k % 2 ? 18 : -18), pts[k-1].y + Math.sin(a) * 34 - 10)); inkStroke(og, pts, 3, 1, seed + 20 + i, '#b45309'); }
+  }
+  // the strike: a burst at the dragon's head
+  if (t > T.strike && t < T.strike + 0.5) { const u = win(t, T.strike, T.strike + 0.5); for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; inkStroke(og, seg(P(D.head.x + Math.cos(a) * 30, D.head.y + Math.sin(a) * 30), P(D.head.x + Math.cos(a) * (60 + 140 * u), D.head.y + Math.sin(a) * (60 + 140 * u)), 2), 5 * (1 - u) + 1, 1, seed + i, i % 2 ? '#b45309' : INK); } }
+  return null;
+}
+
+function knightsFrame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  g.fillStyle = '#1A1630'; g.fillRect(0, 0, W, H);
+  const light = g.createRadialGradient(560, 240, 0, 560, 240, 1400); light.addColorStop(0, 'rgba(255,214,140,.22)'); light.addColorStop(1, 'rgba(255,214,140,0)'); g.fillStyle = light; g.fillRect(0, 0, W, H);
+  // a warm flash on the strike, on the wall too
+  const flash = Math.exp(-Math.pow((t - T.strike) / 0.12, 2)) * 0.35; if (flash > 0.01) { g.fillStyle = `rgba(255,197,61,${flash})`; g.fillRect(0, 0, W, H); }
+  const tip = paintSheet(t);
+  const cardU = win(t, T.card, T.card + 0.6);
+  g.globalAlpha = 1 - cardU * 0.85; layPaper(t);
+  if (tip && t < T.drawn) { const u = tip.x / PW, k = breeze(t), lift = (Math.sin(u * 5.2 - t * 2.1) * 9 * k + Math.sin(u * 11 - t * 3.7) * 3 * k) * Math.pow(u, 1.6); pencil(PX + tip.x, PY + tip.y + lift, 520, -0.85); }
+  g.globalAlpha = 1;
+  const cap = (s, from, to) => { const a = easeOut(win(t, from, from + 0.3)) * (1 - win(t, to - 0.25, to)); if (a > 0) text(s, 960, 990, 34, C.primary, { spacing: 5, alpha: a }); };
+  cap('DRAW SOMETHING.', T.draw + 0.4, T.drawn);
+  cap('THEN WATCH IT LIVE.', T.alive + 0.3, T.kneel);
+  cap('EVERY STORY YOU CAN DRAW.', T.power, T.card);
+  if (t >= T.card) {
+    const s = back(win(t, T.card + 0.05, T.card + 0.5)), size = 300 * s;
+    const glow = g.createRadialGradient(960, 520, 0, 960, 520, 900); glow.addColorStop(0, `rgba(255,197,61,${.32 * easeOut(cardU)})`); glow.addColorStop(1, 'rgba(255,197,61,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H);
+    if (icon.complete && icon.naturalWidth) { g.save(); g.translate(560, 500); g.rotate((1 - s) * .3); g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 60; g.shadowOffsetY = 26; roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent'; g.drawImage(icon, -size / 2, -size / 2, size, size); g.restore(); }
+    const wu = easeOut(win(t, T.card + 0.25, T.card + 0.65)); text('GRAND CANVAS', 790, 450 + (1 - wu) * 34, 94, C.primary, { spacing: 8, glow: 42, alpha: wu, align: 'left' });
+    const tu = easeOut(win(t, T.card + 0.45, T.card + 0.85)); text('Every drawing has a life in it.', 790, 540 + (1 - tu) * 24, 40, C.text, { weight: 700, alpha: tu, align: 'left' });
+    text('a  W H O S E G A M E S  game', 960, 945, 24, C.muted, { weight: 700, alpha: easeOut(win(t, T.card + 0.6, T.card + 1.0)) });
+  }
+  wg.style.opacity = t >= T.card ? easeOut(win(t, T.card + 0.6, T.card + 1.0)) : 0;
+}
+window.frame = knightsFrame;
+prepareStage(W2, H2, { x: 912, y: 800, size: 96 });
+runPlayback(knightsFrame, T.end, [['bed', 'assets/knights_bed.mp3', 0, .95]]);
+</script>
+</body>
+</html>

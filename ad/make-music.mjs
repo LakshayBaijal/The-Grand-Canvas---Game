@@ -484,5 +484,52 @@ function mosquitoBed() {
 }
 
 passBed();
+
+// ---------------------------------------------------------------------------
+// Two Knights, One Dragon: 20.4s, 100bpm, D minor. A low drone and war
+// drums for the charge, a brass roar for the fire, everything falling away
+// to one sad bell while he kneels, strings climbing with timpani into the
+// power, the biggest hit of any of these on the strike, silence and smoke,
+// then the card. Cut times are knights.html's T table.
+// ---------------------------------------------------------------------------
+function knightsBed() {
+  noiseRng = rng(1066);
+  const out = new Float32Array(Math.ceil(20.4 * SR));
+  const BEAT = 60 / 100;
+  const T = { draw: 1.0, alive: 6.4, charge: 6.8, fire: 8.2, fall: 8.6, kneel: 9.6, power: 11.6, leap: 13.0, strike: 13.6, down: 14.6, back: 15.4, card: 16.8 };
+  const D3 = 146.83, F3 = 174.61, A3 = 220, D4 = 293.66, F4 = 349.23, A4 = 440, Bb3 = 233.08, C4 = 261.63, D5 = 587.33, F5 = 698.46, A5 = 880, Bb2 = 116.54, D2 = 73.42;
+  // drawing: a low drone, pencil
+  pad(out, 0, [D2, A3 / 2, D3], 0.6, 6.6);
+  for (let t = 1.2; t < 5.8; t += 0.4 + noiseRng() * 0.25) swish(out, t, 0.5, 0.15 + noiseRng() * 0.08);
+  // alive: the dragon rears -- a low brass growl, timpani
+  brass(out, T.alive, [D2, A3 / 2], 1.2, 0.6); timpani(out, T.alive, 1.0, 65);
+  // the charge: war drums, strings on D minor
+  strings(out, T.charge, [D3, A3, D4, F4], 1.0, T.fire - T.charge + 0.4);
+  for (let t = T.charge, i = 0; t < T.fall; t += BEAT / 2, i++) { timpani(out, t, i % 2 ? 0.55 : 1.0, i % 4 === 2 ? 87 : 73); hat(out, t + BEAT / 4, 0.5); }
+  // the fire: a roar, then the fall -- a thud, and everything stops
+  brass(out, T.fire, [D2, F3, Bb3], 1.5, 0.9); crash(out, T.fire + 0.05, 0.8, 1.0);
+  timpani(out, T.fall + 0.1, 1.3, 55);
+  // the kneel: one sad bell, twice, over a thin high string
+  strings(out, T.kneel, [A4, D5], 0.45, T.power - T.kneel);
+  bell(out, T.kneel + 0.3, F5, 0.8, 2.2); bell(out, T.kneel + 1.2, D5, 0.7, 2.4);
+  // the power: strings climbing, a timpani roll, a rising slide
+  strings(out, T.power, [D3, F3, A3, D4, F4, A4], 1.2, T.strike - T.power + 0.3);
+  for (let t = T.power; t < T.strike - 0.05; t += 0.06) timpani(out, t, 0.25 + (t - T.power) * 0.45, 73);
+  slide(out, T.leap - 0.2, 150, 600, T.strike - T.leap + 0.2, 1.0);
+  brass(out, T.leap, [D3, A3, D4], 1.3, T.strike - T.leap);
+  // the strike: the biggest hit there is, then nothing but smoke
+  kick(out, T.strike, 1.6, 1.6); timpani(out, T.strike, 1.6, 50); crash(out, T.strike, 1.4, 1.8); brass(out, T.strike, [D2, D3, A3, D4], 1.6, 1.2);
+  bell(out, T.strike + 0.02, D5, 0.6, 1.0);
+  // after: a quiet held chord while he stands, then walks back and kneels
+  strings(out, T.down, [D3, F3, A3], 0.6, T.card - T.down);
+  bell(out, T.back + 1.0, A4, 0.6, 2.2);
+  // the card: it resolves to D major
+  bell(out, T.card, 1174.66, 1.0, 1.8); bell(out, T.card + 0.15, 1479.98, 0.6, 1.4); shimmer(out, T.card, 0.9, 2.6);
+  strings(out, T.card, [D3, A3, D4, 369.99, A4], 1.1, 3.4);
+  write(out, 'knights_bed.mp3', 0.62);
+  console.log('knights_bed.mp3  20.4s, 100bpm, D minor -- drums for the charge, a roar, one sad bell, strings and timpani into the power, one huge hit');
+}
+
 lifeBed();
 mosquitoBed();
+knightsBed();

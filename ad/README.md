@@ -12,7 +12,8 @@ Three films, all finished and ready to upload. All H.264 + AAC with
 | `GrandCanvas-pass-28s.mp4` | 1080x1920, 28s | **the Grand Pass** — free vs pass side by side, every feature, the price in ₹ and $ |
 | `GrandCanvas-pass-28s-landscape.mp4` | 1920x1080, 28s | the same film for YouTube and a site — a different drawing in the split |
 | `GrandCanvas-life-16s.mp4` | 1920x1080, 16s | a concept trailer — a man and his dog are drawn, then play, inside a sheet stirring in a breeze |
-| `GrandCanvas-mosquito-18s.mp4` | 1920x1080, 18s | **the concept trailer** — Man vs. Mosquito: drawn reading, then the whine, the chase, the lamp, the chair, the nose |
+| `GrandCanvas-mosquito-18s.mp4` | 1920x1080, 18s | concept trailer — Man vs. Mosquito: drawn reading, then the whine, the chase, the lamp, the chair, the nose |
+| `GrandCanvas-knights-20s.mp4` | 1920x1080, 20s | concept trailer — Two Knights, One Dragon: the charge, the fire, one falls, the other grieves, the power, the strike |
 | `GrandCanvas-ad.mp4` | 1080x1920, 6.5s | phones — Shorts, Reels, TikTok |
 | `GrandCanvas-ad-landscape.mp4` | 1920x1080, 6.5s | laptops and TVs — YouTube, a site header, pre-roll |
 | `GrandCanvas-ad.mp3` | 192kbps | the ads' soundtrack alone, if you ever cut your own pictures to it |
@@ -225,7 +226,8 @@ is invented.
 ./ad/render-mp4.sh pass-16x9    # the same, 1920x1080
 ./ad/render-mp4.sh life         # concept trailer: the dog
 ./ad/render-mp4.sh mosquito     # concept trailer: Man vs. Mosquito
-./ad/render-mp4.sh all          # all ten
+./ad/render-mp4.sh knights      # concept trailer: Two Knights, One Dragon
+./ad/render-mp4.sh all          # all eleven
 FPS=30 CRF=23 ./ad/render-mp4.sh   # smaller files
 ```
 
