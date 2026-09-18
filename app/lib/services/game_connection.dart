@@ -17,6 +17,13 @@ import 'reminder_plan.dart';
 /// Owns the single WebSocket connection to the game server and translates raw
 /// JSON frames into typed [GameEvent]s.
 class GameConnection {
+  /// The intervals are parameters so a test can run the watchdog in
+  /// milliseconds; the app uses the defaults.
+  GameConnection({
+    this.keepaliveEvery = const Duration(seconds: 20),
+    this.silence = const Duration(seconds: 45),
+  });
+
   WebSocketChannel? _channel;
   final _eventController = StreamController<GameEvent>.broadcast();
 
@@ -39,7 +46,24 @@ class GameConnection {
   /// when something is written to it; better that be a ping than the drawing
   /// you just spent a minute on.
   Timer? _keepalive;
-  static const _keepaliveEvery = Duration(seconds: 20);
+  final Duration keepaliveEvery;
+
+  /// When anything last arrived from the server. The watchdog below is the
+  /// difference between a dropped connection the app notices in seconds
+  /// and one it notices in minutes.
+  ///
+  /// A socket whose network has gone -- the phone moved from Wi-Fi to data,
+  /// the laptop hopped to another network -- does not close. Writes go into
+  /// the kernel's buffer and the OS retransmits for minutes before it gives
+  /// up, so the stream stays open, no error arrives, and the game sits on
+  /// its last screen with every tap going nowhere. The server can't tell us
+  /// either: its pings can't reach us. The one thing that is always true of
+  /// a live connection is that the server answers our keepalive; so if
+  /// nothing at all has arrived for two keepalives, the socket is dead
+  /// whatever it says, and we close it ourselves. Closing fires onDone,
+  /// which is the ordinary reconnect path.
+  DateTime _lastHeard = DateTime.now();
+  final Duration silence;
 
   GameEvent? _lastPhase;
 
@@ -101,6 +125,7 @@ class GameConnection {
           return;
         }
         if (event == null) return;
+        _lastHeard = DateTime.now();
         if (event is WelcomeEvent && !ready.isCompleted) ready.complete();
         if (_isPhaseEvent(event)) _lastPhase = event;
         _eventController.add(event);
@@ -132,8 +157,22 @@ class GameConnection {
     );
 
     _keepalive?.cancel();
-    _keepalive = Timer.periodic(_keepaliveEvery, (_) => _send({'type': 'ping'}));
+    _lastHeard = DateTime.now();
+    _keepalive = Timer.periodic(keepaliveEvery, (_) {
+      if (DateTime.now().difference(_lastHeard) > silence) {
+        // Dead in all but name. Hang up so onDone runs and the app starts
+        // getting back in, instead of waiting minutes for the OS to agree.
+        debugPrint('GameConnection: nothing heard for ${silence.inSeconds}s, closing');
+        channel.sink.close();
+        return;
+      }
+      _send({'type': 'ping'});
+    });
   }
+
+  /// Whether the server has been heard from within the silence window. For
+  /// tests; the watchdog acts on this every keepalive.
+  bool get isResponsive => DateTime.now().difference(_lastHeard) <= silence;
 
   /// Re-makes the connection to wherever we last connected and signs back in
   /// as whoever we were. The server holds a dropped player's seat for a
