@@ -589,7 +589,7 @@ function duoBed() {
 // are shorts.html's T table.
 // ---------------------------------------------------------------------------
 function shortsBed(v) {
-  noiseRng = rng({ tree: 1111, cat: 2222, rex: 3333 }[v]);
+  noiseRng = rng({ tree: 1111, cat: 2222, rex: 3333, egg: 4444, frog: 5555, rocket: 6666, giraffe: 7777, whale: 8888 }[v]);
   const out = new Float32Array(Math.ceil(10.4 * SR));
   const BEAT = 60 / 120;
   const T = { slam: 0.20, draw: 0.95, drawn: 4.45, alive: 4.75, card: 8.50 };
@@ -632,6 +632,59 @@ function shortsBed(v) {
     pluck(out, A(3.0), N.C4, 0.5, 0.3); pluck(out, A(3.2), N.A3, 0.45, 0.35);
     tick(out, A(3.35), 0.8, 2400);                                          // the splash home
     pad(out, A(3.4), [N.A2, N.C3, N.E3], 0.6, 1.2);
+  } else if (v === 'egg') {
+    // it wobbles, cracks, pops; three rising bells as it grows; a whoosh up
+    for (let i = 0; i < 9; i++) tick(out, A(0.25 + i * 0.09), 0.5 + (i % 2) * 0.3, 1600 + (i % 3) * 300);
+    pad(out, A(0), [N.C3, N.E3], 0.4, 1.4);
+    tick(out, A(1.02), 1.1, 800); tick(out, A(1.14), 0.9, 900); tick(out, A(1.24), 1.2, 700);     // the crack
+    pluck(out, A(1.3), N.G4, 0.8, 0.3); slide(out, A(1.3), 400, 900, 0.18, 0.6);                  // the pop
+    pluck(out, A(1.62), N.C5, 0.5, 0.2); pluck(out, A(1.8), N.E5, 0.5, 0.2);                       // it hops
+    for (const [t, f] of [[1.98, N.C4], [2.33, N.E4], [2.68, N.G4]]) { bell(out, A(t), f, 0.8, 0.9); kick(out, A(t), 0.5); }
+    swish(out, A(3.05), 0.9, 0.35); slide(out, A(3.05), 300, 1400, 0.55, 0.9); shimmer(out, A(3.1), 0.5, 1.0);   // and away
+    harp(out, A(3.6), N.E5, 0.4); harp(out, A(3.9), N.C5, 0.35);                                  // the feather
+  } else if (v === 'frog') {
+    // a bouncy bass, boings for the tongue, a sad note for the miss, a gulp
+    for (let i = 0; i < 16; i++) { const t = A(0.05 + i * BEAT / 2); if (t > A(3.6)) break;
+      bass(out, t, [N.E2, N.E2, N.G2, N.A2][i % 4], 0.55, 0.15); if (i % 2) hat(out, t, 0.4); }
+    slide(out, A(0.8), 220, 1100, 0.2, 0.9); tick(out, A(1.0), 1.0, 2400);                        // thwip -- and a miss
+    bell(out, A(1.1), N.B3, 0.5, 0.7); pluck(out, A(1.3), N.G3, 0.5, 0.4);
+    pluck(out, A(1.7), N.E5, 0.4, 0.15); pluck(out, A(1.78), N.E5, 0.3, 0.15);                    // it lands on his head
+    slide(out, A(2.3), 220, 1100, 0.25, 0.9); tick(out, A(2.55), 1.0, 2400);                       // thwip
+    slide(out, A(2.95), 500, 120, 0.35, 0.9); kick(out, A(3.1), 1.0, 1.2);                         // gulp
+    pluck(out, A(3.6), N.C5, 0.6, 0.35); pluck(out, A(3.75), N.E5, 0.5, 0.4);
+  } else if (v === 'rocket') {
+    // a countdown, a launch, a climb into strings and stars, a small landing
+    for (let i = 0; i < 3; i++) tick(out, A(0.05 + i * 0.18), 1.1, 1200);
+    bass(out, A(0.0), N.C2, 0.5, 0.6);
+    kick(out, A(0.6), 1.5, 1.6); crash(out, A(0.6), 0.9, 1.4); timpani(out, A(0.6), 1.4, 46);     // launch
+    for (let t = A(0.6); t < A(2.2); t += 0.07) bass(out, t, N.C2, 0.35, 0.09);                    // the rumble
+    slide(out, A(0.9), 90, 400, 1.8, 0.6);
+    strings(out, A(1.0), [N.C3, N.G3, N.C4, N.E4, N.G4], 1.0, 2.8);
+    for (let i = 0; i < 8; i++) harp(out, A(1.3 + i * 0.24), [N.C5, N.E5, N.G5, N.C5 * 2][i % 4], 0.35 + i * 0.05);
+    shimmer(out, A(1.6), 0.7, 2.2);                                                               // stars
+    bell(out, A(2.45), N.G5, 0.7, 1.2);                                                           // the moon
+    tick(out, A(3.6), 0.9, 600); kick(out, A(3.6), 0.6, 1.0);                                      // touchdown
+    pluck(out, A(3.75), N.C5, 0.6, 0.4);                                                          // the flag
+  } else if (v === 'giraffe') {
+    // a climb, a wait, a climb back down, and a lick
+    for (let i = 0; i < 12; i++) harp(out, A(0.25 + i * 0.1), N.C4 * Math.pow(2, i / 12 * 1.4), 0.4 + i * 0.03);
+    slide(out, A(0.3), 200, 1200, 1.2, 0.5);
+    pad(out, A(1.5), [N.E3, N.B3], 0.5, 0.6); bell(out, A(1.7), N.B3, 0.4, 0.6);                    // "?"
+    for (let i = 0; i < 9; i++) harp(out, A(2.05 + i * 0.09), N.C5 * Math.pow(2, -i / 12 * 1.2), 0.45);
+    slide(out, A(2.0), 1200, 300, 0.8, 0.5);
+    swish(out, A(3.1), 0.8, 0.3); slide(out, A(3.15), 500, 300, 0.3, 0.7); tick(out, A(3.2), 1.0, 900);   // the lick, and "!"
+    pluck(out, A(3.6), N.E4, 0.5, 0.4); pluck(out, A(3.8), N.C4, 0.45, 0.4);
+  } else if (v === 'whale') {
+    // the sea, a nibble, something rising, everything at once when it does
+    pad(out, A(0), [N.A2, N.E3], 0.55, 2.4);
+    tick(out, A(0.8), 0.6, 2000); tick(out, A(0.95), 0.5, 2200);                                   // the nibble
+    for (let t = A(1.1); t < A(2.4); t += 0.16) bass(out, t, N.A2 / 2, 0.3 + (t - A(1.1)) * 0.45, 0.14);   // it rises
+    slide(out, A(1.2), 60, 220, 1.2, 0.8);
+    for (let i = 0; i < 6; i++) timpani(out, A(1.4 + i * 0.16), 0.3 + i * 0.12, 60 - i * 2);
+    brass(out, A(2.4), [N.A2 / 2, N.E2, N.A2], 1.5, 0.9); crash(out, A(2.42), 1.0, 1.4); timpani(out, A(2.4), 1.6, 44);   // it surfaces
+    slide(out, A(2.5), 200, 900, 0.35, 0.9);                                                      // and he is off the pier
+    swish(out, A(3.15), 1.0, 0.5); shimmer(out, A(3.2), 0.7, 1.2);                                 // the spout
+    strings(out, A(2.5), [N.A2, N.E3, N.A3, N.C4], 0.9, 1.6);
   } else {
     // it does not stay small: a drone, a roar, and something heavy running
     pad(out, A(0), [N.C2, N.G2], 0.7, 2.2);
@@ -650,11 +703,11 @@ function shortsBed(v) {
   bell(out, T.card, 1046.5, 1.0, 1.7); bell(out, T.card + 0.15, 1318.5, 0.6, 1.3);
   shimmer(out, T.card, 0.9, 2.0); pad(out, T.card, [N.C3, N.G3, N.C4, N.E4], 1.0, 1.7);
   write(out, `shorts_${v}_bed.mp3`, 0.6);
-  console.log(`shorts_${v}_bed.mp3  10.4s, 120bpm -- a slam, a pencil pulse, ${{ tree: 'a harp climbing and one apple', cat: 'pizzicato and a slap', rex: 'a drone, a roar and something heavy running' }[v]}, then the card`);
+  console.log(`shorts_${v}_bed.mp3  10.4s, 120bpm -- a slam, a pencil pulse, ${{ tree: 'a harp climbing and one apple', cat: 'pizzicato and a slap', rex: 'a drone, a roar and something heavy running', egg: 'a crack, three bells, a whoosh', frog: 'boings and a gulp', rocket: 'a countdown, a launch, strings and stars', giraffe: 'a climb up, a wait, a climb down, a lick', whale: 'the sea, a rising bass, brass when it surfaces' }[v]}, then the card`);
 }
 
 lifeBed();
 mosquitoBed();
 knightsBed();
 duoBed();
-for (const v of ['tree', 'cat', 'rex']) shortsBed(v);
+for (const v of ['tree', 'cat', 'rex', 'egg', 'frog', 'rocket', 'giraffe', 'whale']) shortsBed(v);

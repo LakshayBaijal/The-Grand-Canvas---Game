@@ -290,10 +290,8 @@ case "$WHICH" in
   mosquito)  render_mosquito ;;
   knights)   render_knights ;;
   duo)       render_duo ;;
-  shorts)    render_short tree; render_short cat; render_short rex ;;
-  short-tree) render_short tree ;;
-  short-cat)  render_short cat ;;
-  short-rex)  render_short rex ;;
+  shorts)    for v in tree cat rex egg frog rocket giraffe whale; do render_short $v; done ;;
+  short-*)   render_short "${WHICH#short-}" ;;
   pass-16x9) render_pass pass-landscape.html GrandCanvas-pass-28s-landscape.mp4 "GRAND PASS  1920x1080 - 28s" ;;
   both)
     render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
@@ -312,7 +310,7 @@ case "$WHICH" in
     render_mosquito
     render_knights
     render_duo
-    render_short tree; render_short cat; render_short rex
+    for v in tree cat rex egg frog rocket giraffe whale; do render_short $v; done
     ;;
   *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|gallery-9x16|daily|pass|pass-16x9|life|mosquito|knights|duo|shorts|both|all]"; exit 1 ;;
 esac
@@ -321,7 +319,7 @@ esac
 # it. Both spots share it, so it only needs writing once.
 echo ""
 echo "==> Soundtrack"
-case "$WHICH" in promo|gallery|gallery-9x16|daily|pass|pass-16x9|life|mosquito|knights|duo|shorts|short-tree|short-cat|short-rex) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
+case "$WHICH" in promo|gallery|gallery-9x16|daily|pass|pass-16x9|life|mosquito|knights|duo|shorts|short-*) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
 if [ "$SKIP_MP3" = "0" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
   ffmpeg -y -hide_banner -loglevel error -i "$AD/GrandCanvas-ad.mp4" -vn -c:a libmp3lame -b:a 192k "$AD/GrandCanvas-ad.mp3"
   echo "    $AD/GrandCanvas-ad.mp3"

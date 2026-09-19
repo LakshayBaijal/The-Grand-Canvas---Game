@@ -86,6 +86,7 @@ function layPaper(t) {
 
 function boilSeed(t) { return 100 + Math.floor(t * 8); }
 function inkStroke(ctx, pts, width, upto, seed, wob = 2.2) {
+  if (!pts || pts.length < 2) { console.warn('inkStroke: short stroke', pts && pts.length, new Error().stack.split('\n')[2]); return pts && pts[0] || P(0, 0); }
   const r = rng(seed), n = Math.max(2, Math.ceil(pts.length * upto));
   ctx.strokeStyle = INK; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.beginPath();
@@ -394,6 +395,344 @@ rex: {
         og.globalAlpha = .45 - pu * .35;
         inkStroke(og, circ(px, 954 - pu * 34, 8 + pu * 14, 10), 3, 1, seed + 40 + i);
         og.globalAlpha = 1; } }
+  },
+},
+
+// --- an egg, and what comes out of it -------------------------------------
+egg: {
+  title: 'DRAW AN EGG',
+  caps: [['DRAW AN EGG.', T.draw + .3, T.alive + .2], ['WAIT FOR IT.', T.alive + .3, T.alive + 2.95], ['…BYE.', T.alive + 3.05, T.card]],
+  EX: 540, GY: 1030, RX: 122, RY: 160,
+  /** The shell as points, tip up. rot tips it about the point it stands on. */
+  shell(rot = 0) {
+    const { EX, GY, RX, RY } = this, cy = GY - RY, c = Math.cos(rot), sn = Math.sin(rot);
+    return Array.from({ length: 41 }, (_, i) => { const a = i / 40 * Math.PI * 2;
+      const x = RX * Math.cos(a) * (1 - .22 * Math.sin(a)), y = -RY * Math.sin(a);
+      const px = x, py = y - RY;                          // about the base: y runs -2RY..0
+      return P(EX + px * c - py * sn, GY + px * sn + py * c); });
+  },
+  bird(out, x, gy, s, { flap = 0, air = 0, look = 0 } = {}) {
+    const f = (dx, dy) => P(x + dx * s, gy + dy * s);
+    out.push([ell(x, gy - 44 * s, 46 * s, 34 * s), 5]);                                   // body
+    out.push([circ(f(26, -84).x, f(26, -84).y, 24 * s), 5]);                              // head
+    out.push([[f(46, -88), f(66, -80), f(46, -74)], 4]);                                  // beak
+    out.push([circ(f(32, -90).x, f(32, -90).y, 3 * s, 8), 4]);                            // eye
+    const w = Math.sin(flap) * 1.1;                                                       // the wing
+    out.push([smooth([f(-6, -56), f(-30, -56 - 44 * Math.cos(w)), f(-52, -50 - 70 * Math.cos(w) * .8)], 6, false), 5]);
+    out.push([[f(-40, -40), f(-64, -30), f(-60, -50)], 4]);                               // tail
+    if (air < .5) { out.push([[f(-8, -12), f(-10, 0)], 4]); out.push([[f(12, -12), f(14, 0)], 4]); }   // legs
+  },
+  still() {
+    const out = [];
+    out.push([seg(P(70, 1030), P(850, 1037), 12), 5]);
+    for (const st of man(280, 1030).strokes) out.push(st);
+    out.push([this.shell(), 6]);
+    out.push([qcurve(P(460, 1034), P(540, 1050), P(620, 1034)), 4]);                      // a little nest line
+    return out;
+  },
+  live(a) {
+    const out = [];
+    out.push([seg(P(70, 1030), P(850, 1037), 12), 5]);
+    out.push([qcurve(P(460, 1034), P(540, 1050), P(620, 1034)), 4]);
+    const { EX, GY, RY } = this;
+    // it wobbles, cracks, and the top comes off
+    const wob = Math.sin(a * 24) * .13 * Math.sin(Math.min(1, win(a, .2, 1.05)) * Math.PI);
+    const crack = win(a, 1.0, 1.3), pop = back(win(a, 1.25, 1.6));
+    const crackY = GY - RY - 6;
+    const pts = this.shell(wob);
+    if (pop < .01) { out.push([pts, 6]); }
+    else {
+      const bottom = pts.filter(p => p.y >= crackY), top = pts.filter(p => p.y < crackY);
+      out.push([bottom, 6]);
+      const cx = EX + 34 * pop, cy = crackY - 40 - 70 * Math.min(1, pop), rot = .55 * Math.min(1, pop);
+      const c = Math.cos(rot), sn = Math.sin(rot);
+      out.push([top.map(p => { const dx = p.x - EX, dy = p.y - crackY; return P(cx + dx * c - dy * sn, cy + 40 + dx * sn + dy * c); }), 6]);
+    }
+    if (crack > 0) { const zig = []; for (let i = 0; i <= 8; i++) zig.push(P(EX - 116 + i * 29, crackY + (i % 2 ? 14 : -14)));
+      out.push([zig, 4 * Math.min(1, crack * 2 + .3)].map((v, i) => i ? v : v.slice(0, Math.max(2, Math.ceil(9 * crack))))); }
+    // the chick: peeks, hops out, grows in three beats, then goes
+    const peek = back(win(a, 1.35, 1.6)), hop = easeOut(win(a, 1.6, 1.95));
+    const grow = 1.3 + .3 * back(win(a, 1.95, 2.15)) + .35 * back(win(a, 2.3, 2.5)) + .4 * back(win(a, 2.65, 2.85));
+    const fly = easeOut(win(a, 3.05, 3.75));
+    if (peek > 0) {
+      const bx = lerp(EX, 780, hop), gy = lerp(crackY + 20, GY, hop) - Math.sin(hop * Math.PI) * 110 - fly * fly * 1700;
+      const sz = peek < 1 ? .9 * peek : lerp(.9, 1.3, hop) * grow / 1.3;
+      if (gy > -200) this.bird(out, bx, gy, sz, { flap: a > 2.95 ? a * 26 : 0, air: fly });
+    }
+    // one feather, drifting down to him
+    const fe = win(a, 3.4, 4.2);
+    if (fe > 0) { const fx = 640 - fe * 330 + Math.sin(fe * 9) * 34, fy = lerp(360, 728, fe);
+      out.push([smooth([P(fx - 20, fy + 10), P(fx, fy - 12), P(fx + 24, fy + 6)], 6, false), 4]);
+      out.push([[P(fx - 20, fy + 10), P(fx + 24, fy + 6)], 3]); }
+    for (const st of man(280, 1030, { look: a > 1.2 ? .7 : 0, arm: a > 3.0 ? .95 : (a > 1.3 ? .3 : 0) }).strokes) out.push(st);
+    return out;
+  },
+  extras(a, seed) {
+    const w = win(a, 3.05, 3.5);                                                          // the take-off, as motion lines
+    if (w > 0 && w < 1) for (let i = 0; i < 4; i++) { og.globalAlpha = (1 - w) * .8;
+      inkStroke(og, seg(P(750 + i * 24, 1000 - w * 520 - i * 40), P(750 + i * 24, 1000 - w * 520 - i * 40 - 70), 2), 3, 1, seed + i); og.globalAlpha = 1; }
+  },
+},
+
+// --- a frog, a fly, and a tongue with poor aim -------------------------------
+frog: {
+  title: 'DRAW A FROG',
+  caps: [['DRAW A FROG.', T.draw + .3, T.alive + .2], ['GOOD LUCK, FROG.', T.alive + .3, T.card]],
+  FX: 460, GY: 1040,
+  flyAt(a) { return P(520 + Math.sin(a * 3) * 130, 320 + Math.sin(a * 6) * 40); },
+  frog(out, { pupil = P(0, 0), cross = 0, gulp = 0, blink = 0, mouth = 0 } = {}) {
+    const { FX, GY } = this;
+    out.push([blob(FX, GY - 116, 178, 31, 40, .68), 6]);                                  // body
+    out.push([circ(FX, GY - 70 + gulp * 6, 30 * gulp, 14), 4].map((v, i) => i ? v : (gulp > .05 ? v : v.slice(0, 2))));   // the gulp
+    out.push([qcurve(P(FX - 120, GY - 126), P(FX, GY - 70 + mouth * 34), P(FX + 120, GY - 126)), 5]);   // mouth
+    for (const d of [-1, 1]) {                                                            // eyes on top
+      const ex = FX + d * 76, ey = GY - 250;
+      if (blink > .5) out.push([qcurve(P(ex - 36, ey), P(ex, ey + 10), P(ex + 36, ey)), 5]);
+      else { out.push([circ(ex, ey, 42), 5]);
+        const px = cross ? -d * 10 : pupil.x, py = cross ? -8 : pupil.y;
+        out.push([circ(ex + px, ey + py, 11, 10), 6]); }
+      out.push([smooth([P(FX + d * 140, GY - 70), P(FX + d * 220, GY - 34), P(FX + d * 186, GY), P(FX + d * 254, GY)], 6, false), 5]);   // leg
+    }
+  },
+  fly(out, x, y, a) {
+    out.push([ell(x, y, 11, 8, 12), 4]);
+    const w = Math.sin(a * 60) * .5;
+    out.push([qcurve(P(x - 4, y - 6), P(x - 20, y - 26 - w * 10), P(x - 8, y - 8)), 3]);
+    out.push([qcurve(P(x + 4, y - 6), P(x + 20, y - 26 + w * 10), P(x + 8, y - 8)), 3]);
+  },
+  still() {
+    const out = [];
+    out.push([seg(P(60, 1040), P(860, 1047), 12), 5]);
+    out.push([qcurve(P(60, 1010), P(180, 990), P(260, 1040)), 4]);                        // a lily leaf edge
+    this.frog(out, { pupil: P(6, -4) });
+    this.fly(out, 520, 320, 0);
+    return out;
+  },
+  live(a) {
+    const out = [];
+    out.push([seg(P(60, 1040), P(860, 1047), 12), 5]);
+    out.push([qcurve(P(60, 1010), P(180, 990), P(260, 1040)), 4]);
+    const { FX, GY } = this;
+    const mouth = P(FX, GY - 110);
+    // beats: watch .0-.8, shot 1 .8-1.3 (miss), fly lands on its head 1.6, cross-eyed, shot 2 2.3-2.9, gulp 3.0
+    const shot1 = win(a, .8, 1.0), back1 = win(a, 1.05, 1.35);
+    const shot2 = win(a, 2.3, 2.55), back2 = win(a, 2.6, 2.9);
+    let fly = this.flyAt(a), onHead = false;
+    if (a >= .72 && a < 1.5) { const u = easeOut(win(a, .72, .9)); fly = P(lerp(this.flyAt(.72).x, 250, u), lerp(this.flyAt(.72).y, 460, u) + Math.sin(a * 20) * 6); }
+    else if (a >= 1.5 && a < 2.6) { const u = easeOut(win(a, 1.5, 1.75)); fly = P(lerp(250, FX, u), lerp(460, GY - 300, u)); onHead = a > 1.7; }
+    else if (a >= 2.6) fly = null;                                                        // it has been dealt with
+    const target = fly || P(FX, GY - 300);
+    const look = P(Math.max(-16, Math.min(16, (target.x - FX) * .06)), Math.max(-16, Math.min(16, (target.y - (GY - 250)) * .06)));
+    const gulp = Math.sin(Math.min(1, win(a, 2.95, 3.35)) * Math.PI);
+    this.frog(out, { pupil: look, cross: onHead ? 1 : 0, gulp, blink: a > 3.55 && a < 3.75 ? 1 : 0, mouth: shot1 > 0 && back1 < 1 || shot2 > 0 && back2 < 1 ? 1 : 0 });
+    // the tongue: straight up and a miss, then curled back over its own head
+    if (shot1 > 0 && back1 < 1) { const u = shot1 * (1 - back1), tip = P(lerp(mouth.x, 520, u), lerp(mouth.y, 330, u));
+      out.push([seg(mouth, tip, 12), 9]); out.push([circ(tip.x, tip.y, 16, 12), 6]); }
+    if (shot2 > 0 && back2 < 1) { const u = shot2 * (1 - back2), path = qcurve(mouth, P(FX + 290, GY - 340), P(FX + 10, GY - 310), 24);
+      const n = Math.max(2, Math.ceil(path.length * u)); const tip = path[n - 1];
+      out.push([path.slice(0, n), 9]); out.push([circ(tip.x, tip.y, 16, 12), 6]);
+      if (back2 > 0) fly = null; else if (u > .9) fly = P(tip.x, tip.y - 8); }
+    if (fly && !(back2 > 0)) this.fly(out, fly.x, fly.y, a);
+    return out;
+  },
+  extras(a, seed) {
+    const m = win(a, 1.0, 1.4);                                                           // "!" at the miss
+    if (m > 0 && m < 1) { og.globalAlpha = 1 - m; inkStroke(og, seg(P(560, 300 - m * 40), P(560, 250 - m * 40), 3), 6, 1, seed); inkStroke(og, circ(560, 328 - m * 40, 4, 8), 5, 1, seed + 1); og.globalAlpha = 1; }
+    const z = win(a, 3.6, 4.0);                                                           // a contented "~"
+    if (z > 0 && z < 1) { og.globalAlpha = 1 - z; inkStroke(og, [P(600, 760 - z * 40), P(615, 748 - z * 40), P(630, 760 - z * 40), P(645, 748 - z * 40)], 4, 1, seed + 2); og.globalAlpha = 1; }
+  },
+},
+
+// --- a rocket, and the ground it left turning into a planet ------------------
+// The camera is inside the drawing: as the rocket climbs, everything scales
+// about the launch site until the flat ground it stood on is a small ball
+// at the bottom of the page and the sky is stars.
+rocket: {
+  title: 'DRAW A ROCKET',
+  caps: [['DRAW A ROCKET.', T.draw + .3, T.alive + .2], ['3… 2… 1…', T.alive + .25, T.alive + .95], ['WATCH IT GO.', T.alive + 1.0, T.card]],
+  STARS: (() => { const r = rng(77); return Array.from({ length: 16 }, () => ({ x: 60 + r() * 800, y: 40 + r() * 620, s: 5 + r() * 7, t: r() })); })(),
+  rocket(out, x, base, s, { flame = 0, jitter = 0 } = {}) {
+    const f = (dx, dy) => P(x + (dx + jitter) * s, base + dy * s);
+    out.push([smooth([f(-30, 0), f(-32, -160), f(0, -250), f(32, -160), f(30, 0)], 8, false), 6 * s]);
+    out.push([[f(-30, 0), f(30, 0)], 5 * s]);
+    out.push([[f(-30, -40), f(-58, 4), f(-30, -4)], 5 * s]); out.push([[f(30, -40), f(58, 4), f(30, -4)], 5 * s]);   // fins
+    out.push([circ(f(0, -150).x, f(0, -150).y, 14 * s, 14), 5 * s]);                     // window
+    out.push([[f(-16, 0), f(-12, 14), f(12, 14), f(16, 0)], 5 * s]);                      // nozzle
+    if (flame > 0) { const k = flame * (1 + Math.sin(base * 7 + x) * .25);
+      out.push([[f(-14, 14), f(-24, 14 + 40 * k), f(-6, 14 + 30 * k), f(0, 14 + 74 * k), f(6, 14 + 30 * k), f(24, 14 + 40 * k), f(14, 14)], 5 * s]); }
+  },
+  still() {
+    const out = [];
+    out.push([circ(460, 2530, 1500, 40, -Math.PI / 2 - .33, -Math.PI / 2 + .33), 5]);   // the horizon, an arc of something very big
+    for (const st of man(300, 1030, { arm: 1.0 }).strokes) out.push(st);
+    out.push([seg(P(540, 1030), P(544, 900)), 5]); out.push([seg(P(544, 900), P(500, 890)), 5]);   // the gantry
+    out.push([seg(P(540, 960), P(500, 950)), 4]);
+    this.rocket(out, 460, 1030, 1);
+    return out;
+  },
+  live(a) {
+    const out = [];
+    const cd = a < .6;
+    const climb = easeOut(win(a, .6, .9)), zoom = easeOut(win(a, .9, 3.2));
+    const s = lerp(1, .36, zoom), ER = lerp(1500, 130, zoom), altU = lerp(0, 2.3, zoom);
+    const toMoon = easeOut(win(a, 2.7, 3.6));
+    const rx = lerp(460, 650, toMoon);
+    const ry = lerp(lerp(1030, 950, climb), 330, zoom) + toMoon * 22;
+    const earthTop = ry + altU * ER + (zoom < .02 ? 0 : 0), EY = earthTop + ER;
+    // the planet, then its continents once it is small enough to have any
+    out.push([circ(460, EY, ER, Math.max(48, Math.round(ER / 5))), 5]);
+    if (ER < 700) { const k = Math.min(1, (700 - ER) / 400);
+      out.push([blob(460 - ER * .28, EY - ER * .25, ER * .30 * k, 5, 22, .8), 4]);
+      out.push([blob(460 + ER * .36, EY + ER * .30, ER * .22 * k, 9, 18, .9), 4]); }
+    // the launch site: gantry and him, until they are too small to matter
+    if (zoom < .55) { const gs = lerp(1, .36, zoom), gy = earthTop;
+      out.push([seg(P(460 + 80 * gs, gy), P(460 + 84 * gs, gy - 130 * gs)), 5 * gs]); out.push([seg(P(460 + 84 * gs, gy - 130 * gs), P(460 + 40 * gs, gy - 140 * gs)), 5 * gs]);
+      if (a < 1.3) for (const st of man(300, 1030, { arm: cd ? 1.0 : 1.0 + Math.sin(a * 12) * .1, look: cd ? 0 : .7 }).strokes) out.push(st); }
+    // the moon, and a flag once it is there
+    if (toMoon > 0 || a > 2.4) { const mu = back(win(a, 2.4, 2.8));
+      out.push([circ(700, 250, 108 * Math.min(1, mu), 30), 6]);
+      for (const [cx, cy, r] of [[668, 222, 18], [722, 274, 14], [736, 214, 10]]) out.push([circ(cx, cy, r * Math.min(1, mu), 12), 4]); }
+    const landed = win(a, 3.55, 3.7);
+    this.rocket(out, rx, ry, s, { flame: cd ? 0 : (landed > 0 ? 1 - landed : 1), jitter: cd ? Math.sin(a * 90) * 3 * win(a, .2, .6) : 0 });
+    const fl = back(win(a, 3.65, 3.95));
+    if (fl > 0) { out.push([seg(P(rx + 40, ry), P(rx + 40, ry - 96 * fl)), 4]); out.push([[P(rx + 40, ry - 96 * fl), P(rx + 40 + 64 * fl, ry - 78 * fl), P(rx + 40, ry - 58 * fl)], 4]); }
+    return out;
+  },
+  extras(a, seed) {
+    const zoom = easeOut(win(a, .9, 3.2));
+    // stars come out as the sky gets big
+    for (const st of this.STARS) { const u = win(zoom, .3 + st.t * .4, .6 + st.t * .4); if (u <= 0) continue;
+      og.globalAlpha = u; inkStroke(og, [P(st.x - st.s, st.y), P(st.x + st.s, st.y)], 3, 1, seed); inkStroke(og, [P(st.x, st.y - st.s), P(st.x, st.y + st.s)], 3, 1, seed + 1); og.globalAlpha = 1; }
+    // smoke at the launch
+    if (a > .4 && a < 2.0 && zoom < .3) { const r = rng(Math.floor(a * 10) + 3);
+      for (let i = 0; i < 6; i++) { const u = r(), age = win(a, .4 + u * .6, 1.6 + u * .6); if (age <= 0 || age >= 1) continue;
+        og.globalAlpha = (1 - age) * .6; inkStroke(og, circ(460 + (r() - .5) * 200 * (1 + age), 1030 - age * 40 * (1 - zoom), (14 + age * 40) * (1 - zoom * .8), 12), 3, 1, seed + 10 + i); og.globalAlpha = 1; } }
+  },
+},
+
+// --- a giraffe, and a page that is not tall enough for it --------------------
+giraffe: {
+  title: 'DRAW A GIRAFFE',
+  caps: [['DRAW A GIRAFFE.', T.draw + .3, T.alive + .2], ['THE PAGE IS TOO SMALL.', T.alive + .3, T.alive + 2.0], ['…HELLO.', T.alive + 2.1, T.card]],
+  GY: 1030,
+  head(out, cx, cy, rot = 0, { tongue = 0 } = {}) {
+    const k = 1.45, c = Math.cos(rot), sn = Math.sin(rot), f = (dx, dy) => P(cx + (dx * c - dy * sn) * k, cy + (dx * sn + dy * c) * k);
+    out.push([smooth([f(-58, 0), f(-30, -34), f(40, -30), f(74, -6), f(50, 26), f(-30, 32)], 6), 6]);
+    out.push([circ(f(24, -8).x, f(24, -8).y, 7, 8), 5]);                                  // eye
+    out.push([[f(-24, -30), f(-30, -70), f(-18, -74)], 4]); out.push([[f(4, -30), f(0, -70), f(12, -74)], 4]);   // ossicones
+    out.push([[f(-48, -18), f(-80, -34), f(-60, -4)], 4]);                                // ear
+    if (tongue > 0) out.push([smooth([f(70, 6), f(96 + 40 * tongue, 30 + 40 * tongue), f(80, 50 + 60 * tongue)], 6, false), 5]);
+  },
+  body(out) {
+    out.push([ell(660, 810, 140, 82), 6]);
+    for (const x of [560, 600, 720, 760]) out.push([seg(P(x, 880), P(x + 4, 1030), 4), 6]);
+    out.push([smooth([P(524, 790), P(486, 850), P(500, 900)], 6, false), 5]);             // tail
+    for (const [x, y, r] of [[620, 790, 22], [690, 830, 26], [730, 780, 18], [590, 840, 16]]) out.push([blob(x, y, r, x, 12), 4]);
+  },
+  still() {
+    const out = [];
+    out.push([seg(P(70, 1030), P(850, 1037), 12), 5]);
+    for (const st of man(240, 1030).strokes) out.push(st);
+    this.body(out);
+    out.push([seg(P(760, 740), P(790, 480), 6), 6]); out.push([seg(P(800, 748), P(830, 486), 6), 6]);   // the neck
+    this.head(out, 830, 450, -.3);
+    return out;
+  },
+  live(a) {
+    const out = [];
+    out.push([seg(P(70, 1030), P(850, 1037), 12), 5]);
+    this.body(out);
+    // the neck climbs off the top of the page, and the head with it
+    const up = easeOut(win(a, .25, 1.5));
+    const topY = lerp(480, -420, up);
+    out.push([seg(P(760, 740), P(790 + up * 20, topY), 10), 6]); out.push([seg(P(800, 748), P(830 + up * 20, topY + 6), 10), 6]);
+    for (let i = 0; i < 6; i++) { const y = lerp(720, topY + 60, (i + .5) / 6); if (y > -40) out.push([blob(796 + up * 14, y, 14, 30 + i, 10), 3]); }
+    if (topY > -80) this.head(out, 830 + up * 20, topY - 30, -.3 - up * .9);
+    // then it comes back down on the other side, upside down, next to him
+    const down = easeOut(win(a, 2.0, 2.8));
+    if (down > 0) { const hy = lerp(-120, 600, down);
+      out.push([seg(P(300, -60), P(296, hy - 20), 10), 6]); out.push([seg(P(340, -60), P(336, hy - 14), 10), 6]);
+      for (let i = 0; i < 5; i++) { const y = lerp(-20, hy - 60, (i + .5) / 5); if (y > -40) out.push([blob(318, y, 14, 50 + i, 10), 3]); }
+      this.head(out, 322, hy + 20, Math.PI + .25, { tongue: Math.sin(Math.min(1, win(a, 3.0, 3.5)) * Math.PI) }); }
+    const licked = win(a, 3.15, 3.4);
+    for (const st of man(240, 1030, { look: a > .4 && a < 2.0 ? .8 : (a > 2.4 ? -.4 : 0), lean: licked * 34, arm: a > 2.5 ? .6 : 0 }).strokes) out.push(st);
+    return out;
+  },
+  extras(a, seed) {
+    const q = win(a, 1.6, 2.1);                                                           // "?" while the head is gone
+    if (q > 0 && q < 1) { og.globalAlpha = Math.sin(q * Math.PI); inkStroke(og, [P(230, 690), P(236, 672), P(252, 664), P(264, 674), P(256, 690), P(248, 700), P(248, 712)], 4, 1, seed); inkStroke(og, circ(248, 726, 3, 8), 4, 1, seed + 1); og.globalAlpha = 1; }
+    const e = win(a, 3.15, 3.6);                                                          // "!" at the lick
+    if (e > 0 && e < 1) { og.globalAlpha = 1 - e; inkStroke(og, seg(P(200, 700 - e * 30), P(200, 650 - e * 30), 3), 6, 1, seed + 2); inkStroke(og, circ(200, 722 - e * 30, 4, 8), 5, 1, seed + 3); og.globalAlpha = 1; }
+  },
+},
+
+// --- fishing, and catching rather more than he meant to ----------------------
+whale: {
+  title: 'GO FISHING',
+  caps: [['DRAW A FISHERMAN.', T.draw + .3, T.alive + .2], ['SOMETHING BIT.', T.alive + .3, T.alive + 2.4], ['SOMETHING BIG.', T.alive + 2.5, T.card]],
+  SEA: 430, TIP: P(430, 300),
+  pier(out, shake = 0) {
+    out.push([seg(P(40, 380 + shake), P(380, 384 + shake), 10), 6]);
+    for (const x of [90, 220, 350]) out.push([seg(P(x, 384 + shake), P(x + 2, 470), 4), 5]);
+    for (let i = 0; i < 5; i++) out.push([seg(P(60 + i * 64, 372 + shake), P(60 + i * 64, 392 + shake), 2), 3]);
+  },
+  sea(out, a = 0) {
+    const pts = []; for (let i = 0; i <= 18; i++) { const x = 40 + i * 46; pts.push(P(x, this.SEA + Math.sin(i * 1.3 + a * 3) * 6)); }
+    out.push([pts, 5]);
+  },
+  hook(out, x, y) { out.push([smooth([P(x, y - 20), P(x, y + 10), P(x + 14, y + 16), P(x + 20, y)], 6, false), 4]); },
+  whale(out, y, { mouth = 0, spout = 0 } = {}) {
+    out.push([smooth([P(330, y - 150), P(500, y - 230), P(750, y - 180), P(880, y - 40), P(830, y + 120), P(580, y + 170), P(380, y + 110), P(300, y)], 8), 7]);
+    out.push([smooth([P(300, y), P(180, y + 40), P(120, y - 30), P(150, y + 80), P(200, y + 90)], 6, false), 6]);   // tail
+    out.push([circ(770, y - 110, 8, 10), 5]);                                             // eye
+    out.push([qcurve(P(872, y - 30), P(700, y + 40 + mouth * 60), P(520, y + 60)), 6]);   // mouth
+    for (let i = 0; i < 6; i++) out.push([seg(P(560 + i * 48, y + 50 + mouth * 22), P(564 + i * 48, y + 30 + mouth * 40), 2), 3]);   // baleen
+    if (spout > 0) for (let i = 0; i < 5; i++) { const ang = -Math.PI / 2 + (i - 2) * .32, d = 60 + spout * 150;
+      out.push([seg(P(640 + Math.cos(ang) * 30, y - 224), P(640 + Math.cos(ang) * d, y - 224 + Math.sin(ang) * d * .8), 4), 4]); }
+  },
+  still() {
+    const out = [];
+    this.sea(out);
+    this.pier(out);
+    for (const st of man(250, 380, { arm: 1.35 }).strokes) out.push(st);
+    out.push([seg(P(294, 250), this.TIP, 6), 5]);                                         // the rod
+    out.push([seg(this.TIP, P(430, 900), 10), 2]);                                        // the line
+    this.hook(out, 430, 900);
+    return out;
+  },
+  live(a) {
+    const out = [];
+    this.sea(out, a);
+    // a nibble, a flight, and then the sea comes up to meet him
+    const rise = easeOut(win(a, 1.1, 2.4));
+    const wy = lerp(1420, 740, rise);
+    const taut = win(a, 2.35, 2.5), yank = easeOut(win(a, 2.5, 2.9));
+    const swing = Math.sin(a * 5) * 26 * yank * (1 - win(a, 3.4, 3.75) * .7);
+    this.pier(out, Math.sin(a * 40) * 4 * taut * (1 - yank));
+    const spout = Math.sin(Math.min(1, win(a, 3.1, 3.7)) * Math.PI);
+    this.whale(out, wy, { mouth: Math.min(1, rise * 1.4), spout });
+    // the small fish: in, a nibble, and gone at the first sight of that
+    if (a < 1.3) { const fx = a < .8 ? lerp(140, 400, easeOut(win(a, 0, .8))) : lerp(400, -80, easeOut(win(a, 1.05, 1.3)));
+      const fy = 890 + Math.sin(a * 8) * 8;
+      out.push([[P(fx - 24, fy), P(fx - 6, fy - 14), P(fx + 18, fy - 4), P(fx + 26, fy), P(fx + 18, fy + 6), P(fx - 6, fy + 14), P(fx - 24, fy)], 4]);
+      out.push([[P(fx - 24, fy), P(fx - 42, fy - 14), P(fx - 38, fy), P(fx - 42, fy + 14), P(fx - 24, fy)], 4]); }
+    // him: on the pier, then dangling from his own rod over the thing
+    const mx = lerp(250, 410, yank), my = lerp(380, 352, yank) + swing;
+    for (const st of man(mx, my, { arm: 1.35 + yank * .5, lean: yank * 40, look: a > 1.3 ? .9 : 0 }).strokes) out.push(st);
+    const hand = P(mx + 44 + yank * 30, my - 130 - yank * 60);
+    const tip = yank > 0 ? P(lerp(430, 480, yank), lerp(300, 300, yank) + swing * .5) : this.TIP;
+    out.push([seg(hand, tip, 6), 5]);
+    const end = rise > 0 ? P(lerp(430, 860, Math.min(1, rise * 1.3)), Math.min(900, lerp(900, wy - 30, Math.min(1, rise * 1.3)))) : P(430, 900);
+    out.push([seg(tip, end, 10), 2]);
+    if (rise < .8) this.hook(out, end.x, end.y);
+    return out;
+  },
+  extras(a, seed) {
+    const r = win(a, 1.6, 2.5);                                                           // the surface heaving
+    if (r > 0 && r < 1) for (let i = 0; i < 4; i++) { og.globalAlpha = (1 - r) * .8; inkStroke(og, circ(560, this.SEA, 60 + i * 50 + r * 120, 22, Math.PI + .3, Math.PI * 2 - .3), 3, 1, seed + i); og.globalAlpha = 1; }
+    const sp = win(a, 2.4, 2.9);                                                          // the splash as it breaks the line
+    if (sp > 0 && sp < 1) for (let i = 0; i < 8; i++) { const ang = -Math.PI / 2 + (i - 3.5) * .3, d = 40 + sp * 130;
+      og.globalAlpha = 1 - sp; inkStroke(og, seg(P(600 + Math.cos(ang) * d * .5, this.SEA + Math.sin(ang) * d * .5), P(600 + Math.cos(ang) * d, this.SEA + Math.sin(ang) * d), 2), 4, 1, seed + 20 + i); og.globalAlpha = 1; }
   },
 },
 };
