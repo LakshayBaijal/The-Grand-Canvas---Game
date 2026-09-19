@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — 2v2, coming at 10 lakh (14s)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center; transform: translate(-50%, -50%); background: #0B0920; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 22px; opacity: 0; box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer; background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 72px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 30px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start"><div><b>2 v 2</b><span>14 second teaser &middot; 1920&times;1080<br><br><kbd>click</kbd> or <kbd>space</kbd> to play<br><kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span></div></div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+/**
+ * 2v2, the teaser. Two pens on one sheet. At first they fight -- scribbling
+ * over each other, bumping, the sheet shaking. Then they stop, and draw one
+ * thing together from opposite sides, stroke for stroke, meeting in the
+ * middle. It gets funded. They high-five. Then the hook: this mode unlocks
+ * at 10 lakh downloads -- share the game and get there.
+ *
+ *   0.0  the sheet, two pens enter        4.3  they stop; the mess fades
+ *   1.2  the fight                        4.9  together: the rocket, mirrored
+ *   8.9  funded: money, stamp, shake     10.7  high five
+ *  11.9  the card
+ */
+const W2 = 1920, H2 = 1080;
+const T = { enter: 0.3, fight: 1.2, stop: 4.3, together: 4.9, meet: 8.7, money: 8.9, stamp: 9.9, five: 10.7, card: 11.9, end: 14.0 };
+const PINK = '#FF5C8A', CYAN = '#3DDCFF';
+const PW = 900, PH = 720, PX = (W2 - PW) / 2, PY = 110;
+const P = (x, y) => ({ x, y });
+
+// --- a pen in a colour (the engine's pencil is always gold) -------------------
+function pen(x, y, s, angle, colour, dark) {
+  g.save(); g.translate(x, y); g.rotate(angle); g.lineCap = 'round';
+  g.strokeStyle = colour; g.lineWidth = s * .07; g.beginPath(); g.moveTo(0, -s * .04); g.lineTo(0, -s * .34); g.stroke();
+  g.strokeStyle = dark; g.lineWidth = s * .07; g.beginPath(); g.moveTo(0, -s * .34); g.lineTo(0, -s * .40); g.stroke();
+  g.strokeStyle = '#E8D9B8'; g.lineWidth = s * .06; g.beginPath(); g.moveTo(0, -s * .04); g.lineTo(0, -s * .012); g.stroke();
+  g.fillStyle = '#1A1A1A'; g.beginPath(); g.arc(0, 0, s * .014, 0, 7); g.fill();
+  g.restore();
+}
+const sheet = (px, py) => P(PX + px * PW, PY + py * PH);
+function ink(pts, upto, colour, width, wob = 1.6, seed = 3) {
+  const r = rng(seed), n = Math.max(2, Math.ceil(pts.length * upto));
+  g.strokeStyle = colour; g.lineWidth = width; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath();
+  for (let i = 0; i < n; i++) { const p = sheet(pts[i].x, pts[i].y); const wx = (r() - .5) * wob, wy = (r() - .5) * wob; i ? g.lineTo(p.x + wx, p.y + wy) : g.moveTo(p.x + wx, p.y + wy); }
+  g.stroke(); return sheet(pts[n - 1].x, pts[n - 1].y);
+}
+const seg = (a, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => P(a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n));
+const arcPts = (cx, cy, r, from, to, n = 20) => Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n; return P(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
+const mirror = pts => pts.map(p => P(1 - p.x, p.y));
+
+// --- the fight: each pen's angry scribble, crossing the other's --------------------
+const FIGHT_L = (() => { const r = rng(11); const out = []; let x = .12, y = .30; for (let i = 0; i < 26; i++) { x += .03; y = .30 + Math.sin(i * 1.9) * .12 + (r() - .5) * .05; out.push(P(x, y)); } return out; })();
+const FIGHT_R = (() => { const r = rng(12); const out = []; let x = .88, y = .62; for (let i = 0; i < 26; i++) { x -= .03; y = .62 - Math.sin(i * 1.7) * .13 + (r() - .5) * .05; out.push(P(x, y)); } return out; })();
+const BUMPS = [2.3, 3.1, 3.8];
+
+// --- together: a rocket, left half pink, right half cyan, drawn as mirrored pairs ---
+const LEFT = [
+  [P(.5, .16), P(.46, .21), P(.42, .30), P(.40, .42), P(.40, .60), P(.40, .70)],                 // body, nose to base
+  arcPts(.5, .45, .07, Math.PI * 0.5, Math.PI * 1.5, 14),                                         // window, left half
+  [P(.40, .58), P(.31, .74), P(.34, .76), P(.40, .72)],                                         // fin
+  [P(.43, .72), P(.45, .84), P(.47, .78), P(.49, .90)],                                         // flame
+  seg(P(.40, .70), P(.50, .70), 8),                                                              // base, to the middle
+];
+const RIGHT = LEFT.map(mirror);
+const PAIR_T = [[4.9, 6.2], [6.2, 6.9], [6.9, 7.6], [7.6, 8.2], [8.2, 8.7]];
+
+// --- money and stamp (the engine's note() and stamp look) -----------------------------
+const NOTES2 = (() => { const r = rng(42); return Array.from({ length: 9 }, (_, i) => ({ t: T.money + i * .07, from: P(r() < .5 ? -.15 : 1.15, r() * 1.1 - .05), to: P(.30 + r() * .40, .35 + r() * .35), rot: (r() - .5) * .8 })); })();
+const CONF2 = (() => { const r = rng(9); const cols = [PINK, CYAN, C.lime, C.primary, C.purple]; return Array.from({ length: 70 }, () => ({ a: r() * 6.28, v: 420 + r() * 700, s: 8 + r() * 12, c: cols[Math.floor(r() * cols.length)], spin: (r() - .5) * 12, up: .4 + r() * .8 })); })();
+
+function duoFrame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  // shake: the bumps, and the stamp
+  let sx = 0, sy = 0;
+  for (const b of BUMPS) if (t > b && t < b + .18) { const k = (1 - win(t, b, b + .18)) * 10; sx += Math.sin(t * 180) * k; sy += Math.cos(t * 220) * k; }
+  if (t > T.stamp && t < T.stamp + .22) { const k = (1 - win(t, T.stamp, T.stamp + .22)) * 14; sx += Math.sin(t * 190) * k; sy += Math.cos(t * 230) * k; }
+  g.translate(sx, sy);
+  g.fillStyle = C.bg; g.fillRect(-40, -40, W + 80, H + 80);
+  const glow = g.createRadialGradient(960, 470, 0, 960, 470, 1000); glow.addColorStop(0, 'rgba(255,197,61,.14)'); glow.addColorStop(1, 'rgba(255,197,61,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H);
+
+  const cardU = win(t, T.card, T.card + .6);
+  g.globalAlpha = 1 - cardU;
+  // the sheet
+  g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 44; g.shadowOffsetY = 18; g.fillStyle = C.paper; g.fillRect(PX, PY, PW, PH); g.shadowColor = 'transparent'; g.shadowOffsetY = 0;
+  paintPaper(PX, PY, PW, PH); g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 2; g.strokeRect(PX + 1, PY + 1, PW - 2, PH - 2);
+  // 2v2 chip on the sheet's corner
+  g.fillStyle = C.surface; roundRect(PX + 20, PY + 20, 150, 52, 26); g.fill(); text('2 v 2', PX + 95, PY + 46, 26, C.primary, { spacing: 4 });
+
+  // --- pens' resting positions, and what they are doing
+  let tipL = null, tipR = null;
+  // the fight
+  const fightU = win(t, T.fight, T.stop - .1), fade = 1 - win(t, T.stop, T.together);
+  if (t >= T.fight && fade > 0) {
+    g.save(); g.globalAlpha *= fade;
+    tipL = ink(FIGHT_L, fightU, PINK, 9, 3, 21); tipR = ink(FIGHT_R, fightU, CYAN, 9, 3, 22);
+    // bump bursts where they cross
+    for (const b of BUMPS) if (t > b && t < b + .5) { const u = win(t, b, b + .5), c = P((tipL.x + tipR.x) / 2, (tipL.y + tipR.y) / 2);
+      for (let i = 0; i < 8; i++) { const a = i / 8 * 6.28; g.strokeStyle = i % 2 ? PINK : CYAN; g.lineWidth = 5 * (1 - u); g.beginPath(); g.moveTo(c.x + Math.cos(a) * 14, c.y + Math.sin(a) * 14); g.lineTo(c.x + Math.cos(a) * (30 + 60 * u), c.y + Math.sin(a) * (30 + 60 * u)); g.stroke(); }
+      text('!', c.x, c.y - 60 - u * 40, 54, C.ink, { alpha: 1 - u }); }
+    g.restore();
+  }
+  // together
+  if (t >= T.together) {
+    for (let i = 0; i < LEFT.length; i++) { const [a, b] = PAIR_T[i]; if (t < a) break; const u = win(t, a, b);
+      const l = ink(LEFT[i], u, PINK, 9, 1.4, 31 + i), r = ink(RIGHT[i], u, CYAN, 9, 1.4, 41 + i); if (u < 1 || i === LEFT.length - 1) { tipL = l; tipR = r; } }
+  }
+  // the pens themselves
+  const enterU = easeOut(win(t, T.enter, T.enter + .7));
+  if (t < T.fight) { tipL = sheet(lerp(-.3, .12, enterU), .30); tipR = sheet(lerp(1.3, .88, enterU), .62); }
+  if (t >= T.stop && t < T.together) { const u = easeOut(win(t, T.stop, T.together)); const l = tipL || sheet(.5, .5), r = tipR || sheet(.5, .5); tipL = sheet(lerp(l.x, PX + PW * .5 - 60, u) / 1, 0); tipR = sheet(0, 0); tipL = P(lerp(l.x, PX + PW * .5 - 70, u), lerp(l.y, PY + PH * .16, u)); tipR = P(lerp(r.x, PX + PW * .5 + 70, u), lerp(r.y, PY + PH * .16, u)); }
+  if (t >= T.meet && t < T.five) { tipL = sheet(.5 - .01, .70); tipR = sheet(.5 + .01, .70); }
+  let fiveU = 0;
+  if (t >= T.five) { fiveU = back(win(t, T.five, T.five + .45)); const c = P(PX + PW / 2, PY + 340); tipL = P(c.x - 34 * (1 - Math.min(1, fiveU)) - 6, c.y + (1 - Math.min(1, fiveU)) * 300); tipR = P(c.x + 34 * (1 - Math.min(1, fiveU)) + 6, c.y + (1 - Math.min(1, fiveU)) * 300); }
+  const angL = t >= T.five ? -0.8 : (t >= T.stop && t < T.together ? -0.5 : -0.9), angR = t >= T.five ? 0.8 : (t >= T.stop && t < T.together ? 0.5 : 0.9);
+  if (tipL) pen(tipL.x, tipL.y, 520, angL, PINK, '#B0264F');
+  if (tipR) pen(tipR.x, tipR.y, 520, angR, CYAN, '#1C8CA8');
+  // high five burst
+  if (t >= T.five) { const u = win(t, T.five + .2, T.five + .8), c = P(PX + PW / 2, PY + 340);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.28; g.strokeStyle = i % 2 ? PINK : CYAN; g.lineWidth = 6 * (1 - u); g.globalAlpha = (1 - cardU) * (1 - u); g.beginPath(); g.moveTo(c.x + Math.cos(a) * 30, c.y + Math.sin(a) * 30); g.lineTo(c.x + Math.cos(a) * (60 + 120 * u), c.y + Math.sin(a) * (60 + 120 * u)); g.stroke(); }
+    g.globalAlpha = 1 - cardU; text('HIGH FIVE!', c.x, PY - 52, 48, C.primary, { spacing: 4, glow: 20, scale: fiveU, rot: -.04 }); }
+
+  // money and the stamp
+  if (t >= T.money) {
+    for (const n of NOTES2) { if (t < n.t) continue; const u = win(t, n.t, n.t + .32), e = easeOut(u); const X = PX + lerp(n.from.x, n.to.x, e) * PW, Y = PY + lerp(n.from.y, n.to.y, e) * PH - Math.sin(u * Math.PI) * 80; note(X, Y, lerp(n.rot * 3, n.rot, e), 120 * (u >= 1 ? 1 : 1.22 - .22 * e)); }
+  }
+  if (t >= T.stamp) {
+    const u = win(t, T.stamp, T.stamp + .26), sc = lerp(3, 1, easeOut(u)), al = Math.min(1, u * 3), cx = PX + PW / 2, cy = PY + PH / 2 + 10;
+    g.save(); g.translate(cx, cy); g.rotate(-.2); g.scale(sc, sc); g.globalAlpha = (1 - cardU) * al;
+    g.strokeStyle = C.funded; g.lineWidth = 11; roundRect(-190, -60, 380, 120, 18); g.stroke(); g.lineWidth = 4; roundRect(-176, -46, 352, 92, 14); g.stroke(); g.restore();
+    text('FUNDED!', cx, cy, 84, C.funded, { spacing: 4, rot: -.2, scale: sc, alpha: (1 - cardU) * al, glow: 24 });
+    for (const c of CONF2) { const ct = t - T.stamp; const drag = 1 - Math.exp(-ct * 3); const X = cx + Math.cos(c.a) * c.v * drag / 3.2, Y = cy + Math.sin(c.a) * c.v * drag / 3.2 + ct * ct * 1100 - c.up * 320 * ct;
+      g.save(); g.translate(X, Y); g.rotate(c.spin * ct); g.globalAlpha = (1 - cardU) * (1 - win(ct, .9, 1.3)); g.fillStyle = c.c; g.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); g.restore(); }
+    const tu = back(win(t, T.stamp + .3, T.stamp + .7));
+    if (tu > 0) text('$2,000 RAISED · TOGETHER', PX + PW / 2, PY + PH + 58, 34 * tu, C.lime, { spacing: 4, glow: 16, alpha: (1 - cardU) * Math.min(1, tu) });
+  }
+  g.globalAlpha = 1;
+
+  // captions
+  const cap = (s, from, to, y = 990) => { const a = easeOut(win(t, from, from + .25)) * (1 - win(t, to - .2, to)); if (a > 0) text(s, 960, y, 34, C.primary, { spacing: 5, alpha: a }); };
+  cap('TWO PENS. ONE CANVAS.', T.enter + .2, T.fight + 1.0);
+  cap('AT FIRST…', T.fight + 1.0, T.stop);
+  cap('THEN, TOGETHER.', T.together + .2, T.money);
+
+  // the card: the whole scene goes to dark under it, whatever each helper did with alpha
+  if (cardU > 0) { g.globalAlpha = cardU; g.fillStyle = C.bg; g.fillRect(-40, -40, W + 80, H + 80); g.globalAlpha = 1; }
+  if (t >= T.card) {
+    const s = back(win(t, T.card + .05, T.card + .5));
+    const gl = g.createRadialGradient(960, 520, 0, 960, 520, 900); gl.addColorStop(0, `rgba(255,197,61,${.32 * easeOut(cardU)})`); gl.addColorStop(1, 'rgba(255,197,61,0)'); g.fillStyle = gl; g.fillRect(0, 0, W, H);
+    text('2 v 2', 960, 300 + (1 - s) * 40, 150, C.primary, { spacing: 14, glow: 50, alpha: Math.min(1, s), scale: s });
+    const wu = easeOut(win(t, T.card + .35, T.card + .75));
+    text('TWO PLAYERS. ONE CANVAS. ONE PITCH.', 960, 430, 36, C.text, { weight: 800, spacing: 3, alpha: wu });
+    const pu = back(win(t, T.card + .6, T.card + 1.05));
+    if (pu > 0) { g.save(); g.translate(960, 560); g.scale(pu, pu); g.globalAlpha = Math.min(1, pu);
+      g.shadowColor = 'rgba(255,197,61,.55)'; g.shadowBlur = 46; g.fillStyle = C.primary; roundRect(-420, -56, 840, 112, 56); g.fill(); g.shadowColor = 'transparent';
+      text('UNLOCKS AT 10,00,000 DOWNLOADS', 0, 2, 34, C.onPrimary, { spacing: 3 }); g.restore(); }
+    const su = easeOut(win(t, T.card + 1.0, T.card + 1.4));
+    text('Share Grand Canvas. Get us there.', 960, 660, 34, C.muted, { weight: 700, alpha: su });
+    if (icon.complete && icon.naturalWidth) { g.save(); g.globalAlpha = su; g.translate(830, 790); roundRect(-52, -52, 104, 104, 24); g.clip(); g.drawImage(icon, -52, -52, 104, 104); g.restore(); }
+    text('GRAND CANVAS', 905, 790, 44, C.primary, { align: 'left', spacing: 5, glow: 20, alpha: su });
+    text('a  W H O S E G A M E S  game', 960, 945, 24, C.muted, { weight: 700, alpha: su });
+  }
+  wg.style.opacity = t >= T.card ? easeOut(win(t, T.card + 1.0, T.card + 1.4)) : 0;
+}
+window.frame = duoFrame;
+prepareStage(W2, H2, { x: 912, y: 860, size: 80 });
+runPlayback(duoFrame, T.end, [
+  ['bed',     'assets/duo_bed.mp3',     0,             .9],
+  ['coins',   'assets/sfx_coins.mp3',   T.money,       .8],
+  ['kaching', 'assets/sfx_kaching.mp3', T.stamp - .03, .8],
+  ['win',     'assets/sting_win.ogg',   T.stamp,       .6],
+]);
+</script>
+</body>
+</html>

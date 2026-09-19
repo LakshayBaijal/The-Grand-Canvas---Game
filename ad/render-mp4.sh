@@ -240,6 +240,26 @@ render_knights () {
   show GrandCanvas-knights-20s.mp4
 }
 
+render_duo () {
+  capture duo.html "2 v 2 TEASER  1920x1080 - 14s" 14.0
+  echo "==> Encoding"
+  ffmpeg -y -hide_banner -loglevel error -stats \
+    -framerate "$FPS" -i "$WORK/frames/f%05d.png" \
+    -i "$AD/assets/duo_bed.mp3" -i "$AD/assets/sfx_coins.mp3" -i "$AD/assets/sfx_kaching.mp3" -i "$AD/assets/sting_win.ogg" \
+    -filter_complex "\
+[1:a]atrim=0:14,asetpts=PTS-STARTPTS,volume=0.9,afade=t=out:st=13.3:d=0.7[bed];\
+[2:a]adelay=8900|8900,volume=0.6[coins];\
+[3:a]adelay=9870|9870,volume=0.6[kach];\
+[4:a]adelay=9900|9900,volume=0.5[win];\
+[bed][coins][kach][win]amix=inputs=4:duration=longest:normalize=0,\
+alimiter=limit=0.95,atrim=0:14,asetpts=PTS-STARTPTS[a]" \
+    -map 0:v -map "[a]" \
+    -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -profile:v high -level 4.2 \
+    -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest \
+    "$AD/GrandCanvas-duo-14s.mp4"
+  show GrandCanvas-duo-14s.mp4
+}
+
 case "$WHICH" in
   portrait)  render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920" ;;
   landscape) render_ad landscape.html GrandCanvas-ad-landscape.mp4 "LANDSCAPE 1920x1080" ;;
@@ -251,6 +271,7 @@ case "$WHICH" in
   life)      render_life ;;
   mosquito)  render_mosquito ;;
   knights)   render_knights ;;
+  duo)       render_duo ;;
   pass-16x9) render_pass pass-landscape.html GrandCanvas-pass-28s-landscape.mp4 "GRAND PASS  1920x1080 - 28s" ;;
   both)
     render_ad index.html     GrandCanvas-ad.mp4           "PORTRAIT  1080x1920"
@@ -268,15 +289,16 @@ case "$WHICH" in
     render_life
     render_mosquito
     render_knights
+    render_duo
     ;;
-  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|gallery-9x16|daily|pass|pass-16x9|life|mosquito|knights|both|all]"; exit 1 ;;
+  *) echo "usage: render-mp4.sh [portrait|landscape|promo|gallery|gallery-9x16|daily|pass|pass-16x9|life|mosquito|knights|duo|both|all]"; exit 1 ;;
 esac
 
 # The soundtrack on its own, for anyone who wants to cut their own pictures to
 # it. Both spots share it, so it only needs writing once.
 echo ""
 echo "==> Soundtrack"
-case "$WHICH" in promo|gallery|gallery-9x16|daily|pass|pass-16x9|life|mosquito|knights) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
+case "$WHICH" in promo|gallery|gallery-9x16|daily|pass|pass-16x9|life|mosquito|knights|duo) SKIP_MP3=1 ;; *) SKIP_MP3=0 ;; esac
 if [ "$SKIP_MP3" = "0" ] && [ -f "$AD/GrandCanvas-ad.mp4" ]; then
   ffmpeg -y -hide_banner -loglevel error -i "$AD/GrandCanvas-ad.mp4" -vn -c:a libmp3lame -b:a 192k "$AD/GrandCanvas-ad.mp3"
   echo "    $AD/GrandCanvas-ad.mp3"
