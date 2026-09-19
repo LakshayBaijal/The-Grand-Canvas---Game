@@ -248,9 +248,9 @@ render_duo () {
     -i "$AD/assets/duo_bed.mp3" -i "$AD/assets/sfx_coins.mp3" -i "$AD/assets/sfx_kaching.mp3" -i "$AD/assets/sting_win.ogg" \
     -filter_complex "\
 [1:a]atrim=0:16,asetpts=PTS-STARTPTS,volume=0.9,afade=t=out:st=15.3:d=0.7[bed];\
-[2:a]adelay=10800|10800,volume=0.6[coins];\
-[3:a]adelay=11570|11570,volume=0.6[kach];\
-[4:a]adelay=11600|11600,volume=0.5[win];\
+[2:a]adelay=10400|10400,volume=0.6[coins];\
+[3:a]adelay=11170|11170,volume=0.6[kach];\
+[4:a]adelay=11200|11200,volume=0.5[win];\
 [bed][coins][kach][win]amix=inputs=4:duration=longest:normalize=0,\
 alimiter=limit=0.95,atrim=0:16,asetpts=PTS-STARTPTS[a]" \
     -map 0:v -map "[a]" \

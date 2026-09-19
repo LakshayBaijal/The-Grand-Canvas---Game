@@ -29,18 +29,19 @@
 /**
  * 2v2, the teaser. Two pens on one sheet, both drawing the same rocket at the
  * same time -- each in its own place, over the other's lines, bumping. They
- * stop. They sync: half a rocket each, in the right place, on top of the mess.
- * Then the third character walks in -- the eraser -- and rubs the two wrong
- * rockets away, top to bottom, until only the right one is left. Funded. A
- * three-way high five. The hook: this mode unlocks at 10 lakh downloads.
+ * stop and stare at the mess. Then the third character walks in: the eraser.
+ * It sweeps top to bottom, and as it passes, the wrong lines go and the
+ * right ones slide into place -- the mess they were fighting over turns out
+ * to be one rocket. Then, in sync, the two pens add the flames together.
+ * Funded. A three-way high five. Unlocks at 10 lakh downloads.
  *
- *   0.3  the pens enter                    7.8  the eraser rubs the mess away
- *   1.0  the clash: two rockets at once   10.8  money, the stamp
- *   4.6  they stop -- "?"                 12.5  high five
- *   5.4  in sync: the right rocket         13.7  the card
+ *   0.3  the pens enter                    5.2  the eraser: wrong lines go,
+ *   1.0  the clash: two rockets at once         right ones snap into place
+ *   4.3  they stop -- "?"                  8.7  in sync: the flames, together
+ *  10.4  money, the stamp                 12.1  high five      13.4  the card
  */
 const W2 = 1920, H2 = 1080;
-const T = { enter: 0.3, clash: 1.0, stop: 4.6, sync: 5.4, erase: 7.8, eraseEnd: 10.3, money: 10.8, stamp: 11.6, five: 12.5, card: 13.7, end: 16.0 };
+const T = { enter: 0.3, clash: 1.0, stop: 4.3, erase: 5.2, eraseEnd: 8.4, sync: 8.7, syncEnd: 9.9, money: 10.4, stamp: 11.2, five: 12.1, card: 13.4, end: 16.0 };
 const PINK = '#FF5C8A', CYAN = '#3DDCFF';
 const PW = 900, PH = 720, PX = (W2 - PW) / 2, PY = 110;
 const P = (x, y) => ({ x, y });
@@ -54,14 +55,13 @@ function pen(x, y, s, angle, colour, dark) {
   g.fillStyle = '#1A1A1A'; g.beginPath(); g.arc(0, 0, s * .014, 0, 7); g.fill();
   g.restore();
 }
-// --- the eraser: the third one. A classic two-tone rubber with a face ----------------
-function eraser(x, y, angle, squash = 1, blink = false) {
-  g.save(); g.translate(x, y); g.rotate(angle); g.scale(1 / squash, squash);
+// --- the eraser: the third one. A two-tone rubber with a face -----------------
+function eraser(x, y, angle, squash = 1, scale = 1, blink = false) {
+  g.save(); g.translate(x, y); g.rotate(angle); g.scale(scale / squash, scale * squash);
   g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 18; g.shadowOffsetY = 8;
   g.fillStyle = '#F4A7C3'; roundRect(-70, -44, 140, 88, 16); g.fill(); g.shadowColor = 'transparent'; g.shadowOffsetY = 0;
   g.fillStyle = '#7FB6E6'; g.save(); roundRect(-70, -44, 140, 88, 16); g.clip(); g.fillRect(28, -44, 42, 88); g.restore();
   g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 3; roundRect(-70, -44, 140, 88, 16); g.stroke();
-  // face
   g.fillStyle = '#1A1A1A';
   if (blink) { g.lineWidth = 4; g.strokeStyle = '#1A1A1A'; g.beginPath(); g.moveTo(-34, -8); g.lineTo(-18, -8); g.moveTo(-2, -8); g.lineTo(14, -8); g.stroke(); }
   else { g.beginPath(); g.arc(-26, -8, 5, 0, 7); g.arc(6, -8, 5, 0, 7); g.fill(); }
@@ -69,51 +69,58 @@ function eraser(x, y, angle, squash = 1, blink = false) {
   g.restore();
 }
 const sheet = (px, py) => P(PX + px * PW, PY + py * PH);
-function ink(pts, upto, colour, width, wob = 1.6, seed = 3) {
+function ink(pts, upto, colour, width, wob = 1.6, seed = 3, alpha = 1) {
   const r = rng(seed), n = Math.max(2, Math.ceil(pts.length * upto));
+  g.save(); g.globalAlpha *= alpha;
   g.strokeStyle = colour; g.lineWidth = width; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath();
   for (let i = 0; i < n; i++) { const p = sheet(pts[i].x, pts[i].y); const wx = (r() - .5) * wob, wy = (r() - .5) * wob; i ? g.lineTo(p.x + wx, p.y + wy) : g.moveTo(p.x + wx, p.y + wy); }
-  g.stroke(); return sheet(pts[n - 1].x, pts[n - 1].y);
+  g.stroke(); g.restore(); return sheet(pts[n - 1].x, pts[n - 1].y);
 }
 const seg = (a, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => P(a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n));
 const arcPts = (cx, cy, r, from, to, n = 20) => Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n; return P(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
 const mirror = pts => pts.map(p => P(1 - p.x, p.y));
-// shift and tilt a stroke about the sheet's centre (sheet fractions; the sheet is 900x720 so tilt is done in pixels)
+// shift and tilt a stroke about the sheet's centre
 const xf = (pts, dx, dy, rot) => pts.map(p => { const x = (p.x - .5) * PW, y = (p.y - .5) * PH; const c = Math.cos(rot), s = Math.sin(rot); return P(.5 + (x * c - y * s) / PW + dx, .5 + (x * s + y * c) / PH + dy); });
+const lerpPts = (a, b, u) => a.map((p, i) => P(p.x + (b[i].x - p.x) * u, p.y + (b[i].y - p.y) * u));
+const meanY = pts => pts.reduce((s, p) => s + p.y, 0) / pts.length;
 
-// --- the rocket: left half, right half mirrored -----------------------------------------
+// --- the rocket, without its flames: left half and right half ---------------------------
 const LEFT = [
-  [P(.5, .16), P(.46, .21), P(.42, .30), P(.40, .42), P(.40, .60), P(.40, .70)],                 // body, nose to base
-  arcPts(.5, .45, .07, Math.PI * 0.5, Math.PI * 1.5, 14),                                         // window, left half
-  [P(.40, .58), P(.31, .74), P(.34, .76), P(.40, .72)],                                         // fin
-  [P(.43, .72), P(.45, .84), P(.47, .78), P(.49, .90)],                                         // flame
-  seg(P(.40, .70), P(.50, .70), 8),                                                              // base, to the middle
+  [P(.5, .16), P(.46, .21), P(.42, .30), P(.40, .42), P(.40, .60), P(.40, .70)],   // body, nose to base
+  arcPts(.5, .45, .07, Math.PI * 0.5, Math.PI * 1.5, 14),                           // window, left half
+  [P(.40, .58), P(.31, .74), P(.34, .76), P(.40, .72)],                           // fin
+  seg(P(.40, .70), P(.50, .70), 8),                                                // base, to the middle
 ];
 const RIGHT = LEFT.map(mirror);
-const FULL = [...LEFT, ...RIGHT];
-// the clash: pink's rocket sits left and leans left, cyan's sits right and leans right
-const PINK_ROCKET = FULL.map(s => xf(s, -.07, .03, -.22));
-const CYAN_ROCKET = FULL.map(s => xf(s, .07, -.02, .21));
-const CLASH_T = (() => { const n = FULL.length, d = (T.stop - .2 - T.clash) / n; return FULL.map((_, i) => [T.clash + i * d, T.clash + (i + 1) * d]); })();
-const BUMPS = [2.2, 3.0, 3.9];
-// in sync: half each, mirrored pairs, in the right place
-const PAIR_T = (() => { const n = LEFT.length, d = (T.erase - .3 - T.sync) / n; return LEFT.map((_, i) => [T.sync + i * d, T.sync + (i + 1) * d]); })();
+const FULL = [...LEFT, ...RIGHT];                       // one whole rocket, in the right place
+// the clash: each pen draws the WHOLE rocket, but in its own place
+const PINK_CLASH = FULL.map(s => xf(s, -.075, .035, -.20));
+const CYAN_CLASH = FULL.map(s => xf(s, .075, -.020, .19));
+// what survives the eraser: pink's left half, cyan's right half -- the rest was the mess
+const KEEP_P = [true, true, true, true, false, false, false, false];
+const KEEP_C = KEEP_P.map(k => !k);
+const CLASH_T = (() => { const n = FULL.length, d = (T.stop - .15 - T.clash) / n; return FULL.map((_, i) => [T.clash + i * d, T.clash + (i + 1) * d]); })();
+const BUMPS = [2.0, 2.8, 3.6];
+// the flames: what they add together, in sync, once the rocket is right
+const FLAME_L = [P(.43, .72), P(.45, .84), P(.47, .78), P(.49, .90)];
+const FLAME_R = mirror(FLAME_L);
 
 // --- money and stamp ---------------------------------------------------------------------
 const NOTES2 = (() => { const r = rng(42); return Array.from({ length: 9 }, (_, i) => ({ t: T.money + i * .07, from: P(r() < .5 ? -.15 : 1.15, r() * 1.1 - .05), to: P(.30 + r() * .40, .35 + r() * .35), rot: (r() - .5) * .8 })); })();
 const CONF2 = (() => { const r = rng(9); const cols = [PINK, CYAN, C.lime, C.primary, C.purple]; return Array.from({ length: 70 }, () => ({ a: r() * 6.28, v: 420 + r() * 700, s: 8 + r() * 12, c: cols[Math.floor(r() * cols.length)], spin: (r() - .5) * 12, up: .4 + r() * .8 })); })();
-const CRUMBS = (() => { const r = rng(77); return Array.from({ length: 40 }, () => ({ t: T.erase + .2 + r() * (T.eraseEnd - T.erase - .4), dx: (r() - .5) * 120, vy: 60 + r() * 120, s: 4 + r() * 5 })); })();
+const CRUMBS = (() => { const r = rng(77); return Array.from({ length: 46 }, () => ({ t: T.erase + .15 + r() * (T.eraseEnd - T.erase - .3), dx: (r() - .5) * 130, vy: 60 + r() * 130, s: 4 + r() * 5 })); })();
 
-// the eraser's path over the sheet: top to bottom, side to side
+// The eraser sweeps top to bottom, wandering side to side. Everything else --
+// which line goes, which line slides home -- is keyed off where it has got to.
 function eraserAt(t) {
-  const u = win(t, T.erase, T.eraseEnd), e = u;
-  const y = PY + 40 + e * (PH - 20), x = PX + PW / 2 + Math.sin(u * Math.PI * 5) * PW * .33;
-  return { x, y, u, angle: Math.cos(u * Math.PI * 5) * .35 };
+  const u = win(t, T.erase, T.eraseEnd);
+  return { u, x: PX + PW / 2 + Math.sin(u * Math.PI * 5) * PW * .34, y: PY - 20 + u * (PH + 70), angle: Math.cos(u * Math.PI * 5) * .3 };
 }
+// when the eraser reaches a stroke sitting at this height on the sheet
+const gateFor = m => T.erase + (T.eraseEnd - T.erase) * Math.max(0, Math.min(1, (m * PH + 20) / (PH + 70)));
 
 function duoFrame(t) {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
-  // shake: the bumps, and the stamp
   let sx = 0, sy = 0;
   for (const b of BUMPS) if (t > b && t < b + .18) { const k = (1 - win(t, b, b + .18)) * 10; sx += Math.sin(t * 180) * k; sy += Math.cos(t * 220) * k; }
   if (t > T.stamp && t < T.stamp + .22) { const k = (1 - win(t, T.stamp, T.stamp + .22)) * 14; sx += Math.sin(t * 190) * k; sy += Math.cos(t * 230) * k; }
@@ -130,60 +137,75 @@ function duoFrame(t) {
   let tipL = null, tipR = null;
   const er = eraserAt(t);
 
-  // --- the clash: two whole rockets, each in its own place, over each other.
-  // Once the eraser is at work, only what's below it is still there.
+  // --- the drawing. Every stroke is the same object all the way through: drawn
+  // in the clash, then either rubbed out or slid home as the eraser passes it.
   if (t >= T.clash) {
-    g.save();
-    if (t >= T.erase) { g.beginPath(); g.rect(PX, er.y + 30, PW, PH); g.clip(); }
-    if (t < T.eraseEnd + .1) for (let i = 0; i < FULL.length; i++) { const [a, b] = CLASH_T[i]; if (t < a) break; const u = win(t, a, b);
-      const l = ink(PINK_ROCKET[i], u, PINK, 9, 2.2, 61 + i), r = ink(CYAN_ROCKET[i], u, CYAN, 9, 2.2, 71 + i); if (u < 1 || i === FULL.length - 1) { tipL = l; tipR = r; } }
-    g.restore();
-    // bumps where the lines cross
-    for (const b of BUMPS) if (t > b && t < b + .5) { const u = win(t, b, b + .5), c = P(PX + PW / 2, PY + PH * (.30 + (b - 2) * .12));
+    for (let i = 0; i < FULL.length; i++) {
+      const [a, b] = CLASH_T[i]; if (t < a) break;
+      const drawn = win(t, a, b);
+      for (const side of [0, 1]) {
+        const clash = side ? CYAN_CLASH[i] : PINK_CLASH[i], keep = side ? KEEP_C[i] : KEEP_P[i];
+        const gate = gateFor(meanY(clash)), res = t >= T.erase ? easeOut(win(t, gate, gate + .45)) : 0;
+        const pts = keep ? lerpPts(clash, FULL[i], res) : clash;
+        const alpha = keep ? 1 : 1 - res;
+        if (alpha <= 0.01) continue;
+        const wob = 2.2 - res * 1.0;
+        const tip = ink(pts, drawn, side ? CYAN : PINK, 9, wob, (side ? 71 : 61) + i, alpha);
+        if (drawn < 1 && t < T.stop) { if (side) tipR = tip; else tipL = tip; }
+      }
+    }
+    // bumps where their lines cross
+    for (const b of BUMPS) if (t > b && t < b + .5) { const u = win(t, b, b + .5), c = P(PX + PW / 2, PY + PH * (.26 + (b - 2) * .14));
       for (let i = 0; i < 8; i++) { const a = i / 8 * 6.28; g.strokeStyle = i % 2 ? PINK : CYAN; g.lineWidth = 5 * (1 - u); g.beginPath(); g.moveTo(c.x + Math.cos(a) * 14, c.y + Math.sin(a) * 14); g.lineTo(c.x + Math.cos(a) * (30 + 60 * u), c.y + Math.sin(a) * (30 + 60 * u)); g.stroke(); }
       text('!', c.x, c.y - 60 - u * 40, 54, C.ink, { alpha: 1 - u }); }
   }
-  // --- in sync: half each, in the right place, on top of the mess
+  // --- in sync: the flames, both at once, once the rocket is right
   if (t >= T.sync) {
-    for (let i = 0; i < LEFT.length; i++) { const [a, b] = PAIR_T[i]; if (t < a) break; const u = win(t, a, b);
-      const l = ink(LEFT[i], u, PINK, 9, 1.2, 31 + i), r = ink(RIGHT[i], u, CYAN, 9, 1.2, 41 + i); if (u < 1 || i === LEFT.length - 1) { tipL = l; tipR = r; } }
+    const u = win(t, T.sync, T.syncEnd);
+    const l = ink(FLAME_L, u, PINK, 9, 1.2, 91), r = ink(FLAME_R, u, CYAN, 9, 1.2, 92);
+    if (t < T.syncEnd + .2) { tipL = l; tipR = r; }
   }
 
   // --- where the pens are
   const enterU = easeOut(win(t, T.enter, T.enter + .6));
-  if (t < T.clash) { tipL = sheet(lerp(-.3, .37, enterU), .16); tipR = sheet(lerp(1.3, .63, enterU), .16); }
   let angL = -0.9, angR = 0.9;
-  if (t >= T.stop && t < T.sync) {       // they stop, back off, and look at it
-    const u = easeOut(win(t, T.stop, T.stop + .4)); const l = tipL || sheet(.4, .5), r = tipR || sheet(.6, .5);
-    tipL = P(lerp(l.x, PX + PW * .22, u), lerp(l.y, PY + PH * .30, u)); tipR = P(lerp(r.x, PX + PW * .78, u), lerp(r.y, PY + PH * .30, u));
-    const tilt = Math.sin((t - T.stop) * 9) * .12 * (1 - win(t, T.stop + .5, T.stop + .8)); angL = -0.5 + tilt; angR = 0.5 - tilt;
-  }
-  if (t >= T.erase && t < T.five) {      // they stand back and watch the eraser
-    const u = easeOut(win(t, T.erase - .3, T.erase + .2)); const l = tipL || sheet(.5, .7), r = tipR || sheet(.5, .7);
-    tipL = P(lerp(l.x, PX - 30, u), lerp(l.y, PY + PH * .8, u)); tipR = P(lerp(r.x, PX + PW + 30, u), lerp(r.y, PY + PH * .8, u)); angL = -0.35; angR = 0.35;
+  if (t < T.clash) { tipL = sheet(lerp(-.3, .37, enterU), .17); tipR = sheet(lerp(1.3, .63, enterU), .17); }
+  if (t >= T.stop && t < T.sync) {          // they stop, back off, and watch it happen
+    const u = easeOut(win(t, T.stop, T.stop + .45)); const l = tipL || sheet(.35, .45), r = tipR || sheet(.65, .45);
+    const rest = t >= T.erase - .2 ? easeOut(win(t, T.erase - .2, T.erase + .25)) : 0;
+    const lx = lerp(PX + PW * .10, PX - 40, rest), rx = lerp(PX + PW * .90, PX + PW + 40, rest);
+    const ly = lerp(PY + PH * .26, PY + PH * .80, rest), ry = ly;
+    tipL = P(lerp(l.x, lx, u), lerp(l.y, ly, u)); tipR = P(lerp(r.x, rx, u), lerp(r.y, ry, u));
+    const tilt = Math.sin((t - T.stop) * 9) * .12 * (1 - win(t, T.stop + .5, T.stop + .8));
+    angL = lerp(-0.5 + tilt, -0.35, rest); angR = lerp(0.5 - tilt, 0.35, rest);
   }
   let fiveU = 0;
   const fc = P(PX + PW / 2, PY + 340);
+  if (t >= T.syncEnd + .2 && t < T.five) {  // they step back and look at what they made
+    const u = easeOut(win(t, T.syncEnd + .2, T.syncEnd + .6));
+    tipL = P(lerp(fc.x - 120, PX - 20, u), lerp(PY + PH * .9, PY + PH * .72, u));
+    tipR = P(lerp(fc.x + 120, PX + PW + 20, u), lerp(PY + PH * .9, PY + PH * .72, u));
+    angL = -0.35; angR = 0.35;
+  }
   if (t >= T.five) { fiveU = back(win(t, T.five, T.five + .45)); const k = 1 - Math.min(1, fiveU);
     tipL = P(fc.x - 34 * k - 6, fc.y + k * 300); tipR = P(fc.x + 34 * k + 6, fc.y + k * 300); angL = -0.8; angR = 0.8; }
   if (tipL) pen(tipL.x, tipL.y, 520, angL, PINK, '#B0264F');
   if (tipR) pen(tipR.x, tipR.y, 520, angR, CYAN, '#1C8CA8');
-  // "?" while they look at the mess
-  if (t >= T.stop + .3 && t < T.sync) { const u = back(win(t, T.stop + .3, T.stop + .6)), a = 1 - win(t, T.sync - .25, T.sync); text('?', PX + PW / 2, PY + PH * .12, 90, C.ink, { scale: u, alpha: a, rot: .1 }); }
+  // "?" while they stare at the mess
+  if (t >= T.stop + .25 && t < T.erase + .3) { const u = back(win(t, T.stop + .25, T.stop + .55)), a = 1 - win(t, T.erase, T.erase + .3); text('?', PX + PW / 2, PY + PH * .10, 90, C.ink, { scale: u, alpha: a, rot: .1 }); }
 
-  // --- the eraser: in from the right, over the sheet, then off to the side
-  if (t >= T.erase - .6 && t < T.five) {
-    const inU = easeOut(win(t, T.erase - .6, T.erase)), outU = easeOut(win(t, T.eraseEnd, T.eraseEnd + .4));
-    const ex = t < T.erase ? lerp(W + 120, er.x, inU) : t < T.eraseEnd ? er.x : lerp(er.x, PX + PW / 2, outU);
-    const ey = t < T.erase ? er.y : t < T.eraseEnd ? er.y : lerp(er.y, H + 140, outU);
-    const scrub = t >= T.erase && t < T.eraseEnd ? 1 + Math.sin(t * 40) * .06 : 1;
-    eraser(ex, ey, t < T.erase ? -.2 : t < T.eraseEnd ? er.angle : 0, scrub, Math.floor(t * 3) % 11 === 0);
-    // crumbs
+  // --- the eraser: in from the right, down the sheet, then it waits at the bottom
+  if (t < T.five) {
+    const inU = easeOut(win(t, T.erase - .7, T.erase)), outU = easeOut(win(t, T.eraseEnd, T.eraseEnd + .5));
+    if (t >= T.erase - .7) {
+      const ex = t < T.erase ? lerp(W + 130, er.x, inU) : t < T.eraseEnd ? er.x : lerp(er.x, PX + PW / 2, outU);
+      const ey = t < T.eraseEnd ? er.y : lerp(er.y, PY + PH + 96, outU);
+      const scrub = t >= T.erase && t < T.eraseEnd ? 1 + Math.sin(t * 40) * .06 : 1;
+      const hop = t > T.eraseEnd + .5 ? Math.abs(Math.sin((t - T.eraseEnd) * 3.4)) * 14 : 0;   // it bounces, pleased with itself
+      eraser(ex, ey - hop, t < T.erase ? -.2 : t < T.eraseEnd ? er.angle : 0, scrub, t < T.eraseEnd ? 1 : lerp(1, .8, outU), Math.floor(t * 3) % 11 === 0);
+    }
     for (const c of CRUMBS) { const ct = t - c.t; if (ct < 0 || ct > .7) continue; const e0 = eraserAt(c.t);
       g.fillStyle = 'rgba(120,110,120,' + (1 - ct / .7) + ')'; g.beginPath(); g.arc(e0.x + c.dx, e0.y + 30 + c.vy * ct + ct * ct * 400, c.s, 0, 7); g.fill(); }
-  }
-  if (t >= T.five) {                   // it joins the high five, jumping up under the pens
-    const k = 1 - Math.min(1, fiveU); eraser(fc.x, fc.y + 130 + k * 260, Math.sin(t * 6) * .1, 1 + (1 - k) * Math.max(0, Math.sin((t - T.five) * 12)) * .12);
   }
 
   // high five burst
@@ -205,13 +227,17 @@ function duoFrame(t) {
     if (tu > 0) text('$2,000 RAISED · TOGETHER', PX + PW / 2, PY + PH + 58, 34 * tu, C.lime, { spacing: 4, glow: 16, alpha: Math.min(1, tu) });
   }
 
+  // the eraser jumps for joy under them, on top of everything
+  if (t >= T.five) { const hop = Math.abs(Math.sin((t - T.five) * 5.2)) * 70;
+    eraser(PX - 100, PY + PH * .80 - hop, Math.sin(t * 6) * .12, 1 + hop / 700, .9); }
+
   // captions
   const cap = (s, from, to, y = 990) => { const a = easeOut(win(t, from, from + .25)) * (1 - win(t, to - .2, to)); if (a > 0) text(s, 960, y, 34, C.primary, { spacing: 5, alpha: a }); };
   cap('TWO PENS. ONE CANVAS.', T.enter + .2, T.clash + .9);
-  cap('SAME ROCKET. OVER EACH OTHER.', T.clash + .9, T.stop + .3);
-  cap('THEN, IN SYNC.', T.sync + .1, T.erase - .3);
-  cap('AND THE ERASER FIXES THE REST.', T.erase - .2, T.eraseEnd + .3);
-  cap('ONE RIGHT ROCKET.', T.eraseEnd + .3, T.stamp + .3);
+  cap('SAME ROCKET. OVER EACH OTHER.', T.clash + .9, T.stop + .4);
+  cap('THEN THE ERASER STEPS IN.', T.erase - .4, T.eraseEnd - .6);
+  cap('THE MESS WAS ONE ROCKET ALL ALONG.', T.eraseEnd - .6, T.sync + .2);
+  cap('NOW, IN SYNC.', T.sync + .2, T.stamp + .3);
 
   // the card: the whole scene goes to dark under it
   if (cardU > 0) { g.globalAlpha = cardU; g.fillStyle = C.bg; g.fillRect(-40, -40, W + 80, H + 80); g.globalAlpha = 1; }
