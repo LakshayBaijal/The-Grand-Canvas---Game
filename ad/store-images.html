@@ -156,6 +156,14 @@ function pill(cx, cy, w, h, label, size, bg, fg) {
 // exactly how the ad videos present it, never recoloured or run edge-to-edge.
 const wgMark = new Image(); wgMark.src = 'assets/wg-mark.png';
 
+// The four trailers' own artwork: one frame of each, cropped to the sheet of
+// paper itself (no background, no caption), so a thumbnail is the same
+// drawing the video opens on rather than an impression of it. Rebuilt by
+// hand from the mp4s; see README.
+const TRAILERS = ['life', 'mosquito', 'knights', 'duo'];
+const trailerImg = {};
+for (const k of TRAILERS) { const im = new Image(); im.src = `assets/trailer/${k}.png`; trailerImg[k] = im; }
+
 function wgTile(cx, cy, size) {
   if (!(wgMark.complete && wgMark.naturalWidth)) return;
   g.save();
@@ -164,6 +172,38 @@ function wgTile(cx, cy, size) {
   roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent';
   g.drawImage(wgMark, -size / 2, -size / 2, size, size);
   g.restore();
+}
+
+/** One of the trailer sheets, hung and lit exactly like poster() hangs a
+ *  drawing -- same shadow, same paper edge -- so a thumbnail sits in the same
+ *  world as the listing images even though its picture came from a video. */
+function trailerSheet(key, cx, cy, w, rot = 0, glowColour = 'rgba(255,197,61,.30)') {
+  const im = trailerImg[key];
+  if (!(im && im.complete && im.naturalWidth)) return;
+  const h = w * im.naturalHeight / im.naturalWidth;
+  const x = cx - w / 2, y = cy - h / 2;
+  g.save();
+  g.translate(cx, cy); g.rotate(rot); g.translate(-cx, -cy);
+  if (glowColour) { g.save(); g.shadowColor = glowColour; g.shadowBlur = 90; g.fillStyle = glowColour; g.fillRect(x + 10, y + 10, w - 20, h - 20); g.restore(); }
+  g.save(); g.shadowColor = 'rgba(0,0,0,.72)'; g.shadowBlur = 70; g.shadowOffsetY = 30;
+  g.fillStyle = C.paper; g.fillRect(x, y, w, h); g.restore();
+  g.drawImage(im, x, y, w, h);
+  g.strokeStyle = 'rgba(0,0,0,.12)'; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+  g.restore();
+}
+
+/** The small brand lockup every thumbnail ends on: icon, wordmark, credit. */
+function lockup(x, y, iconSize = 84) {
+  if (icon.complete && icon.naturalWidth) {
+    g.save(); g.translate(x + iconSize / 2, y);
+    g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 34; g.shadowOffsetY = 12;
+    roundRect(-iconSize / 2, -iconSize / 2, iconSize, iconSize, iconSize * .22);
+    g.clip(); g.shadowColor = 'transparent';
+    g.drawImage(icon, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
+    g.restore();
+  }
+  text('GRAND CANVAS', x + iconSize + 22, y - 14, 40, C.primary, { spacing: 4, glow: 26, align: 'left' });
+  text('a  W H O S E G A M E S  game', x + iconSize + 24, y + 26, 20, C.muted, { weight: 700, align: 'left' });
 }
 
 function freeBadge(cx, cy, r, rot = -.28) {
@@ -431,6 +471,58 @@ function shotYoutube() {
   poster(D('toastyMitt'), (groupX + groupW + safeX1 - innerS) / 2, cy - innerS / 2, innerS, .07);
 }
 
+// ===========================================================================
+// 7-10 — the YouTube thumbnails, one per trailer. 1280x720, which YouTube
+// serves down to about 210x118 in a sidebar, so each one is two short lines
+// of gold and one big picture: anything smaller than the headline here is
+// decoration, not information. The line the headline uses is the trailer's
+// own caption, so the thumbnail and the first four seconds agree.
+// ===========================================================================
+function thumb(key, lines, tagline, { rot = -.03, sheetW = 588, sheetCx = 922, sheetCy = 316 } = {}) {
+  ground(900, 340, 1.15);
+  confetti(31, 24, 0, 0, W, H, .95);
+
+  // The scrim goes down *before* the paper, not over it: a left-hand wash to
+  // sit the headline on, with the sheet then laid on top at full brightness.
+  // Drawn the other way round it greys out the half of the drawing nearest
+  // the text, which is the half the eye lands on first.
+  const scrim = g.createLinearGradient(0, 0, W * .62, 0);
+  scrim.addColorStop(0, 'rgba(11,9,32,.97)'); scrim.addColorStop(.58, 'rgba(11,9,32,.88)');
+  scrim.addColorStop(1, 'rgba(11,9,32,0)');
+  g.fillStyle = scrim; g.fillRect(0, 0, W * .62, H);
+
+  trailerSheet(key, sheetCx, sheetCy, sheetW, rot);
+
+  // The headline is sized to the column rather than to a number picked by
+  // hand: at 210px wide in a sidebar, two lines set as large as they fit is
+  // the whole design, and a line that runs long enough to touch the paper
+  // undoes it.
+  const COL_CX = 306, COL_W = 556;
+  const fit = (() => {
+    for (let size = 88; size > 40; size -= 2) {
+      g.font = `900 ${size}px Roboto, Arial, sans-serif`;
+      if ('letterSpacing' in g) g.letterSpacing = '2px';
+      const widest = Math.max(...lines.map(l => g.measureText(l).width));
+      if ('letterSpacing' in g) g.letterSpacing = '0px';
+      if (widest <= COL_W) return size;
+    }
+    return 40;
+  })();
+  const gap = Math.round(fit * .30);
+  const blockH = lines.length * fit + (lines.length - 1) * gap;
+  const top = 250 - blockH / 2;
+  headline(lines, COL_CX, top, fit, gap, { band: false });
+  if (tagline) text(tagline, COL_CX, top + blockH + 46, 29, C.text, { weight: 700 });
+
+  lockup(56, 632);
+  freeBadge(1180, 642, 58, -.3);
+}
+
+const thumbLife     = () => thumb('life',     ['DRAW IT.', 'WATCH IT LIVE.'], 'Your drawing gets up and walks off.');
+const thumbMosquito = () => thumb('mosquito', ['MAN vs', 'MOSQUITO'],         'One blank. Any story you can draw.');
+const thumbKnights  = () => thumb('knights',  ['TWO KNIGHTS,', 'ONE DRAGON'], 'Every story you can draw.', { headSize: 74 });
+const thumbDuo      = () => thumb('duo',      ['TWO PENS.', 'ONE CANVAS.'],   '2 v 2 — coming at 10,00,000 downloads.', { sheetW: 580 });
+
 // --- run ------------------------------------------------------------------
 
 // --- run ------------------------------------------------------------------
@@ -441,16 +533,22 @@ const SHOTS = {
   4: { w: 1080, h: 1920, draw: shotDaily },
   5: { w: 1024, h: 500,  draw: shotFeature },
   6: { w: 2560, h: 1440, draw: shotYoutube },
+  7: { w: 1280, h: 720,  draw: thumbLife },
+  8: { w: 1280, h: 720,  draw: thumbMosquito },
+  9: { w: 1280, h: 720,  draw: thumbKnights },
+ 10: { w: 1280, h: 720,  draw: thumbDuo },
 };
 const pick = SHOTS[new URLSearchParams(location.search).get('shot') || '1'];
 prepareStage(pick.w, pick.h, { x: 0, y: 0, size: 1 });
 const paint = () => { g.setTransform(1, 0, 0, 1, 0, 0); pick.draw(); };
 // Two images to wait on now: the app icon, and the WhoseGames mark (only
 // shotYoutube uses the latter, but there is no harm waiting for both).
-let pending = 2;
+let pending = 2 + TRAILERS.length;
 const ready = () => { if (--pending <= 0) paint(); };
 icon.complete && icon.naturalWidth ? ready() : (icon.onload = ready, icon.onerror = ready);
 wgMark.complete && wgMark.naturalWidth ? ready() : (wgMark.onload = ready, wgMark.onerror = ready);
+for (const k of TRAILERS) { const im = trailerImg[k];
+  im.complete && im.naturalWidth ? ready() : (im.onload = ready, im.onerror = ready); }
 </script>
 </body>
 </html>

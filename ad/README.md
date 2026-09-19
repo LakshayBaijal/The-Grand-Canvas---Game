@@ -75,6 +75,10 @@ Console, since Play changes them.
 | `04-daily.png` | 1080x1920 | a new prompt every day |
 | `feature.png` | 1024x500 | the banner across the top of the Play listing |
 | `youtube-banner.png` | 2560x1440 | the YouTube channel banner |
+| `yt-life.png` | 1280x720 | video thumbnail — Man & Dog |
+| `yt-mosquito.png` | 1280x720 | video thumbnail — Man vs Mosquito |
+| `yt-knights.png` | 1280x720 | video thumbnail — Two Knights, One Dragon |
+| `yt-duo.png` | 1280x720 | video thumbnail — the 2 v 2 teaser |
 
 Play wants at least 2 phone screenshots (it shows up to 8) and exactly one
 feature graphic at 1024×500. Upload the numbered ones in order — **the first

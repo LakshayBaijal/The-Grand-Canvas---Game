@@ -9,10 +9,20 @@
 #   04-daily.png        1080x1920
 #   feature.png         1024x500    the banner across the top of the Play listing
 #   youtube-banner.png  2560x1440   the YouTube channel banner
+#   yt-life.png         1280x720    thumbnail for the Man & Dog trailer
+#   yt-mosquito.png     1280x720    thumbnail for Man vs Mosquito
+#   yt-knights.png      1280x720    thumbnail for Two Knights, One Dragon
+#   yt-duo.png          1280x720    thumbnail for the 2 v 2 teaser
 #
 # Play wants at least 2 phone screenshots (it shows up to 8) and exactly one
 # feature graphic at 1024x500. Upload the four numbered ones in order -- the
 # first two are what people actually see before they scroll.
+#
+# The four yt-*.png are video thumbnails, one per trailer in ad/. Each is that
+# trailer's own opening drawing (cropped out of the mp4 into assets/trailer/)
+# under that trailer's own caption, so the thumbnail and the first seconds of
+# the video say the same thing. YouTube serves them as small as 210x118 in a
+# sidebar, which is why the headline is the only thing set large.
 #
 # YouTube crops the banner differently per device -- full 2560x1440 only shows
 # on a TV; everywhere else is a centred strip, as narrow as 1546x423 on a
@@ -42,4 +52,8 @@ shot 3 1080 1920 03-ten-people.png
 shot 4 1080 1920 04-daily.png
 shot 5 1024 500  feature.png
 shot 6 2560 1440 youtube-banner.png
+shot 7 1280 720  yt-life.png
+shot 8 1280 720  yt-mosquito.png
+shot 9 1280 720  yt-knights.png
+shot 10 1280 720 yt-duo.png
 echo "==> Done"
