@@ -241,23 +241,23 @@ render_knights () {
 }
 
 render_duo () {
-  capture duo.html "2 v 2 TEASER  1920x1080 - 14s" 14.0
+  capture duo.html "2 v 2 TEASER  1920x1080 - 16s" 16.0
   echo "==> Encoding"
   ffmpeg -y -hide_banner -loglevel error -stats \
     -framerate "$FPS" -i "$WORK/frames/f%05d.png" \
     -i "$AD/assets/duo_bed.mp3" -i "$AD/assets/sfx_coins.mp3" -i "$AD/assets/sfx_kaching.mp3" -i "$AD/assets/sting_win.ogg" \
     -filter_complex "\
-[1:a]atrim=0:14,asetpts=PTS-STARTPTS,volume=0.9,afade=t=out:st=13.3:d=0.7[bed];\
-[2:a]adelay=8900|8900,volume=0.6[coins];\
-[3:a]adelay=9870|9870,volume=0.6[kach];\
-[4:a]adelay=9900|9900,volume=0.5[win];\
+[1:a]atrim=0:16,asetpts=PTS-STARTPTS,volume=0.9,afade=t=out:st=15.3:d=0.7[bed];\
+[2:a]adelay=10800|10800,volume=0.6[coins];\
+[3:a]adelay=11570|11570,volume=0.6[kach];\
+[4:a]adelay=11600|11600,volume=0.5[win];\
 [bed][coins][kach][win]amix=inputs=4:duration=longest:normalize=0,\
-alimiter=limit=0.95,atrim=0:14,asetpts=PTS-STARTPTS[a]" \
+alimiter=limit=0.95,atrim=0:16,asetpts=PTS-STARTPTS[a]" \
     -map 0:v -map "[a]" \
     -c:v libx264 -preset slow -crf "$CRF" -pix_fmt yuv420p -profile:v high -level 4.2 \
     -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest \
-    "$AD/GrandCanvas-duo-14s.mp4"
-  show GrandCanvas-duo-14s.mp4
+    "$AD/GrandCanvas-duo-16s.mp4"
+  show GrandCanvas-duo-16s.mp4
 }
 
 case "$WHICH" in

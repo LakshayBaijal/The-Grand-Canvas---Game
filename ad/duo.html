@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Grand Canvas — 2v2, coming at 10 lakh (14s)</title>
+<title>Grand Canvas — 2v2, coming at 10 lakh (16s)</title>
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
@@ -21,25 +21,26 @@
 <div id="stage">
   <canvas id="c"></canvas>
   <img id="wg" src="assets/whosegames.gif" alt="">
-  <div id="start"><div><b>2 v 2</b><span>14 second teaser &middot; 1920&times;1080<br><br><kbd>click</kbd> or <kbd>space</kbd> to play<br><kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span></div></div>
+  <div id="start"><div><b>2 v 2</b><span>16 second teaser &middot; 1920&times;1080<br><br><kbd>click</kbd> or <kbd>space</kbd> to play<br><kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span></div></div>
 </div>
 
 <script src="engine.js"></script>
 <script>
 /**
- * 2v2, the teaser. Two pens on one sheet. At first they fight -- scribbling
- * over each other, bumping, the sheet shaking. Then they stop, and draw one
- * thing together from opposite sides, stroke for stroke, meeting in the
- * middle. It gets funded. They high-five. Then the hook: this mode unlocks
- * at 10 lakh downloads -- share the game and get there.
+ * 2v2, the teaser. Two pens on one sheet, both drawing the same rocket at the
+ * same time -- each in its own place, over the other's lines, bumping. They
+ * stop. They sync: half a rocket each, in the right place, on top of the mess.
+ * Then the third character walks in -- the eraser -- and rubs the two wrong
+ * rockets away, top to bottom, until only the right one is left. Funded. A
+ * three-way high five. The hook: this mode unlocks at 10 lakh downloads.
  *
- *   0.0  the sheet, two pens enter        4.3  they stop; the mess fades
- *   1.2  the fight                        4.9  together: the rocket, mirrored
- *   8.9  funded: money, stamp, shake     10.7  high five
- *  11.9  the card
+ *   0.3  the pens enter                    7.8  the eraser rubs the mess away
+ *   1.0  the clash: two rockets at once   10.8  money, the stamp
+ *   4.6  they stop -- "?"                 12.5  high five
+ *   5.4  in sync: the right rocket         13.7  the card
  */
 const W2 = 1920, H2 = 1080;
-const T = { enter: 0.3, fight: 1.2, stop: 4.3, together: 4.9, meet: 8.7, money: 8.9, stamp: 9.9, five: 10.7, card: 11.9, end: 14.0 };
+const T = { enter: 0.3, clash: 1.0, stop: 4.6, sync: 5.4, erase: 7.8, eraseEnd: 10.3, money: 10.8, stamp: 11.6, five: 12.5, card: 13.7, end: 16.0 };
 const PINK = '#FF5C8A', CYAN = '#3DDCFF';
 const PW = 900, PH = 720, PX = (W2 - PW) / 2, PY = 110;
 const P = (x, y) => ({ x, y });
@@ -53,6 +54,20 @@ function pen(x, y, s, angle, colour, dark) {
   g.fillStyle = '#1A1A1A'; g.beginPath(); g.arc(0, 0, s * .014, 0, 7); g.fill();
   g.restore();
 }
+// --- the eraser: the third one. A classic two-tone rubber with a face ----------------
+function eraser(x, y, angle, squash = 1, blink = false) {
+  g.save(); g.translate(x, y); g.rotate(angle); g.scale(1 / squash, squash);
+  g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 18; g.shadowOffsetY = 8;
+  g.fillStyle = '#F4A7C3'; roundRect(-70, -44, 140, 88, 16); g.fill(); g.shadowColor = 'transparent'; g.shadowOffsetY = 0;
+  g.fillStyle = '#7FB6E6'; g.save(); roundRect(-70, -44, 140, 88, 16); g.clip(); g.fillRect(28, -44, 42, 88); g.restore();
+  g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 3; roundRect(-70, -44, 140, 88, 16); g.stroke();
+  // face
+  g.fillStyle = '#1A1A1A';
+  if (blink) { g.lineWidth = 4; g.strokeStyle = '#1A1A1A'; g.beginPath(); g.moveTo(-34, -8); g.lineTo(-18, -8); g.moveTo(-2, -8); g.lineTo(14, -8); g.stroke(); }
+  else { g.beginPath(); g.arc(-26, -8, 5, 0, 7); g.arc(6, -8, 5, 0, 7); g.fill(); }
+  g.strokeStyle = '#1A1A1A'; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.arc(-10, 4, 14, 0.3, Math.PI - 0.3); g.stroke();
+  g.restore();
+}
 const sheet = (px, py) => P(PX + px * PW, PY + py * PH);
 function ink(pts, upto, colour, width, wob = 1.6, seed = 3) {
   const r = rng(seed), n = Math.max(2, Math.ceil(pts.length * upto));
@@ -63,13 +78,10 @@ function ink(pts, upto, colour, width, wob = 1.6, seed = 3) {
 const seg = (a, b, n = 10) => Array.from({ length: n + 1 }, (_, i) => P(a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n));
 const arcPts = (cx, cy, r, from, to, n = 20) => Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n; return P(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
 const mirror = pts => pts.map(p => P(1 - p.x, p.y));
+// shift and tilt a stroke about the sheet's centre (sheet fractions; the sheet is 900x720 so tilt is done in pixels)
+const xf = (pts, dx, dy, rot) => pts.map(p => { const x = (p.x - .5) * PW, y = (p.y - .5) * PH; const c = Math.cos(rot), s = Math.sin(rot); return P(.5 + (x * c - y * s) / PW + dx, .5 + (x * s + y * c) / PH + dy); });
 
-// --- the fight: each pen's angry scribble, crossing the other's --------------------
-const FIGHT_L = (() => { const r = rng(11); const out = []; let x = .12, y = .30; for (let i = 0; i < 26; i++) { x += .03; y = .30 + Math.sin(i * 1.9) * .12 + (r() - .5) * .05; out.push(P(x, y)); } return out; })();
-const FIGHT_R = (() => { const r = rng(12); const out = []; let x = .88, y = .62; for (let i = 0; i < 26; i++) { x -= .03; y = .62 - Math.sin(i * 1.7) * .13 + (r() - .5) * .05; out.push(P(x, y)); } return out; })();
-const BUMPS = [2.3, 3.1, 3.8];
-
-// --- together: a rocket, left half pink, right half cyan, drawn as mirrored pairs ---
+// --- the rocket: left half, right half mirrored -----------------------------------------
 const LEFT = [
   [P(.5, .16), P(.46, .21), P(.42, .30), P(.40, .42), P(.40, .60), P(.40, .70)],                 // body, nose to base
   arcPts(.5, .45, .07, Math.PI * 0.5, Math.PI * 1.5, 14),                                         // window, left half
@@ -78,11 +90,26 @@ const LEFT = [
   seg(P(.40, .70), P(.50, .70), 8),                                                              // base, to the middle
 ];
 const RIGHT = LEFT.map(mirror);
-const PAIR_T = [[4.9, 6.2], [6.2, 6.9], [6.9, 7.6], [7.6, 8.2], [8.2, 8.7]];
+const FULL = [...LEFT, ...RIGHT];
+// the clash: pink's rocket sits left and leans left, cyan's sits right and leans right
+const PINK_ROCKET = FULL.map(s => xf(s, -.07, .03, -.22));
+const CYAN_ROCKET = FULL.map(s => xf(s, .07, -.02, .21));
+const CLASH_T = (() => { const n = FULL.length, d = (T.stop - .2 - T.clash) / n; return FULL.map((_, i) => [T.clash + i * d, T.clash + (i + 1) * d]); })();
+const BUMPS = [2.2, 3.0, 3.9];
+// in sync: half each, mirrored pairs, in the right place
+const PAIR_T = (() => { const n = LEFT.length, d = (T.erase - .3 - T.sync) / n; return LEFT.map((_, i) => [T.sync + i * d, T.sync + (i + 1) * d]); })();
 
-// --- money and stamp (the engine's note() and stamp look) -----------------------------
+// --- money and stamp ---------------------------------------------------------------------
 const NOTES2 = (() => { const r = rng(42); return Array.from({ length: 9 }, (_, i) => ({ t: T.money + i * .07, from: P(r() < .5 ? -.15 : 1.15, r() * 1.1 - .05), to: P(.30 + r() * .40, .35 + r() * .35), rot: (r() - .5) * .8 })); })();
 const CONF2 = (() => { const r = rng(9); const cols = [PINK, CYAN, C.lime, C.primary, C.purple]; return Array.from({ length: 70 }, () => ({ a: r() * 6.28, v: 420 + r() * 700, s: 8 + r() * 12, c: cols[Math.floor(r() * cols.length)], spin: (r() - .5) * 12, up: .4 + r() * .8 })); })();
+const CRUMBS = (() => { const r = rng(77); return Array.from({ length: 40 }, () => ({ t: T.erase + .2 + r() * (T.eraseEnd - T.erase - .4), dx: (r() - .5) * 120, vy: 60 + r() * 120, s: 4 + r() * 5 })); })();
+
+// the eraser's path over the sheet: top to bottom, side to side
+function eraserAt(t) {
+  const u = win(t, T.erase, T.eraseEnd), e = u;
+  const y = PY + 40 + e * (PH - 20), x = PX + PW / 2 + Math.sin(u * Math.PI * 5) * PW * .33;
+  return { x, y, u, angle: Math.cos(u * Math.PI * 5) * .35 };
+}
 
 function duoFrame(t) {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
@@ -95,69 +122,98 @@ function duoFrame(t) {
   const glow = g.createRadialGradient(960, 470, 0, 960, 470, 1000); glow.addColorStop(0, 'rgba(255,197,61,.14)'); glow.addColorStop(1, 'rgba(255,197,61,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H);
 
   const cardU = win(t, T.card, T.card + .6);
-  g.globalAlpha = 1 - cardU;
   // the sheet
   g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 44; g.shadowOffsetY = 18; g.fillStyle = C.paper; g.fillRect(PX, PY, PW, PH); g.shadowColor = 'transparent'; g.shadowOffsetY = 0;
   paintPaper(PX, PY, PW, PH); g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 2; g.strokeRect(PX + 1, PY + 1, PW - 2, PH - 2);
-  // 2v2 chip on the sheet's corner
   g.fillStyle = C.surface; roundRect(PX + 20, PY + 20, 150, 52, 26); g.fill(); text('2 v 2', PX + 95, PY + 46, 26, C.primary, { spacing: 4 });
 
-  // --- pens' resting positions, and what they are doing
   let tipL = null, tipR = null;
-  // the fight
-  const fightU = win(t, T.fight, T.stop - .1), fade = 1 - win(t, T.stop, T.together);
-  if (t >= T.fight && fade > 0) {
-    g.save(); g.globalAlpha *= fade;
-    tipL = ink(FIGHT_L, fightU, PINK, 9, 3, 21); tipR = ink(FIGHT_R, fightU, CYAN, 9, 3, 22);
-    // bump bursts where they cross
-    for (const b of BUMPS) if (t > b && t < b + .5) { const u = win(t, b, b + .5), c = P((tipL.x + tipR.x) / 2, (tipL.y + tipR.y) / 2);
+  const er = eraserAt(t);
+
+  // --- the clash: two whole rockets, each in its own place, over each other.
+  // Once the eraser is at work, only what's below it is still there.
+  if (t >= T.clash) {
+    g.save();
+    if (t >= T.erase) { g.beginPath(); g.rect(PX, er.y + 30, PW, PH); g.clip(); }
+    if (t < T.eraseEnd + .1) for (let i = 0; i < FULL.length; i++) { const [a, b] = CLASH_T[i]; if (t < a) break; const u = win(t, a, b);
+      const l = ink(PINK_ROCKET[i], u, PINK, 9, 2.2, 61 + i), r = ink(CYAN_ROCKET[i], u, CYAN, 9, 2.2, 71 + i); if (u < 1 || i === FULL.length - 1) { tipL = l; tipR = r; } }
+    g.restore();
+    // bumps where the lines cross
+    for (const b of BUMPS) if (t > b && t < b + .5) { const u = win(t, b, b + .5), c = P(PX + PW / 2, PY + PH * (.30 + (b - 2) * .12));
       for (let i = 0; i < 8; i++) { const a = i / 8 * 6.28; g.strokeStyle = i % 2 ? PINK : CYAN; g.lineWidth = 5 * (1 - u); g.beginPath(); g.moveTo(c.x + Math.cos(a) * 14, c.y + Math.sin(a) * 14); g.lineTo(c.x + Math.cos(a) * (30 + 60 * u), c.y + Math.sin(a) * (30 + 60 * u)); g.stroke(); }
       text('!', c.x, c.y - 60 - u * 40, 54, C.ink, { alpha: 1 - u }); }
-    g.restore();
   }
-  // together
-  if (t >= T.together) {
+  // --- in sync: half each, in the right place, on top of the mess
+  if (t >= T.sync) {
     for (let i = 0; i < LEFT.length; i++) { const [a, b] = PAIR_T[i]; if (t < a) break; const u = win(t, a, b);
-      const l = ink(LEFT[i], u, PINK, 9, 1.4, 31 + i), r = ink(RIGHT[i], u, CYAN, 9, 1.4, 41 + i); if (u < 1 || i === LEFT.length - 1) { tipL = l; tipR = r; } }
+      const l = ink(LEFT[i], u, PINK, 9, 1.2, 31 + i), r = ink(RIGHT[i], u, CYAN, 9, 1.2, 41 + i); if (u < 1 || i === LEFT.length - 1) { tipL = l; tipR = r; } }
   }
-  // the pens themselves
-  const enterU = easeOut(win(t, T.enter, T.enter + .7));
-  if (t < T.fight) { tipL = sheet(lerp(-.3, .12, enterU), .30); tipR = sheet(lerp(1.3, .88, enterU), .62); }
-  if (t >= T.stop && t < T.together) { const u = easeOut(win(t, T.stop, T.together)); const l = tipL || sheet(.5, .5), r = tipR || sheet(.5, .5); tipL = sheet(lerp(l.x, PX + PW * .5 - 60, u) / 1, 0); tipR = sheet(0, 0); tipL = P(lerp(l.x, PX + PW * .5 - 70, u), lerp(l.y, PY + PH * .16, u)); tipR = P(lerp(r.x, PX + PW * .5 + 70, u), lerp(r.y, PY + PH * .16, u)); }
-  if (t >= T.meet && t < T.five) { tipL = sheet(.5 - .01, .70); tipR = sheet(.5 + .01, .70); }
+
+  // --- where the pens are
+  const enterU = easeOut(win(t, T.enter, T.enter + .6));
+  if (t < T.clash) { tipL = sheet(lerp(-.3, .37, enterU), .16); tipR = sheet(lerp(1.3, .63, enterU), .16); }
+  let angL = -0.9, angR = 0.9;
+  if (t >= T.stop && t < T.sync) {       // they stop, back off, and look at it
+    const u = easeOut(win(t, T.stop, T.stop + .4)); const l = tipL || sheet(.4, .5), r = tipR || sheet(.6, .5);
+    tipL = P(lerp(l.x, PX + PW * .22, u), lerp(l.y, PY + PH * .30, u)); tipR = P(lerp(r.x, PX + PW * .78, u), lerp(r.y, PY + PH * .30, u));
+    const tilt = Math.sin((t - T.stop) * 9) * .12 * (1 - win(t, T.stop + .5, T.stop + .8)); angL = -0.5 + tilt; angR = 0.5 - tilt;
+  }
+  if (t >= T.erase && t < T.five) {      // they stand back and watch the eraser
+    const u = easeOut(win(t, T.erase - .3, T.erase + .2)); const l = tipL || sheet(.5, .7), r = tipR || sheet(.5, .7);
+    tipL = P(lerp(l.x, PX - 30, u), lerp(l.y, PY + PH * .8, u)); tipR = P(lerp(r.x, PX + PW + 30, u), lerp(r.y, PY + PH * .8, u)); angL = -0.35; angR = 0.35;
+  }
   let fiveU = 0;
-  if (t >= T.five) { fiveU = back(win(t, T.five, T.five + .45)); const c = P(PX + PW / 2, PY + 340); tipL = P(c.x - 34 * (1 - Math.min(1, fiveU)) - 6, c.y + (1 - Math.min(1, fiveU)) * 300); tipR = P(c.x + 34 * (1 - Math.min(1, fiveU)) + 6, c.y + (1 - Math.min(1, fiveU)) * 300); }
-  const angL = t >= T.five ? -0.8 : (t >= T.stop && t < T.together ? -0.5 : -0.9), angR = t >= T.five ? 0.8 : (t >= T.stop && t < T.together ? 0.5 : 0.9);
+  const fc = P(PX + PW / 2, PY + 340);
+  if (t >= T.five) { fiveU = back(win(t, T.five, T.five + .45)); const k = 1 - Math.min(1, fiveU);
+    tipL = P(fc.x - 34 * k - 6, fc.y + k * 300); tipR = P(fc.x + 34 * k + 6, fc.y + k * 300); angL = -0.8; angR = 0.8; }
   if (tipL) pen(tipL.x, tipL.y, 520, angL, PINK, '#B0264F');
   if (tipR) pen(tipR.x, tipR.y, 520, angR, CYAN, '#1C8CA8');
+  // "?" while they look at the mess
+  if (t >= T.stop + .3 && t < T.sync) { const u = back(win(t, T.stop + .3, T.stop + .6)), a = 1 - win(t, T.sync - .25, T.sync); text('?', PX + PW / 2, PY + PH * .12, 90, C.ink, { scale: u, alpha: a, rot: .1 }); }
+
+  // --- the eraser: in from the right, over the sheet, then off to the side
+  if (t >= T.erase - .6 && t < T.five) {
+    const inU = easeOut(win(t, T.erase - .6, T.erase)), outU = easeOut(win(t, T.eraseEnd, T.eraseEnd + .4));
+    const ex = t < T.erase ? lerp(W + 120, er.x, inU) : t < T.eraseEnd ? er.x : lerp(er.x, PX + PW / 2, outU);
+    const ey = t < T.erase ? er.y : t < T.eraseEnd ? er.y : lerp(er.y, H + 140, outU);
+    const scrub = t >= T.erase && t < T.eraseEnd ? 1 + Math.sin(t * 40) * .06 : 1;
+    eraser(ex, ey, t < T.erase ? -.2 : t < T.eraseEnd ? er.angle : 0, scrub, Math.floor(t * 3) % 11 === 0);
+    // crumbs
+    for (const c of CRUMBS) { const ct = t - c.t; if (ct < 0 || ct > .7) continue; const e0 = eraserAt(c.t);
+      g.fillStyle = 'rgba(120,110,120,' + (1 - ct / .7) + ')'; g.beginPath(); g.arc(e0.x + c.dx, e0.y + 30 + c.vy * ct + ct * ct * 400, c.s, 0, 7); g.fill(); }
+  }
+  if (t >= T.five) {                   // it joins the high five, jumping up under the pens
+    const k = 1 - Math.min(1, fiveU); eraser(fc.x, fc.y + 130 + k * 260, Math.sin(t * 6) * .1, 1 + (1 - k) * Math.max(0, Math.sin((t - T.five) * 12)) * .12);
+  }
+
   // high five burst
-  if (t >= T.five) { const u = win(t, T.five + .2, T.five + .8), c = P(PX + PW / 2, PY + 340);
-    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.28; g.strokeStyle = i % 2 ? PINK : CYAN; g.lineWidth = 6 * (1 - u); g.globalAlpha = (1 - cardU) * (1 - u); g.beginPath(); g.moveTo(c.x + Math.cos(a) * 30, c.y + Math.sin(a) * 30); g.lineTo(c.x + Math.cos(a) * (60 + 120 * u), c.y + Math.sin(a) * (60 + 120 * u)); g.stroke(); }
-    g.globalAlpha = 1 - cardU; text('HIGH FIVE!', c.x, PY - 52, 48, C.primary, { spacing: 4, glow: 20, scale: fiveU, rot: -.04 }); }
+  if (t >= T.five) { const u = win(t, T.five + .2, T.five + .8);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.28; g.strokeStyle = i % 2 ? PINK : CYAN; g.lineWidth = 6 * (1 - u); g.globalAlpha = 1 - u; g.beginPath(); g.moveTo(fc.x + Math.cos(a) * 30, fc.y + Math.sin(a) * 30); g.lineTo(fc.x + Math.cos(a) * (60 + 120 * u), fc.y + Math.sin(a) * (60 + 120 * u)); g.stroke(); }
+    g.globalAlpha = 1; text('HIGH FIVE!', fc.x, PY - 52, 48, C.primary, { spacing: 4, glow: 20, scale: fiveU, rot: -.04 }); }
 
   // money and the stamp
-  if (t >= T.money) {
-    for (const n of NOTES2) { if (t < n.t) continue; const u = win(t, n.t, n.t + .32), e = easeOut(u); const X = PX + lerp(n.from.x, n.to.x, e) * PW, Y = PY + lerp(n.from.y, n.to.y, e) * PH - Math.sin(u * Math.PI) * 80; note(X, Y, lerp(n.rot * 3, n.rot, e), 120 * (u >= 1 ? 1 : 1.22 - .22 * e)); }
-  }
+  if (t >= T.money) for (const n of NOTES2) { if (t < n.t) continue; const u = win(t, n.t, n.t + .32), e = easeOut(u); const X = PX + lerp(n.from.x, n.to.x, e) * PW, Y = PY + lerp(n.from.y, n.to.y, e) * PH - Math.sin(u * Math.PI) * 80; note(X, Y, lerp(n.rot * 3, n.rot, e), 120 * (u >= 1 ? 1 : 1.22 - .22 * e)); }
   if (t >= T.stamp) {
     const u = win(t, T.stamp, T.stamp + .26), sc = lerp(3, 1, easeOut(u)), al = Math.min(1, u * 3), cx = PX + PW / 2, cy = PY + PH / 2 + 10;
-    g.save(); g.translate(cx, cy); g.rotate(-.2); g.scale(sc, sc); g.globalAlpha = (1 - cardU) * al;
+    g.save(); g.translate(cx, cy); g.rotate(-.2); g.scale(sc, sc); g.globalAlpha = al;
     g.strokeStyle = C.funded; g.lineWidth = 11; roundRect(-190, -60, 380, 120, 18); g.stroke(); g.lineWidth = 4; roundRect(-176, -46, 352, 92, 14); g.stroke(); g.restore();
-    text('FUNDED!', cx, cy, 84, C.funded, { spacing: 4, rot: -.2, scale: sc, alpha: (1 - cardU) * al, glow: 24 });
+    text('FUNDED!', cx, cy, 84, C.funded, { spacing: 4, rot: -.2, scale: sc, alpha: al, glow: 24 });
     for (const c of CONF2) { const ct = t - T.stamp; const drag = 1 - Math.exp(-ct * 3); const X = cx + Math.cos(c.a) * c.v * drag / 3.2, Y = cy + Math.sin(c.a) * c.v * drag / 3.2 + ct * ct * 1100 - c.up * 320 * ct;
-      g.save(); g.translate(X, Y); g.rotate(c.spin * ct); g.globalAlpha = (1 - cardU) * (1 - win(ct, .9, 1.3)); g.fillStyle = c.c; g.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); g.restore(); }
+      g.save(); g.translate(X, Y); g.rotate(c.spin * ct); g.globalAlpha = 1 - win(ct, .9, 1.3); g.fillStyle = c.c; g.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); g.restore(); }
+    g.globalAlpha = 1;
     const tu = back(win(t, T.stamp + .3, T.stamp + .7));
-    if (tu > 0) text('$2,000 RAISED · TOGETHER', PX + PW / 2, PY + PH + 58, 34 * tu, C.lime, { spacing: 4, glow: 16, alpha: (1 - cardU) * Math.min(1, tu) });
+    if (tu > 0) text('$2,000 RAISED · TOGETHER', PX + PW / 2, PY + PH + 58, 34 * tu, C.lime, { spacing: 4, glow: 16, alpha: Math.min(1, tu) });
   }
-  g.globalAlpha = 1;
 
   // captions
   const cap = (s, from, to, y = 990) => { const a = easeOut(win(t, from, from + .25)) * (1 - win(t, to - .2, to)); if (a > 0) text(s, 960, y, 34, C.primary, { spacing: 5, alpha: a }); };
-  cap('TWO PENS. ONE CANVAS.', T.enter + .2, T.fight + 1.0);
-  cap('AT FIRST…', T.fight + 1.0, T.stop);
-  cap('THEN, TOGETHER.', T.together + .2, T.money);
+  cap('TWO PENS. ONE CANVAS.', T.enter + .2, T.clash + .9);
+  cap('SAME ROCKET. OVER EACH OTHER.', T.clash + .9, T.stop + .3);
+  cap('THEN, IN SYNC.', T.sync + .1, T.erase - .3);
+  cap('AND THE ERASER FIXES THE REST.', T.erase - .2, T.eraseEnd + .3);
+  cap('ONE RIGHT ROCKET.', T.eraseEnd + .3, T.stamp + .3);
 
-  // the card: the whole scene goes to dark under it, whatever each helper did with alpha
+  // the card: the whole scene goes to dark under it
   if (cardU > 0) { g.globalAlpha = cardU; g.fillStyle = C.bg; g.fillRect(-40, -40, W + 80, H + 80); g.globalAlpha = 1; }
   if (t >= T.card) {
     const s = back(win(t, T.card + .05, T.card + .5));

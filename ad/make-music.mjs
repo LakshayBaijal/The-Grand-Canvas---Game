@@ -531,50 +531,56 @@ function knightsBed() {
 }
 
 // ---------------------------------------------------------------------------
-// 2 v 2 teaser: 14.4s, 120bpm, C major. Playful tension while the two pens
-// scribble over each other (a nagging two-note bass, ticks, a bump-thud at
-// each collision), everything drops out when they stop, a warm rising bed
-// while they draw the rocket together, a bright hit for FUNDED, a big
-// chord for the high five, then the card. Cut times are duo.html's T table.
+// 2 v 2 teaser: 16.4s, 120bpm, C major. A nagging two-note bass with ticks
+// and a thud at each bump while the two rockets go over each other, a
+// questioning bell when they stop, a warm rising harp bed while they sync,
+// a scrubbing swish rhythm for the eraser that resolves into a bright
+// chord, a hit for FUNDED, the biggest chord for the high five, then the
+// card. Cut times are duo.html's T table.
 // ---------------------------------------------------------------------------
 function duoBed() {
   noiseRng = rng(2222);
-  const out = new Float32Array(Math.ceil(14.4 * SR));
+  const out = new Float32Array(Math.ceil(16.4 * SR));
   const BEAT = 60 / 120;
-  const T = { enter: 0.3, fight: 1.2, stop: 4.3, together: 4.9, meet: 8.7, money: 8.9, stamp: 9.9, five: 10.7, card: 11.9 };
-  const BUMPS = [2.3, 3.1, 3.8];
-  // the pens enter: two plucks, one each
+  const T = { enter: 0.3, clash: 1.0, stop: 4.6, sync: 5.4, erase: 7.8, eraseEnd: 10.3, money: 10.8, stamp: 11.6, five: 12.5, card: 13.7 };
+  const BUMPS = [2.2, 3.0, 3.9];
   pluck(out, T.enter, N.C4, 0.7, 0.3); pluck(out, T.enter + 0.35, N.G4, 0.7, 0.3);
-  // the fight: a nagging bass on two notes a semitone apart, ticks, swishes
-  for (let t = T.fight, i = 0; t < T.stop; t += BEAT / 2, i++) {
+  // the clash: a nagging bass on two notes a semitone apart, ticks, swishes
+  for (let t = T.clash, i = 0; t < T.stop; t += BEAT / 2, i++) {
     bass(out, t, i % 4 < 2 ? N.E2 : N.F2, 0.75, 0.2);
     tick(out, t, i % 2 === 0 ? 0.9 : 0.45, i % 2 === 0 ? 1300 : 2200);
     if (i % 2 === 1) swish(out, t, 0.35, 0.12);
   }
   for (const b of BUMPS) { kick(out, b, 1.0); tick(out, b + 0.02, 1.2, 800); }
-  // they stop: silence but a thin held note, one questioning bell
-  pad(out, T.stop, [N.G3, N.C4], 0.5, T.together - T.stop + 0.4);
-  bell(out, T.stop + 0.2, N.G4, 0.5, 1.0);
-  // together: a warm chord that grows, a rising harp figure, a kick on the beat
-  pad(out, T.together, [N.C3, N.E3, N.G3, N.C4], 0.9, T.money - T.together + 0.3);
+  // they stop: a thin held note, one questioning bell
+  pad(out, T.stop, [N.G3, N.C4], 0.5, T.sync - T.stop + 0.4);
+  bell(out, T.stop + 0.3, N.G4, 0.5, 1.0); bell(out, T.stop + 0.55, N.B3, 0.4, 0.9);
+  // in sync: a warm chord, a rising harp figure, a soft beat
+  pad(out, T.sync, [N.C3, N.E3, N.G3, N.C4], 0.9, T.erase - T.sync + 0.3);
   const rise = [N.C4, N.E4, N.G4, N.C5, N.E4, N.G4, N.C5, N.E5, N.G4, N.C5, N.E5, N.G5];
-  for (let t = T.together + 0.2, i = 0; t < T.meet; t += BEAT / 2, i++) {
-    harp(out, t, rise[i % rise.length], 0.5 + (t - T.together) * 0.09, 0.3);
+  for (let t = T.sync + 0.2, i = 0; t < T.erase - 0.1; t += BEAT / 2, i++) {
+    harp(out, t, rise[i % rise.length], 0.5 + (t - T.sync) * 0.1);
     if (i % 2 === 0) kick(out, t, 0.5); else hat(out, t, 0.45);
   }
-  // the meet: a bell, then FUNDED -- a big bright hit with shimmer
-  bell(out, T.meet, N.C5, 0.8, 1.0);
+  // the eraser: a scrubbing rhythm of swishes over a chord that keeps growing
+  strings(out, T.erase, [N.C3, N.G3, N.C4, N.E4], 0.7, T.eraseEnd - T.erase + 0.4);
+  for (let t = T.erase, i = 0; t < T.eraseEnd; t += BEAT / 4, i++) { swish(out, t, 0.45 + (i % 2) * 0.2, 0.09); if (i % 4 === 0) kick(out, t, 0.55); if (i % 4 === 2) hat(out, t, 0.5); }
+  for (let t = T.erase + 0.5, i = 0; t < T.eraseEnd; t += BEAT, i++) harp(out, t, [N.C5, N.E5, N.G5, N.C5][i % 4], 0.45 + i * 0.05);
+  // it's done: one right rocket -- a clean bright bell and a chord
+  bell(out, T.eraseEnd, N.C5, 0.9, 1.2); bell(out, T.eraseEnd + 0.15, N.E5, 0.6, 1.0); shimmer(out, T.eraseEnd, 0.6, 1.2);
+  pad(out, T.eraseEnd, [N.C3, N.E3, N.G3, N.C4, N.E4], 0.9, T.stamp - T.eraseEnd + 0.3);
+  // FUNDED: the hit
   kick(out, T.stamp, 1.4, 1.2); crash(out, T.stamp, 0.9, 1.4); shimmer(out, T.stamp, 0.8, 1.6);
   strings(out, T.stamp, [N.C3, N.G3, N.C4, N.E4, N.G4], 1.1, T.five - T.stamp + 0.3);
   // the high five: the biggest chord, a clap
   clap(out, T.five + 0.05, 1.2); kick(out, T.five, 1.2, 1.2);
   bell(out, T.five, N.E5, 0.9, 1.4); bell(out, T.five + 0.12, N.G5, 0.7, 1.2);
   strings(out, T.five, [N.C3, N.E3, N.G3, N.C4, N.E4, N.G4, N.C5], 1.3, T.card - T.five + 0.4);
-  // the card: it lands, and holds
+  // the card
   bell(out, T.card, 1046.5, 1.0, 1.8); bell(out, T.card + 0.15, 1318.5, 0.6, 1.4); shimmer(out, T.card, 0.9, 2.4);
-  pad(out, T.card, [N.C3, N.G3, N.C4, N.E4], 1.0, 2.5);
+  pad(out, T.card, [N.C3, N.G3, N.C4, N.E4], 1.0, 2.7);
   write(out, 'duo_bed.mp3', 0.6);
-  console.log('duo_bed.mp3      14.4s, 120bpm, C major -- a nagging bass and bumps for the fight, a rising harp bed together, a hit for FUNDED, a chord for the high five');
+  console.log('duo_bed.mp3      16.4s, 120bpm, C major -- bass and bumps for the clash, a harp bed in sync, scrubbing swishes for the eraser, a hit for FUNDED, a chord for the high five');
 }
 
 lifeBed();
