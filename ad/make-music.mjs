@@ -580,7 +580,81 @@ function duoBed() {
   console.log('duo_bed.mp3      16.4s, 120bpm, C major -- bass and bumps for the clash, scrubbing swishes for the eraser, a bell when it turns out right, a harp bed in sync, a hit for FUNDED');
 }
 
+// ---------------------------------------------------------------------------
+// The three 10s portrait ads: 10.4s, 120bpm. All three share a shape -- one
+// big hit for the slam, a light ticking pulse while the pencil works, a
+// section that belongs to whatever comes alive, and a bright card -- and
+// differ in that middle section: the tree climbs, the cat sneaks and gets
+// clobbered, the lizard turns into something with brass behind it. Cut times
+// are shorts.html's T table.
+// ---------------------------------------------------------------------------
+function shortsBed(v) {
+  noiseRng = rng({ tree: 1111, cat: 2222, rex: 3333 }[v]);
+  const out = new Float32Array(Math.ceil(10.4 * SR));
+  const BEAT = 60 / 120;
+  const T = { slam: 0.20, draw: 0.95, drawn: 4.45, alive: 4.75, card: 8.50 };
+  const A = x => T.alive + x;                       // a time in the "it lives" section
+
+  // the slam: the loudest thing in the film, in the first fifth of a second
+  kick(out, T.slam, 1.6, 1.6); crash(out, T.slam, 1.0, 1.5); timpani(out, T.slam, 1.5, 52);
+  tick(out, T.slam + 0.02, 1.2, 900);
+  // the pencil at work: a tick pulse and pencil swishes, kept under everything
+  for (let t = T.draw, i = 0; t < T.drawn; t += BEAT / 2, i++) {
+    tick(out, t, i % 2 === 0 ? 0.75 : 0.35, i % 2 === 0 ? 1300 : 2200);
+    if (i % 2 === 1) swish(out, t, 0.30, 0.11);
+    if (i % 4 === 0) bass(out, t, i % 8 === 0 ? N.C2 : N.G2, 0.45, 0.18);
+  }
+  pad(out, T.draw, [N.C3, N.G3], 0.35, T.drawn - T.draw);
+
+  if (v === 'tree') {
+    // it climbs: a harp figure going up, strings swelling under it, a bell as
+    // the canopy opens, a knock and a shrug for the apple
+    strings(out, A(0), [N.C3, N.E3, N.G3, N.C4], 0.85, 3.5);
+    const up = [N.C4, N.E4, N.G4, N.C5, N.E5, N.G5, N.C5, N.E5];
+    for (let i = 0; i < 16; i++) { const t = A(0.15 + i * BEAT / 2);
+      harp(out, t, up[i % up.length], 0.42 + i * 0.035);
+      if (i % 4 === 0) kick(out, t, 0.45); else if (i % 2 === 0) hat(out, t, 0.4); }
+    bell(out, A(2.15), N.C5, 0.9, 1.6); bell(out, A(2.3), N.E5, 0.6, 1.3); shimmer(out, A(2.15), 0.7, 1.8);
+    tick(out, A(3.12), 1.2, 700); kick(out, A(3.12), 0.9, 1.3);            // the apple lands on him
+    pluck(out, A(3.3), N.G3, 0.7, 0.3); pluck(out, A(3.5), N.E3, 0.6, 0.35);
+  } else if (v === 'cat') {
+    // it sneaks: pizzicato bass on tiptoe, hats, then the slap and a slide
+    const creep = [N.A2, N.C3, N.E3, N.C3, N.A2, N.G2, N.A2, N.C3];
+    for (let i = 0; i < 18; i++) { const t = A(0.1 + i * BEAT / 2);
+      if (t > A(2.3)) break;
+      bass(out, t, creep[i % creep.length], 0.6, 0.16);
+      pluck(out, t, creep[i % creep.length] * 4, 0.3, 0.16);
+      if (i % 2 === 1) hat(out, t, 0.4); }
+    bell(out, A(1.75), N.E5, 0.5, 0.8);                                     // the fish goes up
+    slide(out, A(1.8), 300, 900, 0.5, 0.7);
+    clap(out, A(2.3), 1.3); kick(out, A(2.3), 1.2, 1.4); crash(out, A(2.3), 0.7, 0.9);   // the slap
+    slide(out, A(2.45), 800, 220, 0.6, 0.8);                                // and the comedown
+    pluck(out, A(3.0), N.C4, 0.5, 0.3); pluck(out, A(3.2), N.A3, 0.45, 0.35);
+    tick(out, A(3.35), 0.8, 2400);                                          // the splash home
+    pad(out, A(3.4), [N.A2, N.C3, N.E3], 0.6, 1.2);
+  } else {
+    // it does not stay small: a drone, a roar, and something heavy running
+    pad(out, A(0), [N.C2, N.G2], 0.7, 2.2);
+    for (let i = 0; i < 6; i++) timpani(out, A(0.3 + i * 0.22), 0.4 + i * 0.1, 60 - i * 2);  // it grows
+    slide(out, A(1.1), 120, 320, 0.5, 0.7);
+    brass(out, A(1.55), [N.C2, N.G2, 155.56], 1.5, 0.85); crash(out, A(1.6), 0.9, 1.3);      // the roar
+    timpani(out, A(1.55), 1.5, 48);
+    for (let t = A(2.0), i = 0; t < A(3.5); t += BEAT / 2, i++) {            // the chase
+      timpani(out, t, i % 2 ? 0.6 : 1.1, i % 4 === 2 ? 72 : 55);
+      hat(out, t + BEAT / 4, 0.45); }
+    strings(out, A(2.0), [N.C3, 155.56, N.G3], 0.8, 1.8);
+    timpani(out, A(3.6), 1.2, 46); brass(out, A(3.6), [N.C2, N.G2], 1.0, 0.7);
+  }
+
+  // the card
+  bell(out, T.card, 1046.5, 1.0, 1.7); bell(out, T.card + 0.15, 1318.5, 0.6, 1.3);
+  shimmer(out, T.card, 0.9, 2.0); pad(out, T.card, [N.C3, N.G3, N.C4, N.E4], 1.0, 1.7);
+  write(out, `shorts_${v}_bed.mp3`, 0.6);
+  console.log(`shorts_${v}_bed.mp3  10.4s, 120bpm -- a slam, a pencil pulse, ${{ tree: 'a harp climbing and one apple', cat: 'pizzicato and a slap', rex: 'a drone, a roar and something heavy running' }[v]}, then the card`);
+}
+
 lifeBed();
 mosquitoBed();
 knightsBed();
 duoBed();
+for (const v of ['tree', 'cat', 'rex']) shortsBed(v);

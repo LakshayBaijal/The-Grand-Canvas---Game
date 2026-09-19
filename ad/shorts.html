@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Canvas — 10s portrait ads</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; transform-origin: center; transform: translate(-50%, -50%); background: #1A1630; }
+  #c { position: absolute; inset: 0; }
+  #wg { position: absolute; border-radius: 22px; opacity: 0; box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none; }
+  #start { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer; background: rgba(11,9,32,.92); color: #FFC53D; text-align: center; }
+  #start b { display: block; font-size: 64px; font-weight: 900; letter-spacing: 4px; }
+  #start span { display: block; margin-top: 24px; font-size: 26px; color: #9E97CE; line-height: 1.5; }
+  #start kbd { color: #F6F4FF; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <img id="wg" src="assets/whosegames.gif" alt="">
+  <div id="start"><div><b id="title">DRAW ANYTHING</b><span>10 second portrait ad &middot; 1080&times;1920<br><br><kbd>click</kbd> or <kbd>space</kbd> to play<br><kbd>R</kbd> replay &nbsp;&middot;&nbsp; <kbd>M</kbd> mute &nbsp;&middot;&nbsp; <kbd>L</kbd> loop</span></div></div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+/**
+ * The 10-second portrait ads -- ?v=tree, ?v=cat, ?v=rex.
+ *
+ * Built for a feed, which is a different job from the trailers: nobody
+ * chose to watch this, so the first second has to take the frame by force
+ * and the whole story has to be over before a thumb moves. Hence the slam
+ * -- the pencil drops in and hits the paper hard enough to shake the
+ * camera and throw ink -- and hence only one idea per film, drawn in three
+ * and a half seconds and paid off in under four.
+ *
+ *   0.00  the slam: pencil down, ink splat, shake, "DRAW ANYTHING"
+ *   0.95  the pencil draws the scene
+ *   4.75  it comes alive -- the one thing each film is about
+ *   8.50  the card
+ *
+ * Everything on the paper is a line puppet, same as life.html: a stroke is
+ * a function of a pose and a pose is a function of time, and the wobble is
+ * reseeded eight times a second for the boil of pencil animation. The three
+ * variants share the paper, the slam, the pencil and the card, and differ
+ * only in a still() to be drawn and a live(a) to move.
+ */
+const V = new URLSearchParams(location.search).get('v') || 'tree';
+const W2 = 1080, H2 = 1920;
+const T = { slam: 0.20, draw: 0.95, drawn: 4.45, alive: 4.75, card: 8.50, end: 10.0 };
+const INK = '#23201d';
+
+// --- the sheet -------------------------------------------------------------
+const PW = 920, PH = 1150, PX = (W2 - PW) / 2, PY = 330;
+const off = document.createElement('canvas'); off.width = PW; off.height = PH;
+const og = off.getContext('2d');
+
+const P = (x, y) => ({ x, y });
+const seg = (a, b, n = 8) => Array.from({ length: n + 1 }, (_, i) => P(a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n));
+const circ = (cx, cy, r, n = 26, from = 0, to = Math.PI * 2) => Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n; return P(cx + Math.cos(a) * r, cy + Math.sin(a) * r); });
+const ell = (cx, cy, rx, ry, n = 30, from = 0, to = Math.PI * 2) => Array.from({ length: n + 1 }, (_, i) => { const a = from + (to - from) * i / n; return P(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry); });
+const qcurve = (a, b, c, n = 14) => Array.from({ length: n + 1 }, (_, i) => { const u = i / n, k = 1 - u;
+  return P(k * k * a.x + 2 * k * u * b.x + u * u * c.x, k * k * a.y + 2 * k * u * b.y + u * u * c.y); });
+
+function breeze(t) { return 1 + Math.exp(-Math.pow((t - T.slam) / 0.5, 2)) * 2.2; }
+function layPaper(t) {
+  const strips = 34, sw = PW / strips, k = breeze(t);
+  g.save();
+  g.translate(PX + PW / 2, PY + PH / 2); g.rotate(Math.sin(t * 0.9) * 0.005 * k); g.translate(-(PX + PW / 2), -(PY + PH / 2));
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < strips; i++) {
+      const u = (i + 0.5) / strips, free = Math.pow(u, 1.6);
+      const lift = (Math.sin(u * 5.2 - t * 2.1) * 8 * k + Math.sin(u * 11 - t * 3.7) * 3 * k) * free;
+      const x = PX + i * sw;
+      if (pass === 0) { g.fillStyle = 'rgba(0,0,0,.30)'; g.fillRect(x + 12, PY + 18 + lift * .5 + free * 6 * k, sw + 1, PH); }
+      else g.drawImage(off, i * sw, 0, sw, PH, x, PY + lift, sw + 1, PH);
+    }
+  }
+  const tape = (x, y, rot) => { g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-44, -12, 88, 24); g.fillStyle = 'rgba(0,0,0,.05)'; g.fillRect(-44, -12, 88, 3); g.restore(); };
+  tape(PX + 58, PY + 4, -.08);
+  tape(PX + PW - 58, PY + 4 + Math.sin(t * 2.1 - 5.2) * 2 * k, .07);
+  g.restore();
+}
+
+function boilSeed(t) { return 100 + Math.floor(t * 8); }
+function inkStroke(ctx, pts, width, upto, seed, wob = 2.2) {
+  const r = rng(seed), n = Math.max(2, Math.ceil(pts.length * upto));
+  ctx.strokeStyle = INK; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) { const p = pts[i], wx = (r() - .5) * wob, wy = (r() - .5) * wob; i ? ctx.lineTo(p.x + wx, p.y + wy) : ctx.moveTo(p.x + wx, p.y + wy); }
+  ctx.stroke();
+  return pts[n - 1];
+}
+
+// --- the man, small enough to share a frame with whatever else turns up ------
+function man(x, gy, { arm = 0, crouch = 0, run = 0, phase = 0, lean = 0, look = 0 } = {}) {
+  const s = 1 - crouch * .18;
+  const hipY = gy - 130 * s, shY = gy - 228 * s, headY = gy - 276 * s;
+  const tip = crouch * 26 + lean;
+  const out = [];
+  out.push([circ(x + tip * 1.4, headY - tip * .2, 31), 6]);
+  out.push([seg(P(x + tip, shY), P(x, hipY)), 7]);
+  const sw = Math.sin(phase) * 34 * run, lift = Math.max(0, Math.cos(phase)) * 22 * run;
+  out.push([seg(P(x, hipY), P(x - 28 - sw, gy - lift)), 6]);
+  out.push([seg(P(x, hipY), P(x + 26 + sw, gy)), 6]);
+  const ax = x + tip, ay = shY + 8;
+  const a = arm <= 1 ? lerp(.9, -2.2, arm) : lerp(-2.2, .35, arm - 1);
+  const elbow = P(ax + Math.sin(a) * 50, ay + Math.cos(a) * 50);
+  const bend = arm <= 1 ? lerp(.2, 1.4, arm) : lerp(1.4, -.1, arm - 1);
+  const hand = P(elbow.x + Math.sin(a + bend) * 48, elbow.y + Math.cos(a + bend) * 48);
+  out.push([seg(P(ax, ay), elbow), 6]); out.push([seg(elbow, hand), 6]);
+  const ba = -.5 - run * .9 + Math.sin(phase + Math.PI) * .7 * run;
+  out.push([seg(P(ax, ay), P(ax + Math.sin(ba) * 78, ay + Math.cos(ba) * 78)), 6]);
+  // face: two eyes, shifted by `look` (-1 back over the shoulder .. +1 forward)
+  const fx = x + tip * 1.4 + look * 10, fy = headY - tip * .2;
+  out.push([circ(fx + 8, fy - 6, 2.5, 8), 5]); out.push([circ(fx + 19, fy - 6, 2.5, 8), 5]);
+  return { strokes: out, hand, head: P(x + tip * 1.4, headY - tip * .2) };
+}
+
+// ===========================================================================
+// the three films
+// ===========================================================================
+// A lumpy closed outline -- foliage, not a circle. Three circles read as
+// three circles; a wobbling radius reads as a tree.
+const blob = (cx, cy, r, seed = 1, n = 46, squash = .86) => {
+  const r0 = rng(seed), k1 = .10 + r0() * .06, k2 = .05 + r0() * .05, p1 = r0() * 6, p2 = r0() * 6;
+  return Array.from({ length: n + 1 }, (_, i) => { const a = i / n * Math.PI * 2;
+    const rr = r * (1 + Math.sin(a * 5 + p1) * k1 + Math.sin(a * 8 + p2) * k2);
+    return P(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * squash); });
+};
+
+// Catmull-Rom through a handful of control points. Bodies built straight from
+// their corners read as crystals; run through here they read as animals.
+const smooth = (pts, per = 8, closed = true) => {
+  const m = pts.length, get = i => pts[(i % m + m) % m], out = [];
+  const count = closed ? m : m - 1;
+  for (let i = 0; i < count; i++) {
+    const p0 = closed ? get(i - 1) : pts[Math.max(0, i - 1)], p1 = get(i);
+    const p2 = closed ? get(i + 1) : pts[Math.min(m - 1, i + 1)], p3 = closed ? get(i + 2) : pts[Math.min(m - 1, i + 2)];
+    for (let j = 0; j < per; j++) { const t = j / per, t2 = t * t, t3 = t2 * t;
+      out.push(P(
+        .5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        .5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3))); }
+  }
+  out.push(closed ? out[0] : pts[m - 1]);
+  return out;
+};
+
+const SCENES = {
+
+// --- a seed becomes a tree, and the tree has opinions ----------------------
+tree: {
+  title: 'DRAW A SEED',
+  caps: [['DRAW A SEED.', T.draw + .3, T.alive + .2], ['WATCH IT GROW.', T.alive + .3, T.card]],
+  GY: 1030,
+  still() {
+    const out = [];
+    out.push([seg(P(70, 1030), P(850, 1037), 12), 5]);                     // ground
+    for (const st of man(340, 1030).strokes) out.push(st);
+    out.push([qcurve(P(586, 1030), P(620, 978), P(654, 1030)), 5]);        // the mound
+    out.push([seg(P(620, 1000), P(620, 936)), 5]);                         // the sprout
+    out.push([qcurve(P(620, 948), P(578, 908), P(620, 886)), 4]);          // two little leaves
+    out.push([qcurve(P(620, 948), P(662, 908), P(620, 886)), 4]);
+    return out;
+  },
+  live(a) {
+    const grow = easeOut(win(a, .15, 1.9));
+    const out = [];
+    out.push([seg(P(70, 1030), P(850, 1037), 12), 5]);
+    // The trunk stops at 500, which is inside the canopy's lower edge: run any
+    // higher and it spears straight out of the top of the tree, because the
+    // foliage is an outline with nothing to hide it.
+    const topY = lerp(940, 500, grow);
+    const edge = (x0, x1, xm) => qcurve(P(x0, 1030), P(xm, lerp(980, 700, grow)), P(x1, topY), 16);
+    out.push([edge(572, 610, 584), 6]);
+    out.push([edge(668, 630, 656), 6]);
+    out.push([qcurve(P(534, 1032), P(568, 1008), P(584, 1028)), 4]);       // root flare
+    out.push([qcurve(P(706, 1032), P(672, 1008), P(656, 1028)), 4]);
+    // branches: one out over his head, one the other way
+    const b1 = easeOut(win(a, .8, 1.4)), b2 = easeOut(win(a, 1.0, 1.6));
+    if (b1 > 0) out.push([qcurve(P(596, 760), P(508, 700), P(lerp(596, 402, b1), lerp(760, 654, b1))), 6]);
+    if (b2 > 0) out.push([qcurve(P(644, 690), P(744, 638), P(lerp(644, 830, b2), lerp(690, 604, b2))), 6]);
+    // the canopy: three lumpy masses that swell out of the top
+    const cu = Math.min(1, back(win(a, 1.3, 2.15)));
+    if (cu > 0) {
+      out.push([blob(620, lerp(700, 306, cu), 246 * cu, 4), 6]);
+      out.push([blob(404, lerp(700, 430, cu), 138 * cu, 8), 6]);
+      out.push([blob(842, lerp(700, 404, cu), 126 * cu, 12), 6]);
+    }
+    // the apple: forms on the low branch, hangs, drops, bonks him, rolls off
+    const app = win(a, 2.05, 2.35);
+    if (app > 0) {
+      const fall = win(a, 2.8, 3.12), roll = win(a, 3.12, 3.9);
+      const hx = 412, hy = 690;
+      let ax = hx, ay = hy, r = 30 * Math.min(1, back(app));
+      if (fall > 0) ay = lerp(hy, 700, fall * fall);                       // gravity, not a lerp
+      if (roll > 0) { ax = lerp(hx, 214, easeOut(roll)); ay = lerp(696, 1006, Math.min(1, roll * 2.1)); }
+      out.push([circ(ax, ay, r), 6]);
+      if (fall <= 0) out.push([seg(P(ax + 4, ay - r), P(ax + 10, ay - r - 18), 3), 4]);
+      if (roll > .35) { const sp = Math.sin(win(a, 3.3, 3.9) * Math.PI) * 16;   // it wobbles as it goes
+        out.push([circ(ax, ay, r * .34, 10, sp, sp + 2.2), 3]); }
+    }
+    // him: watches it climb, gets bonked, rubs his head
+    const bonked = win(a, 3.12, 3.7);
+    const lean2 = bonked > 0 && bonked < 1 ? Math.sin(bonked * Math.PI * 3) * 10 * (1 - bonked) : 0;
+    for (const st of man(340, 1030, {
+      crouch: easeOut(win(a, 3.3, 3.7)) * .45,
+      lean: lean2,
+      look: a > .4 && a < 3.1 ? .6 : 0,
+      arm: a > 3.35 ? 1.3 + Math.sin(a * 9) * .12 : 0,
+    }).strokes) out.push(st);
+    return out;
+  },
+  extras(a, seed) {
+    const u = win(a, 3.12, 3.72);
+    if (u > 0 && u < 1) for (let i = 0; i < 5; i++) {                      // the bonk, as stars
+      const ang = -Math.PI / 2 + (i - 2) * .52, d = 46 + u * 74;
+      og.globalAlpha = 1 - u;
+      inkStroke(og, seg(P(412 + Math.cos(ang) * d * .55, 690 + Math.sin(ang) * d * .55), P(412 + Math.cos(ang) * d, 690 + Math.sin(ang) * d), 2), 5, 1, seed + i);
+      og.globalAlpha = 1; }
+  },
+},
+
+// --- a cat, a fishbowl, and one very quick fish ----------------------------
+// The bowl goes up on a table and the cat reaches up to it from the floor.
+// Side by side the two of them made a wide, short picture with half a sheet
+// of empty paper above it; stacked, the same gag fills a portrait frame --
+// and a cat straining up at a bowl over its head is the funnier drawing.
+cat: {
+  title: 'DRAW A CAT',
+  caps: [['DRAW A CAT.', T.draw + .3, T.alive + .2], ['IT HAS OTHER PLANS.', T.alive + .3, T.card]],
+  FLOOR: 1040, TABLE: 700, BX: 640, BY: 490, BR: 210, A0: .78,
+  table(out) {
+    out.push([seg(P(60, 1040), P(860, 1047), 12), 5]);                     // the floor
+    out.push([seg(P(404, 700), P(900, 704), 10), 6]);                      // the table top
+    out.push([seg(P(486, 704), P(496, 1040), 6), 5]);                      // legs
+    out.push([seg(P(846, 704), P(858, 1040), 6), 5]);
+  },
+  // y grows downward, so the arc that makes the BODY of the bowl runs from
+  // just above the middle on the right, down through the bottom and back up
+  // the left -- increasing angle, -a0 to PI + a0. With the signs the other
+  // way round it draws the shallow bottom cap and hangs the rim in mid-air
+  // above it, which is a saucer, not a fishbowl.
+  bowl(out) {
+    const { BX: cx, BY: cy, BR: R, A0: a0 } = this;
+    const rimY = cy - Math.sin(a0) * R, rimX = Math.cos(a0) * R;
+    out.push([circ(cx, cy, R, 40, -a0, Math.PI + a0), 6]);                 // the body, open at the top
+    out.push([ell(cx, rimY, rimX, 26), 5]);                                // the mouth
+    const wy = rimY + 72, half = Math.sqrt(Math.max(0, R * R - Math.pow(cy - wy, 2)));
+    out.push([[P(cx - half, wy), P(cx - half * .4, wy + 16), P(cx + half * .3, wy + 6), P(cx + half, wy + 12)], 4]);
+  },
+  fish(out, x, y, rot, flip = 1) {
+    const R = (px, py) => { const c = Math.cos(rot), sn = Math.sin(rot); return P(x + (px * c - py * sn) * flip, y + px * sn + py * c); };
+    out.push([[R(-40, 0), R(-12, -26), R(30, -8), R(48, 0), R(30, 10), R(-12, 24), R(-40, 0)], 5]);
+    out.push([[R(-40, 0), R(-74, -26), R(-66, 0), R(-74, 26), R(-40, 0)], 5]);
+    out.push([circ(R(28, -5).x, R(28, -5).y, 4, 8), 4]);
+  },
+  head(out, cx, hy, { squint = 0, xeyes = false, open = 0 } = {}) {
+    out.push([blob(cx, hy, 94, 21, 34, .96), 6]);
+    out.push([[P(cx - 64, hy - 68), P(cx - 78, hy - 150), P(cx - 8, hy - 90)], 5]);
+    out.push([[P(cx + 64, hy - 68), P(cx + 78, hy - 150), P(cx + 8, hy - 90)], 5]);
+    if (xeyes) for (const ex of [cx - 31, cx + 31]) {
+      out.push([seg(P(ex - 14, hy - 28), P(ex + 14, hy), 2), 5]);
+      out.push([seg(P(ex - 14, hy), P(ex + 14, hy - 28), 2), 5]); }
+    else for (const ex of [cx - 31, cx + 31]) {
+      if (squint > .5) out.push([qcurve(P(ex - 14, hy - 10), P(ex, hy - 22), P(ex + 14, hy - 10)), 5]);
+      else out.push([circ(ex, hy - 13, 6, 10), 5]); }
+    out.push([[P(cx - 10, hy + 14), P(cx, hy + 24), P(cx + 10, hy + 14)], 4]);
+    if (open > 0) out.push([ell(cx, hy + 42, 18 * open, 15 * open, 14), 4]);
+    for (const d of [-1, 1]) { out.push([seg(P(cx + d * 32, hy + 18), P(cx + d * 100, hy + 6), 3), 3]);
+      out.push([seg(P(cx + d * 32, hy + 30), P(cx + d * 98, hy + 38), 3), 3]); }
+  },
+  body(out, x, y) { out.push([smooth([P(x - 124, y + 10), P(x - 98, y - 88), P(x, y - 114), P(x + 102, y - 80), P(x + 126, y + 16), P(x + 62, y + 98), P(x - 68, y + 98)], 7), 6]); },
+  still() {
+    const out = [];
+    this.table(out);
+    this.body(out, 236, 900);
+    this.head(out, 236, 688, {});
+    out.push([qcurve(P(118, 906), P(28, 812), P(66, 996)), 6]);            // tail
+    out.push([smooth([P(320, 940), P(356, 1000), P(384, 1038)], 6, false), 6]);   // front leg, down
+    out.push([ell(392, 1038, 26, 13), 5]);
+    this.bowl(out);
+    this.fish(out, this.BX, 540, .1);
+    return out;
+  },
+  live(a) {
+    const out = [];
+    this.table(out);
+    const reach = easeOut(win(a, .5, 1.5)) * (1 - easeOut(win(a, 2.3, 2.5)));
+    const slap = win(a, 2.3, 2.55);
+    const recoil = Math.sin(Math.min(1, win(a, 2.35, 3.2)) * Math.PI);
+    const lean = reach * 30 - recoil * 66;
+    const cx = 236 + lean, hy = 688 - reach * 34 + recoil * 34;
+    this.body(out, 236 + lean * .3, 900 - reach * 12);
+    const tw = Math.sin(a * 7) * (a < 2.3 ? 30 : 10);
+    out.push([qcurve(P(118, 906), P(28 - tw * .4, 812 - tw), P(66, 996 + tw)), 6]);
+    this.head(out, cx, hy, { xeyes: slap > .4 && a < 3.6, squint: reach, open: slap > .4 ? Math.min(1, recoil * 1.4) : 0 });
+    // the front leg stretches up over the rim and dips in -- cats are elastic
+    const rimY = this.BY - Math.sin(this.A0) * this.BR;
+    const px = lerp(392, 566, reach), py = lerp(1038, rimY + 66, reach) - Math.sin(reach * Math.PI) * 90;
+    out.push([smooth([P(320 + lean * .6, 940), P(lerp(356, 470, reach), lerp(1000, 760, reach) - Math.sin(reach * Math.PI) * 60), P(px, py)], 8, false), 6]);
+    out.push([ell(px + 6, py, 26, 14), 5]);
+    this.bowl(out);
+    // the fish: idling, then out over the rim and down onto the cat, then home
+    const jump = win(a, 1.75, 2.45), home = win(a, 2.55, 3.35);
+    if (home > 0) { const u = easeOut(home);
+      this.fish(out, lerp(cx + 96, this.BX, u), lerp(hy - 8, 540, u) - Math.sin(u * Math.PI) * 190, lerp(-.5, .5, u), -1);
+    } else if (jump > 0) {
+      this.fish(out, lerp(this.BX, cx + 96, jump), lerp(540, hy - 8, jump) - Math.sin(jump * Math.PI) * 150, lerp(.1, -.8, jump));
+    } else {
+      this.fish(out, this.BX + Math.sin(a * 5) * 26, 546 + Math.cos(a * 3) * 12, .1 + Math.sin(a * 5) * .12);
+    }
+    return out;
+  },
+  extras(a, seed) {
+    const u = win(a, 2.3, 2.75);
+    if (u > 0 && u < 1) { const cx = 236 + 30, cy = 660;                   // the slap
+      for (let i = 0; i < 8; i++) { const ang = i / 8 * Math.PI * 2, d0 = 42 + u * 48, d1 = 84 + u * 116;
+        og.globalAlpha = 1 - u;
+        inkStroke(og, seg(P(cx + Math.cos(ang) * d0, cy + Math.sin(ang) * d0), P(cx + Math.cos(ang) * d1, cy + Math.sin(ang) * d1), 2), 5, 1, seed + i);
+        og.globalAlpha = 1; } }
+    const sp = win(a, 3.25, 3.85);                                          // the splash going home
+    const rimY = this.BY - Math.sin(this.A0) * this.BR;
+    if (sp > 0 && sp < 1) for (let i = 0; i < 7; i++) { const ang = -Math.PI / 2 + (i - 3) * .3, d = 40 + sp * 96;
+      og.globalAlpha = 1 - sp;
+      inkStroke(og, seg(P(this.BX + Math.cos(ang) * d * .5, rimY + Math.sin(ang) * d * .5), P(this.BX + Math.cos(ang) * d, rimY + Math.sin(ang) * d), 2), 4, 1, seed + 30 + i);
+      og.globalAlpha = 1; }
+  },
+},
+
+// --- a very small lizard, briefly ------------------------------------------
+rex: {
+  title: 'DRAW A LIZARD',
+  caps: [['DRAW SOMETHING SMALL.', T.draw + .3, T.alive + .2], ["IT DOESN'T STAY SMALL.", T.alive + .3, T.card]],
+  GY: 1030,
+  /** One reptile, any size. s scales it about its feet; jaw opens the mouth. */
+  dino(out, x, gy, s, { jaw = 0, phase = 0, run = 0 } = {}) {
+    const f = (dx, dy) => P(x + dx * s, gy + dy * s);
+    const bob = Math.sin(phase) * 5 * run;
+    const by = -86 + bob;
+    out.push([smooth([f(-58, by + 4), f(-20, by - 28), f(30, by - 20), f(62, by + 4), f(34, by + 34), f(-24, by + 36)], 7), 6 * s]);
+    const hx = 100, hy = by - 68 + bob * .5;
+    out.push([smooth([f(44, by - 14), f(78, by - 46), f(hx - 14, hy + 16)], 7, false), 6 * s]);   // neck
+    out.push([smooth([f(hx - 20, hy + 12), f(hx - 14, hy - 20), f(hx + 42, hy - 18), f(hx + 64, hy + 2)], 6), 6 * s]);
+    const j = jaw * .6;
+    const jp = (dx, dy) => { const ox = hx + 2, oy = hy + 8, c = Math.cos(j), sn = Math.sin(j);
+      return f(ox + (dx * c - dy * sn), oy + (dx * sn + dy * c)); };
+    out.push([[jp(0, 0), jp(34, 10), jp(58, 4)], 6 * s]);                               // jaw
+    if (jaw > .25) for (let i = 0; i < 3; i++) {
+      out.push([[f(hx + 10 + i * 17, hy + 10), f(hx + 16 + i * 17, hy + 26)], 4 * s]);
+      out.push([[jp(10 + i * 17, 3), jp(15 + i * 17, -13)], 4 * s]); }
+    out.push([circ(f(hx + 18, hy - 6).x, f(hx + 18, hy - 6).y, 5 * s, 10), 5 * s]);     // eye
+    out.push([smooth([f(-58, by + 4), f(-114, by - 20), f(-170, by + 18), f(-206, by + 4)], 8, false), 6 * s]);  // tail
+    out.push([smooth([f(36, by + 10), f(62, by + 24), f(50, by + 40)], 6, false), 4 * s]);      // the famous little arm
+    const leg = (ox, ph) => { const swing = Math.sin(ph) * 32 * run, lift = Math.max(0, Math.cos(ph)) * 22 * run;
+      out.push([smooth([f(ox, by + 28), f(ox + swing * .4 + 12, -44), f(ox + swing, -lift - 4), f(ox + swing + 30, -lift)], 7, false), 6 * s]); };
+    leg(6, phase); leg(-30, phase + Math.PI);
+  },
+  still() {
+    const out = [];
+    out.push([seg(P(70, 962), P(850, 969), 12), 5]);
+    for (const st of man(772, 962).strokes) out.push(st);
+    this.dino(out, 262, 962, .30, { jaw: .1 });
+    return out;
+  },
+  live(a) {
+    const out = [];
+    out.push([seg(P(70, 962), P(850, 969), 12), 5]);
+    const s = lerp(.30, 2.70, easeOut(win(a, .3, 1.5)));
+    const roar = win(a, 1.55, 2.05);
+    const jaw = roar > 0 && roar < 1 ? Math.sin(roar * Math.PI) : (a > 2.05 ? .28 + Math.sin(a * 9) * .12 : .1);
+    const chase = easeOut(win(a, 2.0, 3.5));
+    this.dino(out, lerp(262, 548, chase), 962, s, { jaw, phase: a * 12, run: a > 2.0 && a < 3.5 ? 1 : 0 });
+    // he watches it grow, then legs it off the right edge
+    const flee = easeOut(win(a, 1.75, 3.3));
+    const mx = lerp(772, 1010, flee);
+    if (mx < 968) for (const st of man(mx, 962, {
+      run: a > 1.75 ? 1 : 0, phase: a * 15, lean: flee * 16,
+      look: a < 1.8 ? -1 : 0, arm: a > 1.75 ? 1.15 : 0,
+    }).strokes) out.push(st);
+    return out;
+  },
+  extras(a, seed) {
+    const roar = win(a, 1.55, 2.2);
+    if (roar > 0 && roar < 1) { const ox = 262 + 300, oy = 962 - 470;     // the roar, off the snout
+      for (let i = 0; i < 6; i++) { const ang = (i - 2.5) * .2, d0 = 40 + roar * 80, d1 = 110 + roar * 210;
+        og.globalAlpha = (1 - roar) * .9;
+        inkStroke(og, seg(P(ox + Math.cos(ang) * d0, oy + Math.sin(ang) * d0), P(ox + Math.cos(ang) * d1, oy + Math.sin(ang) * d1), 2), 5, 1, seed + i);
+        og.globalAlpha = 1; } }
+    if (a > 2.1 && a < 3.6) { const r = rng(Math.floor(a * 10) + 5);       // dust
+      for (let i = 0; i < 4; i++) { const px = 260 + r() * 400, pu = r();
+        og.globalAlpha = .45 - pu * .35;
+        inkStroke(og, circ(px, 954 - pu * 34, 8 + pu * 14, 10), 3, 1, seed + 40 + i);
+        og.globalAlpha = 1; } }
+  },
+},
+};
+
+const SC = SCENES[V] || SCENES.tree;
+document.getElementById('title').textContent = SC.title;
+
+// --- the pencil's plan: the still, stroke by stroke, timed by length --------
+const STILL = SC.still();
+const PLAN = (() => {
+  const len = s => s[0].reduce((a, p, i) => i ? a + Math.hypot(p.x - s[0][i - 1].x, p.y - s[0][i - 1].y) : 0, 0);
+  const w = STILL.map(s => Math.max(30, len(s)) + 40), tot = w.reduce((a, b) => a + b, 0);
+  const out = []; let t = T.draw;
+  for (const [i, s] of STILL.entries()) { const dur = (w[i] / tot) * (T.drawn - T.draw - .2); out.push({ s, t0: t, t1: t + dur * .88 }); t += dur; }
+  return out;
+})();
+
+// --- the slam --------------------------------------------------------------
+// The pencil falls in from above the frame and hits the paper at T.slam. The
+// ink it throws stays on the sheet -- specks a real pencil would leave.
+const SPLAT = (() => { const r = rng(5); return Array.from({ length: 16 }, () => {
+  const a = r() * Math.PI * 2, d = 40 + r() * 190;
+  return { x: PW * .5 + Math.cos(a) * d, y: 560 + Math.sin(a) * d * .7, r: 2 + r() * 5, t: .04 + r() * .10 }; }); })();
+
+function slamShake(t) {
+  const u = win(t, T.slam, T.slam + .38);
+  if (t < T.slam || u >= 1) return { x: 0, y: 0 };
+  const k = Math.pow(1 - u, 2) * 34;
+  return { x: Math.sin(t * 190) * k, y: Math.cos(t * 240) * k * .7 };
+}
+
+function paintSheet(t) {
+  og.setTransform(1, 0, 0, 1, 0, 0); og.clearRect(0, 0, PW, PH);
+  const G = g; g = og; paintPaper(0, 0, PW, PH); g = G;
+  og.strokeStyle = 'rgba(0,0,0,.06)'; og.lineWidth = 2; og.strokeRect(1, 1, PW - 2, PH - 2);
+  const seed = t < T.alive ? 7 : boilSeed(t);
+  // the ink the slam threw, and the blot where it landed
+  if (t >= T.slam) {
+    // The specks fly out hard, then settle to something faint: a pencil does
+    // leave marks, but at full strength they read as dirt on the paper rather
+    // than as the hit that put them there.
+    const settle = lerp(1, .22, easeOut(win(t, T.slam + .3, T.slam + 1.1)));
+    const b = win(t, T.slam, T.slam + .12);
+    og.globalAlpha = settle; inkStroke(og, circ(PW * .5, 560, 12 * b, 12), 6, 1, 3);
+    for (const sp of SPLAT) { const u = win(t, T.slam + sp.t, T.slam + sp.t + .16); if (u <= 0) continue;
+      inkStroke(og, circ(lerp(PW * .5, sp.x, easeOut(u)), lerp(560, sp.y, easeOut(u)), sp.r, 10), 3, 1, 3); }
+    og.globalAlpha = 1;
+  }
+  let tip = null;
+  if (t < T.alive) {
+    for (const p of PLAN) { if (t < p.t0) break; const u = win(t, p.t0, p.t1); const e = inkStroke(og, p.s[0], p.s[1], u, 7); if (u < 1) tip = e; }
+  } else {
+    const a = t - T.alive;
+    for (const [pts, w] of SC.live(a)) inkStroke(og, pts, w, 1, seed);
+    if (SC.extras) SC.extras(a, seed);
+  }
+  return tip;
+}
+
+function shortsFrame(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  const sh = slamShake(t);
+  g.translate(sh.x, sh.y);
+  // the wall
+  g.fillStyle = '#1A1630'; g.fillRect(-60, -60, W + 120, H + 120);
+  const light = g.createRadialGradient(400, 300, 0, 400, 300, 1500);
+  light.addColorStop(0, 'rgba(255,214,140,.22)'); light.addColorStop(1, 'rgba(255,214,140,0)');
+  g.fillStyle = light; g.fillRect(0, 0, W, H);
+
+  const tip = paintSheet(t);
+  const cardU = win(t, T.card, T.card + .28);
+  g.globalAlpha = 1 - cardU;
+  layPaper(t);
+
+  // the pencil: falling in, then drawing
+  if (t < T.slam) {
+    const u = 1 - win(t, 0, T.slam);                    // 1 at the top, 0 at the paper
+    pencil(PX + PW * .5, PY + 560 - u * u * 1800, 640, -0.55 - u * .5);
+  } else if (t < T.drawn && tip) {
+    const u = tip.x / PW, k = breeze(t);
+    const lift = (Math.sin(u * 5.2 - t * 2.1) * 8 * k + Math.sin(u * 11 - t * 3.7) * 3 * k) * Math.pow(u, 1.6);
+    pencil(PX + tip.x, PY + tip.y + lift, 560, -0.85);
+  }
+  g.globalAlpha = 1;
+
+  // the flash on impact
+  const fl = 1 - win(t, T.slam, T.slam + .22);
+  if (t >= T.slam && fl > 0) { g.fillStyle = `rgba(255,236,190,${fl * .5})`; g.fillRect(0, 0, W, H); }
+
+  // the hook, punched on at the slam and held while the drawing starts
+  const hk = back(win(t, T.slam + .02, T.slam + .3)) * (1 - win(t, T.draw + .5, T.draw + .9));
+  if (hk > 0) text('DRAW ANYTHING.', 540, 190, 86, C.primary, { spacing: 6, glow: 44, scale: Math.min(1, hk), alpha: Math.min(1, hk), rot: -.02 });
+
+  // captions under the sheet
+  const cap = (s, from, to) => { const al = easeOut(win(t, from, from + .25)) * (1 - win(t, to - .25, to));
+    if (al > 0) text(s, 540, 1610, 46, C.primary, { spacing: 4, alpha: al * (1 - cardU) }); };
+  for (const [s, from, to] of SC.caps) cap(s, from, to);
+
+  // the card
+  if (cardU > 0) { g.globalAlpha = cardU; g.fillStyle = '#0B0920'; g.fillRect(-60, -60, W + 120, H + 120); g.globalAlpha = 1; }
+  if (t >= T.card) {
+    const s = back(win(t, T.card + .05, T.card + .5)), size = 300 * Math.min(1, s);
+    const glow = g.createRadialGradient(540, 860, 0, 540, 860, 900);
+    glow.addColorStop(0, `rgba(255,197,61,${.34 * easeOut(cardU)})`); glow.addColorStop(1, 'rgba(255,197,61,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, W, H);
+    if (icon.complete && icon.naturalWidth) { g.save(); g.translate(540, 760); g.rotate((1 - Math.min(1, s)) * .3);
+      g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 60; g.shadowOffsetY = 26;
+      roundRect(-size / 2, -size / 2, size, size, size * .22); g.clip(); g.shadowColor = 'transparent';
+      g.drawImage(icon, -size / 2, -size / 2, size, size); g.restore(); }
+    const wu = easeOut(win(t, T.card + .3, T.card + .7));
+    text('GRAND CANVAS', 540, 1010 + (1 - wu) * 30, 78, C.primary, { spacing: 7, glow: 42, alpha: wu });
+    const tu = easeOut(win(t, T.card + .5, T.card + .9));
+    text('Every drawing has a life in it.', 540, 1090 + (1 - tu) * 22, 38, C.text, { weight: 700, alpha: tu });
+    text('a  W H O S E G A M E S  game', 540, 1700, 26, C.muted, { weight: 700, alpha: easeOut(win(t, T.card + .7, T.card + 1.1)) });
+  }
+  wg.style.opacity = t >= T.card ? easeOut(win(t, T.card + .7, T.card + 1.1)) : 0;
+}
+window.frame = shortsFrame;
+prepareStage(W2, H2, { x: 496, y: 1500, size: 88 });
+runPlayback(shortsFrame, T.end, [['bed', `assets/shorts_${V}_bed.mp3`, 0, .95]]);
+</script>
+</body>
+</html>
